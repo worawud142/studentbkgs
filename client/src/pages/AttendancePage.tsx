@@ -1,0 +1,489 @@
+import { trpc } from "@/lib/trpc";
+import TeacherLayout from "@/components/TeacherLayout";
+import { Button } from "@/components/ui/button";
+import { CheckCircle2, XCircle, Clock, BookOpen, ChevronLeft, ChevronRight, Save, QrCode, Camera, CameraOff } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { useParams } from "wouter";
+import { toast } from "sonner";
+
+type AttendanceStatus = "present" | "absent" | "late" | "excused";
+
+const statusConfig: Record<AttendanceStatus, { label: string; color: string; icon: React.ElementType }> = {
+  present: { label: "มา", color: "bg-green-100 text-green-700 border-green-300 hover:bg-green-200", icon: CheckCircle2 },
+  absent: { label: "ขาด", color: "bg-red-100 text-red-700 border-red-300 hover:bg-red-200", icon: XCircle },
+  late: { label: "สาย", color: "bg-yellow-100 text-yellow-700 border-yellow-300 hover:bg-yellow-200", icon: Clock },
+  excused: { label: "ลา", color: "bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-200", icon: BookOpen },
+};
+
+const EMPTY_STUDENTS: {
+  id: number;
+  studentNumber: number | null;
+  studentCode: string;
+  prefix: string | null;
+  firstName: string;
+  lastName: string;
+}[] = [];
+const EMPTY_ATTENDANCE: { studentId: number; status: AttendanceStatus }[] = [];
+const EMPTY_DATES: { date: string | Date }[] = [];
+
+declare global {
+  interface Window {
+    BarcodeDetector?: new (options?: { formats?: string[] }) => {
+      detect(source: HTMLVideoElement): Promise<Array<{ rawValue?: string }>>;
+    };
+  }
+}
+
+export default function AttendancePage() {
+  const { assignmentId } = useParams<{ assignmentId: string }>();
+  const aId = parseInt(assignmentId);
+  const classroomIdHint = Number(new URLSearchParams(window.location.search).get("classroomId") || 0);
+
+  const today = new Date().toISOString().split("T")[0];
+  const [selectedDate, setSelectedDate] = useState(today);
+  const [attendanceMap, setAttendanceMap] = useState<Record<number, AttendanceStatus>>({});
+  const [scannerOpen, setScannerOpen] = useState(false);
+  const [scannerActive, setScannerActive] = useState(false);
+  const [scannerError, setScannerError] = useState("");
+  const [qrInput, setQrInput] = useState("");
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const scanLoopRef = useRef<number | null>(null);
+  const lastScanRef = useRef("");
+
+  const utils = trpc.useUtils();
+  const { data: assignment } = trpc.assignment.get.useQuery(
+    { id: aId },
+    {
+      enabled: Number.isFinite(aId),
+      staleTime: 60_000,
+      refetchOnWindowFocus: false,
+    }
+  );
+  const classroomId = classroomIdHint || assignment?.assignment.classroomId || 0;
+  const { data: students = EMPTY_STUDENTS, isLoading: studentsLoading } = trpc.student.listByClassroom.useQuery(
+    { classroomId },
+    {
+      enabled: classroomId > 0,
+      staleTime: 60_000,
+      refetchOnWindowFocus: false,
+    }
+  );
+  const { data: existingAttendance = EMPTY_ATTENDANCE } = trpc.attendance.getByDate.useQuery(
+    { assignmentId: aId, date: selectedDate },
+    {
+      enabled: Number.isFinite(aId),
+      staleTime: 30_000,
+      refetchOnWindowFocus: false,
+    }
+  );
+  const { data: attendanceDates = EMPTY_DATES } = trpc.attendance.getDates.useQuery(
+    { assignmentId: aId },
+    {
+      enabled: Number.isFinite(aId),
+      staleTime: 60_000,
+      refetchOnWindowFocus: false,
+    }
+  );
+
+  const saveAttendance = trpc.attendance.save.useMutation({
+    onSuccess: () => {
+      toast.success("บันทึกการเช็คชื่อเรียบร้อย");
+      utils.attendance.getByDate.invalidate({ assignmentId: aId, date: selectedDate });
+      utils.attendance.getByAssignment.invalidate({ assignmentId: aId });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
+  // Initialize from loaded attendance only when the class/date data changes,
+  // not after every teacher click.
+  useEffect(() => {
+    if (students.length === 0) {
+      setAttendanceMap({});
+      return;
+    }
+    const map: Record<number, AttendanceStatus> = {};
+    students.forEach((s) => { map[s.id] = "present"; });
+    existingAttendance.forEach((a) => { map[a.studentId] = a.status; });
+    setAttendanceMap(map);
+  }, [selectedDate, students, existingAttendance]);
+
+  const handleSave = () => {
+    const records = students.map((s) => ({
+      assignmentId: aId,
+      studentId: s.id,
+      date: selectedDate,
+      status: attendanceMap[s.id] || "present",
+    }));
+    saveAttendance.mutate(records);
+  };
+
+  const setAll = (status: AttendanceStatus) => {
+    const map: Record<number, AttendanceStatus> = {};
+    students.forEach((s) => { map[s.id] = status; });
+    setAttendanceMap(map);
+  };
+
+  const findStudentFromQr = (rawValue: string) => {
+    const value = rawValue.trim();
+    if (!value) return null;
+
+    const possibleValues = new Set([value]);
+    try {
+      const parsed = JSON.parse(value);
+      for (const key of ["studentId", "id", "studentCode", "code"]) {
+        if (parsed?.[key] !== undefined) possibleValues.add(String(parsed[key]));
+      }
+    } catch {
+      // Plain text and URL QR codes are supported below.
+    }
+
+    try {
+      const url = new URL(value);
+      for (const key of ["studentId", "id", "studentCode", "code"]) {
+        const param = url.searchParams.get(key);
+        if (param) possibleValues.add(param);
+      }
+    } catch {
+      // Not a URL, keep treating it as plain text.
+    }
+
+    return students.find((student) =>
+      possibleValues.has(String(student.id)) ||
+      possibleValues.has(student.studentCode)
+    ) ?? null;
+  };
+
+  const markPresentFromQr = (rawValue: string) => {
+    const student = findStudentFromQr(rawValue);
+    if (!student) {
+      toast.error("ไม่พบนักเรียนจาก QR นี้");
+      return;
+    }
+
+    setAttendanceMap((current) => ({ ...current, [student.id]: "present" }));
+    toast.success(`เช็คชื่อแล้ว: ${student.prefix || ""}${student.firstName} ${student.lastName}`);
+  };
+
+  const stopScanner = () => {
+    if (scanLoopRef.current) {
+      cancelAnimationFrame(scanLoopRef.current);
+      scanLoopRef.current = null;
+    }
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+    setScannerActive(false);
+  };
+
+  const startScanner = async () => {
+    setScannerOpen(true);
+    setScannerError("");
+    if (!window.BarcodeDetector) {
+      setScannerError("Browser นี้ยังไม่รองรับการสแกน QR ผ่านกล้อง ใช้ช่องกรอกรหัสจาก QR ด้านล่างแทนได้ครับ");
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      setScannerError("ไม่พบสิทธิ์ใช้งานกล้องใน Browser นี้");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" },
+        audio: false,
+      });
+      streamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
+
+      const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+      setScannerActive(true);
+      const scan = async () => {
+        if (!videoRef.current || !streamRef.current) return;
+        try {
+          const results = await detector.detect(videoRef.current);
+          const rawValue = results[0]?.rawValue?.trim();
+          if (rawValue && rawValue !== lastScanRef.current) {
+            lastScanRef.current = rawValue;
+            markPresentFromQr(rawValue);
+            window.setTimeout(() => {
+              lastScanRef.current = "";
+            }, 1500);
+          }
+        } catch {
+          // Keep scanning. Some frames cannot be decoded.
+        }
+        scanLoopRef.current = requestAnimationFrame(scan);
+      };
+      scanLoopRef.current = requestAnimationFrame(scan);
+    } catch (error) {
+      setScannerError(error instanceof Error ? error.message : "ไม่สามารถเปิดกล้องได้");
+      stopScanner();
+    }
+  };
+
+  const prepareQrScan = () => {
+    const hasSavedAttendance = existingAttendance.length > 0;
+    if (!hasSavedAttendance) {
+      setAll("absent");
+      toast.message("ตั้งค่าเริ่มต้นเป็นขาดทั้งหมดแล้ว สแกน QR เพื่อเปลี่ยนเป็นมา");
+    }
+    startScanner();
+  };
+
+  useEffect(() => () => stopScanner(), []);
+
+  const changeDate = (days: number) => {
+    const d = new Date(selectedDate);
+    d.setDate(d.getDate() + days);
+    setSelectedDate(d.toISOString().split("T")[0]);
+  };
+
+  // Summary
+  const counts = { present: 0, absent: 0, late: 0, excused: 0 };
+  Object.values(attendanceMap).forEach((s) => counts[s]++);
+
+  return (
+    <TeacherLayout
+      title={`เช็คชื่อ - ${assignment?.subject?.name || ""}`}
+      backHref="/dashboard"
+    >
+      <div className="space-y-5 animate-fade-in">
+        {/* Assignment Info */}
+        {assignment && (
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 flex items-center gap-4">
+            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shrink-0">
+              <BookOpen className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <p className="font-semibold text-blue-900">{assignment.subject?.name}</p>
+              <p className="text-blue-600 text-sm">
+                ห้อง {assignment.classroom?.name} ·{" "}
+                <span className={assignment.classroom?.level === "primary" ? "badge-primary-level" : "badge-secondary-level"}>
+                  {assignment.classroom?.level === "primary" ? "ประถม" : "มัธยม"}
+                </span>
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Date Selector */}
+        <div className="bg-white rounded-xl border border-slate-200 p-4">
+          <div className="flex items-center justify-between">
+            <button onClick={() => changeDate(-1)} className="p-2 hover:bg-slate-100 rounded-lg transition-colors">
+              <ChevronLeft className="w-5 h-5 text-slate-600" />
+            </button>
+            <div className="text-center">
+              <input
+                type="date"
+                value={selectedDate}
+                onChange={(e) => setSelectedDate(e.target.value)}
+                className="text-lg font-bold text-slate-900 border-none outline-none text-center bg-transparent cursor-pointer"
+                max={today}
+              />
+              {selectedDate === today && (
+                <p className="text-blue-600 text-xs font-medium">วันนี้</p>
+              )}
+            </div>
+            <button
+              onClick={() => changeDate(1)}
+              disabled={selectedDate >= today}
+              className="p-2 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-30"
+            >
+              <ChevronRight className="w-5 h-5 text-slate-600" />
+            </button>
+          </div>
+        </div>
+
+        {/* Summary */}
+        <div className="grid grid-cols-4 gap-3">
+          {(Object.entries(statusConfig) as [AttendanceStatus, typeof statusConfig[AttendanceStatus]][]).map(([status, cfg]) => (
+            <div key={status} className={`rounded-xl p-3 border text-center ${cfg.color}`}>
+              <p className="text-2xl font-bold">{counts[status]}</p>
+              <p className="text-xs font-medium">{cfg.label}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Quick Set All */}
+        <div className="flex gap-2 flex-wrap">
+          <span className="text-sm text-slate-500 self-center">ตั้งค่าทั้งหมด:</span>
+          {(Object.entries(statusConfig) as [AttendanceStatus, typeof statusConfig[AttendanceStatus]][]).map(([status, cfg]) => (
+            <button
+              key={status}
+              onClick={() => setAll(status)}
+              className={`px-3 py-1 rounded-lg text-xs font-medium border transition-colors ${cfg.color}`}
+            >
+              {cfg.label}ทั้งหมด
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={prepareQrScan}
+            disabled={students.length === 0}
+            className="inline-flex items-center gap-1 rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1 text-xs font-medium text-indigo-700 transition-colors hover:bg-indigo-100 disabled:opacity-40"
+          >
+            <QrCode className="w-3.5 h-3.5" />
+            สแกน QR
+          </button>
+        </div>
+
+        {scannerOpen && (
+          <div className="bg-white rounded-xl border border-indigo-200 p-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h3 className="font-semibold text-slate-900 flex items-center gap-2">
+                  <QrCode className="w-4 h-4 text-indigo-600" />
+                  เช็คชื่อด้วย QR Code
+                </h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  QR ใช้ได้ทั้งรหัสนักเรียน เช่น 1234 หรือข้อความ JSON/URL ที่มี studentId หรือ studentCode
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  stopScanner();
+                  setScannerOpen(false);
+                }}
+              >
+                <CameraOff className="w-4 h-4 mr-1" />
+                ปิด
+              </Button>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4">
+              <div className="rounded-xl bg-slate-950 overflow-hidden min-h-[220px] flex items-center justify-center">
+                {scannerActive ? (
+                  <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
+                ) : (
+                  <div className="text-center text-slate-300 p-6">
+                    <Camera className="w-8 h-8 mx-auto mb-2" />
+                    <p className="text-sm">กดสแกน QR เพื่อเปิดกล้อง</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                {scannerError && (
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                    {scannerError}
+                  </div>
+                )}
+                <div>
+                  <label className="text-xs font-medium text-slate-600">กรอกรหัสจาก QR เอง</label>
+                  <div className="mt-1 flex gap-2">
+                    <input
+                      value={qrInput}
+                      onChange={(event) => setQrInput(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          markPresentFromQr(qrInput);
+                          setQrInput("");
+                        }
+                      }}
+                      placeholder="เช่น 1234 หรือ studentCode"
+                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    />
+                    <Button
+                      type="button"
+                      onClick={() => {
+                        markPresentFromQr(qrInput);
+                        setQrInput("");
+                      }}
+                    >
+                      เช็คชื่อ
+                    </Button>
+                  </div>
+                </div>
+                <p className="text-xs text-slate-500">
+                  แนะนำ: ก่อนเริ่มสแกน ระบบจะตั้งนักเรียนที่ยังไม่มีข้อมูลวันนี้เป็น “ขาด” ทั้งหมด แล้วเมื่อสแกนสำเร็จจะเปลี่ยนเป็น “มา”
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Student List */}
+        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+          <div className="px-4 py-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
+            <span className="font-medium text-slate-700 text-sm">รายชื่อนักเรียน ({students.length} คน)</span>
+            <Button
+              onClick={handleSave}
+              disabled={saveAttendance.isPending || students.length === 0}
+              size="sm"
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              <Save className="w-4 h-4 mr-1" />
+              {saveAttendance.isPending ? "กำลังบันทึก..." : "บันทึก"}
+            </Button>
+          </div>
+          {studentsLoading ? (
+            <div className="text-center py-8 text-slate-400">กำลังโหลด...</div>
+          ) : students.length === 0 ? (
+            <div className="text-center py-8 text-slate-400">ไม่มีนักเรียนในห้องนี้</div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {students.map((s) => {
+                const status = attendanceMap[s.id] || "present";
+                return (
+                  <div key={s.id} className="flex items-center px-4 py-3 hover:bg-slate-50 transition-colors">
+                    <span className="w-8 text-slate-400 text-sm text-center shrink-0">{s.studentNumber || "-"}</span>
+                    <div className="flex-1 min-w-0 mx-3">
+                      <p className="font-medium text-slate-900 text-sm truncate">
+                        {s.prefix}{s.firstName} {s.lastName}
+                      </p>
+                      <p className="text-slate-400 text-xs">{s.studentCode}</p>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      {(Object.entries(statusConfig) as [AttendanceStatus, typeof statusConfig[AttendanceStatus]][]).map(([st, cfg]) => (
+                        <button
+                          key={st}
+                          onClick={() => setAttendanceMap((current) => ({ ...current, [s.id]: st }))}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
+                            status === st
+                              ? cfg.color + " scale-105 shadow-sm"
+                              : "bg-white text-slate-400 border-slate-200 hover:border-slate-300"
+                          }`}
+                        >
+                          {cfg.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* History */}
+        {attendanceDates.length > 0 && (
+          <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <h3 className="font-medium text-slate-700 text-sm mb-3">ประวัติการเช็คชื่อ</h3>
+            <div className="flex flex-wrap gap-2">
+              {attendanceDates.slice(0, 10).map((item) => (
+                <button
+                  key={String(item.date)}
+                  onClick={() => setSelectedDate(String(item.date))}
+                  className={`px-3 py-1 rounded-lg text-xs border transition-colors ${
+                    selectedDate === String(item.date)
+                      ? "bg-blue-600 text-white border-blue-600"
+                      : "bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-300"
+                  }`}
+                >
+                  {String(item.date)}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </TeacherLayout>
+  );
+}
