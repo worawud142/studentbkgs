@@ -5,7 +5,6 @@ import os from "os";
 import path from "path";
 import { upsertStudentByCode } from "../db";
 import { isNodeExcelRuntime } from "./excelRuntime";
-import { parseStudentsWorkbookNode } from "./nodeExcel";
 
 type ParsedStudentRow = {
   rowNumber: number;
@@ -143,8 +142,10 @@ export async function importStudentsFromWorkbook(options: {
       Buffer.from(options.fileContentBase64, "base64")
     );
     const workbook = isNodeExcelRuntime()
-      ? await parseStudentsWorkbookNode(
-          Buffer.from(options.fileContentBase64, "base64")
+      ? await import("./nodeExcel").then(({ parseStudentsWorkbookNode }) =>
+          parseStudentsWorkbookNode(
+            Buffer.from(options.fileContentBase64, "base64")
+          )
         )
       : await runPythonParser(inputPath);
     const created: number[] = [];

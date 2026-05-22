@@ -17,7 +17,6 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { isNodeExcelRuntime } from "./excelRuntime";
-import { createStudentImportTemplateNode } from "./nodeExcel";
 
 type TemplateId = "secondary-demo" | "primary-score" | "academic-print";
 
@@ -66,6 +65,7 @@ function studentImportTemplateScriptPath() {
 
 async function createStudentImportTemplate(outputPath: string) {
   if (isNodeExcelRuntime()) {
+    const { createStudentImportTemplateNode } = await import("./nodeExcel");
     await createStudentImportTemplateNode(outputPath);
     return;
   }

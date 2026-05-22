@@ -20,7 +20,6 @@ import {
   getAcademicPrintTemplateCandidates,
 } from "./academicPrintTemplates";
 import { isNodeExcelRuntime } from "./excelRuntime";
-import { buildNodeExportFile } from "./nodeExcel";
 
 export type ExportTemplateId =
   | "secondary-demo"
@@ -215,6 +214,7 @@ async function runNodeExporter(
   templateFileName: string,
   outputPath: string
 ) {
+  const { buildNodeExportFile } = await import("./nodeExcel");
   return buildNodeExportFile({
     payload: payload as Record<string, any>,
     templateFileName,
