@@ -1,40 +1,27 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "version": 2,
-  "installCommand": "pnpm install --frozen-lockfile",
-  "builds": [
-    {
-      "src": "api/index.ts",
-      "use": "@vercel/node",
-      "config": {
-        "includeFiles": [
-          "server/_core/*.py",
-          "templates/**",
-          "*.xlsx",
-          "*.xlsm"
-        ],
-        "maxDuration": 60
-      }
-    },
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist/public"
-      }
+  "installCommand": "corepack enable && corepack pnpm install --frozen-lockfile",
+  "buildCommand": "corepack pnpm build",
+  "outputDirectory": "dist/public",
+  "functions": {
+    "api/index.ts": {
+      "includeFiles": [
+        "server/_core/*.py",
+        "templates/**",
+        "*.xlsx",
+        "*.xlsm"
+      ],
+      "maxDuration": 60
     }
-  ],
-  "routes": [
+  },
+  "rewrites": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/index.ts"
+      "source": "/api/:path*",
+      "destination": "/api/index"
     },
     {
-      "handle": "filesystem"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/index.html"
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
     }
   ]
 }
