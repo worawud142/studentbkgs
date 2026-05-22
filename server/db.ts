@@ -36,6 +36,7 @@ function getPoolOptions() {
     password: decodeURIComponent(connectionUrl.password),
     database: connectionUrl.pathname.replace(/^\//, "") || "postgres",
     ssl: isSupabase ? { rejectUnauthorized: false } : undefined,
+    max: process.env.VERCEL ? 1 : undefined,
   } satisfies ConstructorParameters<typeof Pool>[0];
 }
 
