@@ -28,21 +28,38 @@ export type SessionPayload = {
 const EXCHANGE_TOKEN_PATH = `/webdev.v1.WebDevAuthPublicService/ExchangeToken`;
 const GET_USER_INFO_PATH = `/webdev.v1.WebDevAuthPublicService/GetUserInfo`;
 const GET_USER_INFO_WITH_JWT_PATH = `/webdev.v1.WebDevAuthPublicService/GetUserInfoWithJwt`;
-const SUPABASE_JWKS = ENV.supabaseUrl
-  ? createRemoteJWKSet(
+function createSupabaseJwks() {
+  if (!ENV.supabaseUrl) return null;
+
+  try {
+    return createRemoteJWKSet(
       new URL(`${ENV.supabaseUrl.replace(/\/+$/, "")}/auth/v1/keys`)
-    )
-  : null;
-const SUPABASE_AUTH_CLIENT =
-  ENV.supabaseUrl && ENV.supabaseAnonKey
-    ? createClient(ENV.supabaseUrl, ENV.supabaseAnonKey, {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-          detectSessionInUrl: false,
-        },
-      })
-    : null;
+    );
+  } catch (error) {
+    console.error("[Supabase] Invalid SUPABASE_URL for JWKS:", error);
+    return null;
+  }
+}
+
+function createSupabaseAuthClient() {
+  if (!ENV.supabaseUrl || !ENV.supabaseAnonKey) return null;
+
+  try {
+    return createClient(ENV.supabaseUrl, ENV.supabaseAnonKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
+        detectSessionInUrl: false,
+      },
+    });
+  } catch (error) {
+    console.error("[Supabase] Failed to initialize auth client:", error);
+    return null;
+  }
+}
+
+const SUPABASE_JWKS = createSupabaseJwks();
+const SUPABASE_AUTH_CLIENT = createSupabaseAuthClient();
 
 class OAuthService {
   constructor(private client: ReturnType<typeof axios.create>) {
@@ -183,20 +200,29 @@ class SDKServer {
     return match?.[1]?.trim() || null;
   }
 
-  private getSupabaseDisplayName(payload: Record<string, unknown>, fallbackEmail: string | null): string {
+  private getSupabaseDisplayName(
+    payload: Record<string, unknown>,
+    fallbackEmail: string | null
+  ): string {
     const userMetadata = payload.user_metadata;
     const candidates = [
       (typeof payload.name === "string" && payload.name) || null,
       (typeof payload.full_name === "string" && payload.full_name) || null,
-      (userMetadata && typeof userMetadata === "object" && typeof (userMetadata as Record<string, unknown>).full_name === "string"
-        ? (userMetadata as Record<string, unknown>).full_name as string
-        : null),
-      (userMetadata && typeof userMetadata === "object" && typeof (userMetadata as Record<string, unknown>).name === "string"
-        ? (userMetadata as Record<string, unknown>).name as string
-        : null),
-      (userMetadata && typeof userMetadata === "object" && typeof (userMetadata as Record<string, unknown>).username === "string"
-        ? (userMetadata as Record<string, unknown>).username as string
-        : null),
+      userMetadata &&
+      typeof userMetadata === "object" &&
+      typeof (userMetadata as Record<string, unknown>).full_name === "string"
+        ? ((userMetadata as Record<string, unknown>).full_name as string)
+        : null,
+      userMetadata &&
+      typeof userMetadata === "object" &&
+      typeof (userMetadata as Record<string, unknown>).name === "string"
+        ? ((userMetadata as Record<string, unknown>).name as string)
+        : null,
+      userMetadata &&
+      typeof userMetadata === "object" &&
+      typeof (userMetadata as Record<string, unknown>).username === "string"
+        ? ((userMetadata as Record<string, unknown>).username as string)
+        : null,
       fallbackEmail,
     ];
     return candidates.find(isNonEmptyString) ?? "Supabase User";
@@ -210,7 +236,10 @@ class SDKServer {
     try {
       const { data, error } = SUPABASE_AUTH_CLIENT
         ? await SUPABASE_AUTH_CLIENT.auth.getUser(token)
-        : { data: null, error: new Error("Supabase auth client not configured") };
+        : {
+            data: null,
+            error: new Error("Supabase auth client not configured"),
+          };
 
       if (error || !data?.user) {
         return null;
@@ -225,7 +254,10 @@ class SDKServer {
 
       const displayName =
         userRecord.user_metadata && typeof userRecord.user_metadata === "object"
-          ? this.getSupabaseDisplayName(userRecord.user_metadata as Record<string, unknown>, email)
+          ? this.getSupabaseDisplayName(
+              userRecord.user_metadata as Record<string, unknown>,
+              email
+            )
           : email || "Supabase User";
       const signedInAt = new Date();
 
@@ -242,7 +274,9 @@ class SDKServer {
           loginMethod: "supabase",
           lastSignedIn: signedInAt,
         });
-        user = (email ? await db.getUserByEmail(email) : null) ?? (await db.getUserByOpenId(openId));
+        user =
+          (email ? await db.getUserByEmail(email) : null) ??
+          (await db.getUserByOpenId(openId));
       } else {
         await db.upsertUser({
           openId: user.openId,
@@ -252,7 +286,9 @@ class SDKServer {
           role: user.role,
           lastSignedIn: signedInAt,
         });
-        user = (email ? await db.getUserByEmail(email) : null) ?? (await db.getUserByOpenId(user.openId));
+        user =
+          (email ? await db.getUserByEmail(email) : null) ??
+          (await db.getUserByOpenId(user.openId));
       }
 
       return user ?? null;
@@ -288,7 +324,9 @@ class SDKServer {
       return null;
     }
 
-    const user = await this.authenticateSupabaseRequest(data.session.access_token);
+    const user = await this.authenticateSupabaseRequest(
+      data.session.access_token
+    );
     return { session: data.session, user };
   }
 
@@ -313,7 +351,9 @@ class SDKServer {
       return null;
     }
 
-    const user = await this.authenticateSupabaseRequest(data.session.access_token);
+    const user = await this.authenticateSupabaseRequest(
+      data.session.access_token
+    );
     return { session: data.session, user };
   }
 
@@ -406,10 +446,7 @@ class SDKServer {
       });
       const { openId, appId, name } = payload as Record<string, unknown>;
 
-      if (
-        !isNonEmptyString(openId) ||
-        !isNonEmptyString(name)
-      ) {
+      if (!isNonEmptyString(openId) || !isNonEmptyString(name)) {
         console.warn("[Auth] Session payload missing required fields");
         return null;
       }
@@ -452,15 +489,27 @@ class SDKServer {
   async authenticateRequest(req: Request): Promise<User> {
     // Regular authentication flow
     const devSessionHeader = req.headers["x-dev-session"];
-    if (!ENV.isProduction && typeof devSessionHeader === "string" && devSessionHeader.startsWith("dev-")) {
+    if (
+      !ENV.isProduction &&
+      typeof devSessionHeader === "string" &&
+      devSessionHeader.startsWith("dev-")
+    ) {
       const signedInAt = new Date();
       const isAdmin = devSessionHeader === "dev-admin";
       const isReviewer = devSessionHeader === "dev-reviewer";
       const devUser: User = {
         id: isAdmin ? 2 : isReviewer ? 3 : 1,
         openId: devSessionHeader,
-        name: isAdmin ? "Demo Admin" : isReviewer ? "Demo Reviewer" : "Demo Teacher",
-        email: isAdmin ? "admin@demo.local" : isReviewer ? "reviewer@demo.local" : "teacher@demo.local",
+        name: isAdmin
+          ? "Demo Admin"
+          : isReviewer
+            ? "Demo Reviewer"
+            : "Demo Teacher",
+        email: isAdmin
+          ? "admin@demo.local"
+          : isReviewer
+            ? "reviewer@demo.local"
+            : "teacher@demo.local",
         loginMethod: "dev",
         role: isAdmin ? "admin" : isReviewer ? "reviewer" : "teacher",
         createdAt: signedInAt,
@@ -512,8 +561,18 @@ class SDKServer {
       return {
         id: isAdmin ? 2 : isReviewer ? 3 : 1,
         openId: sessionUserId,
-        name: session.name || (isAdmin ? "Demo Admin" : isReviewer ? "Demo Reviewer" : "Demo Teacher"),
-        email: isAdmin ? "admin@demo.local" : isReviewer ? "reviewer@demo.local" : "teacher@demo.local",
+        name:
+          session.name ||
+          (isAdmin
+            ? "Demo Admin"
+            : isReviewer
+              ? "Demo Reviewer"
+              : "Demo Teacher"),
+        email: isAdmin
+          ? "admin@demo.local"
+          : isReviewer
+            ? "reviewer@demo.local"
+            : "teacher@demo.local",
         loginMethod: "dev",
         role: isAdmin ? "admin" : isReviewer ? "reviewer" : "teacher",
         createdAt: signedInAt,
