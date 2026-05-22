@@ -119,11 +119,32 @@ export const appRouter = router({
     localLogin: publicProcedure
       .input(z.object({ username: z.string().min(1), password: z.string().min(1) }))
       .mutation(async ({ ctx, input }) => {
+        if (!ENV.databaseUrl) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "ยังไม่ได้ตั้งค่า DATABASE_URL บน server",
+          });
+        }
+
         const resolved = await resolveLoginUser(input.username);
         const user = resolved.user;
 
-        if (!user || user.role === "admin") {
+        if (!user) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "ไม่พบบัญชีครู/ผู้ตรวจสอบนี้ กรุณาให้แอดมินสร้างบัญชีในหน้าแอดมินก่อน",
+          });
+        }
+
+        if (user.role === "admin") {
           throw new TRPCError({ code: "UNAUTHORIZED", message: "กรุณาใช้บัญชีผู้ดูแลระบบสำหรับแอดมิน" });
+        }
+
+        if (!user.passwordHash) {
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "บัญชีนี้ยังไม่มีรหัสผ่าน กรุณาให้แอดมินตั้งรหัสผ่านในหน้าแอดมินก่อน",
+          });
         }
 
         if (!verifyPassword(input.password, user.passwordHash)) {

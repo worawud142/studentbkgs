@@ -13,6 +13,7 @@ import { isSupabaseAuthConfigured, setSupabaseAuthSession } from "@/lib/supabase
 
 export default function Home() {
   const { isAuthenticated } = useAuth();
+  const utils = trpc.useUtils();
   const [, navigate] = useLocation();
   const loginUrl = getLoginUrl();
   const isDevLogin = loginUrl === "/dev-login";
@@ -87,6 +88,8 @@ export default function Home() {
         password: trimmedPassword,
       });
       if (result.user) {
+        utils.auth.me.setData(undefined, result.user);
+        await utils.auth.me.invalidate();
         toast.success("เข้าสู่ระบบสำเร็จ");
         navigate("/dashboard");
       }
