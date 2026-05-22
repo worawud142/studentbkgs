@@ -5,6 +5,7 @@ import { CheckCircle2, XCircle, Clock, BookOpen, ChevronLeft, ChevronRight, Save
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
 import { toast } from "sonner";
+import jsQR from "jsqr";
 
 type AttendanceStatus = "present" | "absent" | "late" | "excused";
 
@@ -47,6 +48,7 @@ export default function AttendancePage() {
   const [scannerError, setScannerError] = useState("");
   const [qrInput, setQrInput] = useState("");
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scanLoopRef = useRef<number | null>(null);
   const lastScanRef = useRef("");
@@ -178,12 +180,8 @@ export default function AttendancePage() {
   const startScanner = async () => {
     setScannerOpen(true);
     setScannerError("");
-    if (!window.BarcodeDetector) {
-      setScannerError("Browser นี้ยังไม่รองรับการสแกน QR ผ่านกล้อง ใช้ช่องกรอกรหัสจาก QR ด้านล่างแทนได้ครับ");
-      return;
-    }
     if (!navigator.mediaDevices?.getUserMedia) {
-      setScannerError("ไม่พบสิทธิ์ใช้งานกล้องใน Browser นี้");
+      setScannerError("Browser นี้ยังไม่รองรับการเปิดกล้อง หรือยังไม่ได้เปิดผ่าน HTTPS กรุณาใช้ Chrome/Edge เวอร์ชันล่าสุด หรือกรอกรหัสจาก QR ด้านล่างแทนได้ครับ");
       return;
     }
 
@@ -198,13 +196,34 @@ export default function AttendancePage() {
         await videoRef.current.play();
       }
 
-      const detector = new window.BarcodeDetector({ formats: ["qr_code"] });
+      const detector = window.BarcodeDetector ? new window.BarcodeDetector({ formats: ["qr_code"] }) : null;
+      if (!detector) {
+        setScannerError("Browser นี้ไม่มี BarcodeDetector ระบบจะใช้ตัวอ่าน QR สำรองแทน หากสแกนยากให้ถือ QR ให้นิ่งและมีแสงพอ หรือกรอกรหัสเองด้านล่างได้ครับ");
+      }
       setScannerActive(true);
       const scan = async () => {
         if (!videoRef.current || !streamRef.current) return;
         try {
-          const results = await detector.detect(videoRef.current);
-          const rawValue = results[0]?.rawValue?.trim();
+          let rawValue = "";
+          if (detector) {
+            const results = await detector.detect(videoRef.current);
+            rawValue = results[0]?.rawValue?.trim() || "";
+          } else {
+            const video = videoRef.current;
+            const canvas = canvasRef.current;
+            const width = video.videoWidth;
+            const height = video.videoHeight;
+            if (canvas && width > 0 && height > 0) {
+              canvas.width = width;
+              canvas.height = height;
+              const context = canvas.getContext("2d", { willReadFrequently: true });
+              if (context) {
+                context.drawImage(video, 0, 0, width, height);
+                const imageData = context.getImageData(0, 0, width, height);
+                rawValue = jsQR(imageData.data, imageData.width, imageData.height)?.data?.trim() || "";
+              }
+            }
+          }
           if (rawValue && rawValue !== lastScanRef.current) {
             lastScanRef.current = rawValue;
             markPresentFromQr(rawValue);
@@ -219,7 +238,8 @@ export default function AttendancePage() {
       };
       scanLoopRef.current = requestAnimationFrame(scan);
     } catch (error) {
-      setScannerError(error instanceof Error ? error.message : "ไม่สามารถเปิดกล้องได้");
+      const message = error instanceof Error ? error.message : "ไม่สามารถเปิดกล้องได้";
+      setScannerError(`${message} หากใช้งานบน Windows ให้ตรวจว่า browser ได้รับสิทธิ์กล้องแล้ว หรือกรอกรหัสจาก QR ด้านล่างแทนได้ครับ`);
       stopScanner();
     }
   };
@@ -359,7 +379,10 @@ export default function AttendancePage() {
             <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4">
               <div className="rounded-xl bg-slate-950 overflow-hidden min-h-[220px] flex items-center justify-center">
                 {scannerActive ? (
-                  <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
+                  <>
+                    <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
+                    <canvas ref={canvasRef} className="hidden" aria-hidden="true" />
+                  </>
                 ) : (
                   <div className="text-center text-slate-300 p-6">
                     <Camera className="w-8 h-8 mx-auto mb-2" />
