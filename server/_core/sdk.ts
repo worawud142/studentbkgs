@@ -481,6 +481,18 @@ class SDKServer {
         });
         return user;
       }
+
+      const bearerSession = await this.verifySession(bearerToken);
+      if (bearerSession) {
+        const bearerUser = await db.getUserByOpenId(bearerSession.openId);
+        if (bearerUser) {
+          await db.upsertUser({
+            openId: bearerUser.openId,
+            lastSignedIn: new Date(),
+          });
+          return bearerUser;
+        }
+      }
     }
 
     const cookies = this.parseCookies(req.headers.cookie);

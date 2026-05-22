@@ -1,6 +1,7 @@
 export { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 
 export const DEV_SESSION_STORAGE_KEY = "manus-dev-session-open-id";
+export const APP_SESSION_STORAGE_KEY = "studentbkgs-app-session-token";
 
 declare global {
   interface Window {
@@ -52,6 +53,22 @@ export const clearDevSession = (): void => {
     window.__DEV_SESSION_OPEN_ID__ = undefined;
   }
   safeLocalStorageRemoveItem(DEV_SESSION_STORAGE_KEY);
+};
+
+export const setAppSessionToken = (token: string | null | undefined): void => {
+  if (!token) {
+    safeLocalStorageRemoveItem(APP_SESSION_STORAGE_KEY);
+    return;
+  }
+  safeLocalStorageSetItem(APP_SESSION_STORAGE_KEY, token);
+};
+
+export const getAppSessionToken = (): string | null => {
+  return safeLocalStorageGetItem(APP_SESSION_STORAGE_KEY)?.trim() || null;
+};
+
+export const clearAppSessionToken = (): void => {
+  safeLocalStorageRemoveItem(APP_SESSION_STORAGE_KEY);
 };
 
 // Generate login URL at runtime so redirect URI reflects the current origin.

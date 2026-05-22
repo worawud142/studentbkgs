@@ -1,4 +1,4 @@
-import { clearDevSession, safeLocalStorageSetItem, getDevSessionOpenId } from "@/const";
+import { clearAppSessionToken, clearDevSession, safeLocalStorageSetItem, getDevSessionOpenId } from "@/const";
 import { trpc } from "@/lib/trpc";
 import {
   getSupabaseAuthSnapshot,
@@ -50,6 +50,7 @@ export function useAuth(options?: UseAuthOptions) {
       }
       throw error;
     } finally {
+      clearAppSessionToken();
       clearDevSession();
       utils.auth.me.setData(undefined, null);
       await utils.auth.me.invalidate();

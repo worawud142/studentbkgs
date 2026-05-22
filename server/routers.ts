@@ -114,7 +114,7 @@ export const appRouter = router({
           maxAge: ONE_YEAR_MS,
         });
 
-        return { success: true, user, session: result.session };
+        return { success: true, user, session: result.session, sessionToken };
       }),
     localLogin: publicProcedure
       .input(z.object({ username: z.string().min(1), password: z.string().min(1) }))
@@ -162,7 +162,7 @@ export const appRouter = router({
           maxAge: ONE_YEAR_MS,
         });
 
-        return { success: true, user };
+        return { success: true, user, sessionToken };
       }),
     devLogin: publicProcedure
       .input(z.object({ preset: z.enum(["teacher", "admin", "reviewer"]).default("teacher") }))

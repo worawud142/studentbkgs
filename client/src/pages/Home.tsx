@@ -1,5 +1,5 @@
 import { useAuth } from "@/_core/hooks/useAuth";
-import { clearDevSession, getLoginUrl } from "@/const";
+import { clearDevSession, getLoginUrl, setAppSessionToken } from "@/const";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,6 +57,7 @@ export default function Home() {
         password: trimmedPassword,
       });
       if (result.session) {
+        setAppSessionToken(result.sessionToken);
         setSupabaseAuthSession(result.session as never);
         if (result.user) {
           utils.auth.me.setData(undefined, result.user);
@@ -92,6 +93,7 @@ export default function Home() {
         password: trimmedPassword,
       });
       if (result.user) {
+        setAppSessionToken(result.sessionToken);
         utils.auth.me.setData(undefined, result.user);
         await utils.auth.me.invalidate();
         toast.success("เข้าสู่ระบบสำเร็จ");
