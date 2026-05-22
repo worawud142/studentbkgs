@@ -1,4 +1,5 @@
 import { spawn } from "child_process";
+import { existsSync } from "fs";
 import fs from "fs/promises";
 import os from "os";
 import path from "path";
@@ -24,7 +25,11 @@ type ParsedWorkbook = {
 };
 
 function helperScriptPath() {
-  return path.resolve(import.meta.dirname, "excel_importer.py");
+  const candidates = [
+    path.resolve(import.meta.dirname, "excel_importer.py"),
+    path.resolve(process.cwd(), "server", "_core", "excel_importer.py"),
+  ];
+  return candidates.find(candidate => existsSync(candidate)) ?? candidates[0];
 }
 
 async function runPythonParser(workbookPath: string): Promise<ParsedWorkbook> {
