@@ -384,12 +384,12 @@ export default function AttendancePage() {
               </Button>
             </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4">
-              <div className="rounded-xl bg-slate-950 overflow-hidden min-h-[220px] flex items-center justify-center">
-                <div className="relative h-full min-h-[220px] w-full">
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(520px,1.2fr)_minmax(320px,0.8fr)] gap-4">
+              <div className="rounded-xl bg-slate-950 overflow-hidden min-h-[360px] flex items-center justify-center">
+                <div className="relative h-full min-h-[360px] w-full">
                   <video
                     ref={videoRef}
-                    className={`h-full min-h-[220px] w-full object-cover ${scannerActive ? "block" : "hidden"}`}
+                    className={`h-full min-h-[360px] w-full object-cover ${scannerActive ? "block" : "hidden"}`}
                     muted
                     playsInline
                     autoPlay
@@ -397,7 +397,10 @@ export default function AttendancePage() {
                   <canvas ref={canvasRef} className="hidden" aria-hidden="true" />
                   {scannerActive ? (
                     <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                      <div className="h-28 w-28 rounded-xl border-2 border-white/80 shadow-[0_0_0_999px_rgba(15,23,42,0.25)]" />
+                      <div className="h-56 w-56 rounded-3xl border-4 border-white/90 shadow-[0_0_0_999px_rgba(15,23,42,0.18)] md:h-72 md:w-72" />
+                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-slate-950/70 px-4 py-2 text-sm font-medium text-white">
+                        วาง QR ให้อยู่ในกรอบ
+                      </div>
                     </div>
                   ) : (
                   <div className="text-center text-slate-300 p-6">
