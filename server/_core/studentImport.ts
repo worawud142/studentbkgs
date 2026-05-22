@@ -73,6 +73,37 @@ function normalizeStatus(status: ParsedStudentRow["status"] | string | undefined
   return "active";
 }
 
+function normalizeBirthDate(value: string | undefined) {
+  const raw = value?.trim();
+  if (!raw) return undefined;
+
+  const isoMatch = raw.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (isoMatch) {
+    const year = Number(isoMatch[1]);
+    const month = Number(isoMatch[2]);
+    const day = Number(isoMatch[3]);
+    const normalizedYear = year > 2400 ? year - 543 : year;
+    if (normalizedYear >= 1900 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${normalizedYear.toString().padStart(4, "0")}-${month.toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
+    }
+    return undefined;
+  }
+
+  const thaiDateMatch = raw.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  if (thaiDateMatch) {
+    const day = Number(thaiDateMatch[1]);
+    const month = Number(thaiDateMatch[2]);
+    let year = Number(thaiDateMatch[3]);
+    if (year < 100) year += 2500;
+    if (year > 2400) year -= 543;
+    if (year >= 1900 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return `${year.toString().padStart(4, "0")}-${month.toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
+    }
+  }
+
+  return undefined;
+}
+
 export async function importStudentsFromWorkbook(options: {
   classroomId: number;
   fileName: string;
@@ -95,7 +126,7 @@ export async function importStudentsFromWorkbook(options: {
         firstName: row.firstName,
         lastName: row.lastName,
         nationalId: row.nationalId || undefined,
-        birthDate: row.birthDate ? new Date(row.birthDate) : undefined,
+        birthDate: normalizeBirthDate(row.birthDate) as any,
         gender: row.gender || undefined,
         classroomId: options.classroomId,
         studentNumber: row.studentNumber ?? undefined,
