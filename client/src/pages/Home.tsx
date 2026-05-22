@@ -50,7 +50,7 @@ export default function Home() {
     }
 
     setAdminSubmitting(true);
-    try {
+  try {
       clearDevSession();
       const result = await adminLoginMutation.mutateAsync({
         email: trimmedEmail,
@@ -58,8 +58,12 @@ export default function Home() {
       });
       if (result.session) {
         setSupabaseAuthSession(result.session as never);
+        if (result.user) {
+          utils.auth.me.setData(undefined, result.user);
+        }
+        await utils.auth.me.invalidate();
         toast.success("เข้าสู่ระบบสำเร็จ");
-        navigate("/dashboard");
+        window.location.assign("/dashboard");
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "เข้าสู่ระบบไม่สำเร็จ";
@@ -91,7 +95,7 @@ export default function Home() {
         utils.auth.me.setData(undefined, result.user);
         await utils.auth.me.invalidate();
         toast.success("เข้าสู่ระบบสำเร็จ");
-        navigate("/dashboard");
+        window.location.assign("/dashboard");
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : "เข้าสู่ระบบไม่สำเร็จ";
