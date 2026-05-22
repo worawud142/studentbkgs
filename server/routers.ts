@@ -74,16 +74,33 @@ export const appRouter = router({
     supabaseLogin: publicProcedure
       .input(z.object({ email: z.string().email(), password: z.string().min(1) }))
       .mutation(async ({ ctx, input }) => {
-        const result = await sdk.loginSupabaseWithEmail(input.email, input.password);
+        if (!ENV.supabaseUrl || !ENV.supabaseAnonKey) {
+          throw new TRPCError({
+            code: "PRECONDITION_FAILED",
+            message: "ยังไม่ได้ตั้งค่า SUPABASE_URL และ SUPABASE_ANON_KEY บน server",
+          });
+        }
+
+        let result: Awaited<ReturnType<typeof sdk.loginSupabaseWithEmail>>;
+        try {
+          result = await sdk.loginSupabaseWithEmail(input.email, input.password);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "เข้าสู่ระบบ Supabase ไม่สำเร็จ";
+          throw new TRPCError({ code: "UNAUTHORIZED", message });
+        }
+
         if (!result?.session) {
-          throw new TRPCError({ code: "UNAUTHORIZED", message: "Please login (10001)" });
+          throw new TRPCError({ code: "UNAUTHORIZED", message: "Supabase ไม่ได้ส่ง session กลับมา กรุณาตรวจอีเมลและรหัสผ่าน" });
         }
 
         const user = result.user ?? (await sdk.authenticateSupabaseRequest(
           (result.session as { access_token: string }).access_token
         ));
         if (!user) {
-          throw new TRPCError({ code: "UNAUTHORIZED", message: "Please login (10001)" });
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "เข้าสู่ระบบ Supabase สำเร็จ แต่ระบบยังอ่าน/บันทึกผู้ใช้ในฐานข้อมูลไม่ได้ กรุณาตรวจ DATABASE_URL",
+          });
         }
 
         const sessionToken = await sdk.createSessionToken(user.openId, {

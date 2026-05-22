@@ -280,7 +280,11 @@ class SDKServer {
       password,
     });
 
-    if (error || !data.session) {
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    if (!data.session) {
       return null;
     }
 
@@ -301,7 +305,11 @@ class SDKServer {
       password,
     });
 
-    if (error || !data.session) {
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    if (!data.session) {
       return null;
     }
 
