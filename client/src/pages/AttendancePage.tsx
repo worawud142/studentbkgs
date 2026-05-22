@@ -191,11 +191,6 @@ export default function AttendancePage() {
         audio: false,
       });
       streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-      }
-
       const detector = window.BarcodeDetector ? new window.BarcodeDetector({ formats: ["qr_code"] }) : null;
       if (!detector) {
         setScannerError("Browser นี้ไม่มี BarcodeDetector ระบบจะใช้ตัวอ่าน QR สำรองแทน หากสแกนยากให้ถือ QR ให้นิ่งและมีแสงพอ หรือกรอกรหัสเองด้านล่างได้ครับ");
@@ -203,6 +198,10 @@ export default function AttendancePage() {
       setScannerActive(true);
       const scan = async () => {
         if (!videoRef.current || !streamRef.current) return;
+        if (videoRef.current.srcObject !== streamRef.current) {
+          videoRef.current.srcObject = streamRef.current;
+          await videoRef.current.play().catch(() => {});
+        }
         try {
           let rawValue = "";
           if (detector) {
@@ -254,6 +253,15 @@ export default function AttendancePage() {
   };
 
   useEffect(() => () => stopScanner(), []);
+
+  useEffect(() => {
+    if (!scannerOpen || !scannerActive || !streamRef.current || !videoRef.current) return;
+    const video = videoRef.current;
+    video.srcObject = streamRef.current;
+    video.play().catch((error) => {
+      setScannerError(error instanceof Error ? error.message : "เปิดภาพกล้องไม่สำเร็จ กรุณากดอนุญาตกล้องหรือรีเฟรชหน้า");
+    });
+  }, [scannerActive, scannerOpen]);
 
   const changeDate = (days: number) => {
     const d = new Date(selectedDate);
@@ -378,17 +386,26 @@ export default function AttendancePage() {
 
             <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] gap-4">
               <div className="rounded-xl bg-slate-950 overflow-hidden min-h-[220px] flex items-center justify-center">
-                {scannerActive ? (
-                  <>
-                    <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
-                    <canvas ref={canvasRef} className="hidden" aria-hidden="true" />
-                  </>
-                ) : (
+                <div className="relative h-full min-h-[220px] w-full">
+                  <video
+                    ref={videoRef}
+                    className={`h-full min-h-[220px] w-full object-cover ${scannerActive ? "block" : "hidden"}`}
+                    muted
+                    playsInline
+                    autoPlay
+                  />
+                  <canvas ref={canvasRef} className="hidden" aria-hidden="true" />
+                  {scannerActive ? (
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+                      <div className="h-28 w-28 rounded-xl border-2 border-white/80 shadow-[0_0_0_999px_rgba(15,23,42,0.25)]" />
+                    </div>
+                  ) : (
                   <div className="text-center text-slate-300 p-6">
                     <Camera className="w-8 h-8 mx-auto mb-2" />
                     <p className="text-sm">กดสแกน QR เพื่อเปิดกล้อง</p>
                   </div>
-                )}
+                  )}
+                </div>
               </div>
 
               <div className="space-y-3">
