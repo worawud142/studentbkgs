@@ -16,7 +16,6 @@ import {
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
-import { serveStatic, setupVite } from "./vite";
 
 type TemplateId = "secondary-demo" | "primary-score" | "academic-print";
 
@@ -223,6 +222,7 @@ export async function startServer() {
   const server = createServer(app);
 
   // development mode uses Vite, production mode uses static files
+  const { serveStatic, setupVite } = await import("./vite");
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
   } else {
