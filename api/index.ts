@@ -5,8 +5,13 @@ let app: Express | null = null;
 export default async function handler(req: Request, res: Response) {
   try {
     if (!app) {
-      const { createApp } = await import("../dist/index.js");
+      // Lazy init: import createApp only when needed
+      const { createApp } = await import("../server/_core/index");
       app = createApp();
+    }
+
+    if (!app) {
+      throw new Error("Failed to initialize express application");
     }
 
     return app(req, res);

@@ -17,6 +17,7 @@ import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { isNodeExcelRuntime } from "./excelRuntime";
+import { serveStatic } from "./static";
 
 type TemplateId = "secondary-demo" | "primary-score" | "academic-print";
 
@@ -276,9 +277,10 @@ export async function startServer() {
   const app = createApp();
   const server = createServer(app);
 
-  // development mode uses Vite, production mode uses static files
-  const { serveStatic, setupVite } = await import("./vite");
+  // Development mode uses Vite; production uses static files without bundling Vite into serverless functions.
   if (process.env.NODE_ENV === "development") {
+    const viteModulePath = "./vite";
+    const { setupVite } = await import(viteModulePath);
     await setupVite(app, server);
   } else {
     serveStatic(app);
