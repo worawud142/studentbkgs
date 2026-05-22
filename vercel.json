@@ -4,7 +4,7 @@
   "installCommand": "pnpm install --frozen-lockfile",
   "outputDirectory": "dist/public",
   "functions": {
-    "api/[...path].ts": {
+    "api/index.ts": {
       "includeFiles": [
         "server/_core/*.py",
         "templates/**",
@@ -15,6 +15,10 @@
     }
   },
   "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "/api/index"
+    },
     {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
