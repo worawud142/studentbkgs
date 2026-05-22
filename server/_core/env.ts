@@ -1,6 +1,11 @@
+function envValue(name: string) {
+  const value = process.env[name]?.trim();
+  return value ? value : undefined;
+}
+
 export const ENV = {
-  appId: process.env.VITE_APP_ID ?? (process.env.NODE_ENV === "production" ? "" : "studentbkgs-local-dev"),
-  cookieSecret: process.env.JWT_SECRET ?? (process.env.NODE_ENV === "production" ? "" : "studentbkgs-local-dev-secret"),
+  appId: envValue("VITE_APP_ID") ?? "studentbkgs",
+  cookieSecret: envValue("JWT_SECRET") ?? (process.env.NODE_ENV === "production" ? "" : "studentbkgs-local-dev-secret"),
   databaseUrl: process.env.DATABASE_URL ?? "",
   dbSchema: process.env.DB_SCHEMA ?? "studentbkgs",
   supabaseUrl: process.env.SUPABASE_URL ?? process.env.VITE_SUPABASE_URL ?? "",
