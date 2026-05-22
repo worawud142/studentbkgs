@@ -1,4 +1,5 @@
 import { spawn } from "child_process";
+import { existsSync } from "fs";
 import fs from "fs/promises";
 import os from "os";
 import path from "path";
@@ -73,7 +74,11 @@ function templatePath(fileName: string) {
 }
 
 function helperScriptPath() {
-  return path.resolve(import.meta.dirname, "excel_exporter.py");
+  const candidates = [
+    path.resolve(import.meta.dirname, "excel_exporter.py"),
+    path.resolve(process.cwd(), "server", "_core", "excel_exporter.py"),
+  ];
+  return candidates.find(candidate => existsSync(candidate)) ?? candidates[0];
 }
 
 function normalizeCellValue(value: unknown) {

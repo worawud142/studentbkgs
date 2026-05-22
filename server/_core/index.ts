@@ -49,7 +49,11 @@ function getTemplatePath(fileName: string) {
 }
 
 function studentImportTemplateScriptPath() {
-  return path.resolve(import.meta.dirname, "student_import_template.py");
+  const candidates = [
+    path.resolve(import.meta.dirname, "student_import_template.py"),
+    path.resolve(process.cwd(), "server", "_core", "student_import_template.py"),
+  ];
+  return candidates.find(candidate => fs.existsSync(candidate)) ?? candidates[0];
 }
 
 async function createStudentImportTemplate(outputPath: string) {
@@ -219,13 +223,15 @@ async function startServer() {
   }
 
   const preferredPort = parseInt(process.env.PORT || "3000");
-  const port = await findAvailablePort(preferredPort);
+  const port = process.env.NODE_ENV === "development"
+    ? await findAvailablePort(preferredPort)
+    : preferredPort;
 
-  if (port !== preferredPort) {
+  if (process.env.NODE_ENV === "development" && port !== preferredPort) {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
-  server.listen(port, () => {
+  server.listen(port, "0.0.0.0", () => {
     console.log(`Server running on http://localhost:${port}/`);
   });
 }

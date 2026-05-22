@@ -1,0 +1,12 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+.git
+.manus/
+.manus-logs/
+dist/
+node_modules/
+server/_core/__pycache__/
+*.py[cod]
+vite.config.ts.bak

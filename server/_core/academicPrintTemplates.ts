@@ -2,7 +2,7 @@ import path from "path";
 
 export type AcademicPrintLevel = "primary" | "secondary";
 
-const ACADEMIC_PRINT_ROOT = "/Users/worawut/Library/CloudStorage/GoogleDrive-mungthisanwork@gmail.com/Other computers/My Computer/งานโรงเรียนบ้านขัวก่าย/ปพ.นักเรียนโรงเรียนบ้านขัวก่าย วิชาคอมพิวเตอร์/2569";
+const LEGACY_ACADEMIC_PRINT_ROOT = "/Users/worawut/Library/CloudStorage/GoogleDrive-mungthisanwork@gmail.com/Other computers/My Computer/งานโรงเรียนบ้านขัวก่าย/ปพ.นักเรียนโรงเรียนบ้านขัวก่าย วิชาคอมพิวเตอร์/2569";
 const FALLBACK_TEMPLATE_FILE = "ปริ้นส่งวิชาการ.xlsm";
 
 const ACADEMIC_PRINT_FILES: Record<AcademicPrintLevel, string> = {
@@ -16,11 +16,16 @@ export function getAcademicPrintTemplateFileName(level: AcademicPrintLevel) {
 
 export function getAcademicPrintTemplateCandidates(level: AcademicPrintLevel | undefined) {
   const candidates: string[] = [];
+  const templateRoots = [
+    process.env.ACADEMIC_PRINT_TEMPLATE_DIR,
+    path.resolve(process.cwd(), "templates", "academic"),
+    LEGACY_ACADEMIC_PRINT_ROOT,
+  ].filter((root): root is string => Boolean(root));
 
   if (level) {
     const fileName = getAcademicPrintTemplateFileName(level);
     if (fileName) {
-      candidates.push(path.join(ACADEMIC_PRINT_ROOT, fileName));
+      candidates.push(...templateRoots.map(root => path.join(root, fileName)));
     }
 
     candidates.push(path.resolve(
