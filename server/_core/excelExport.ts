@@ -19,8 +19,13 @@ import {
   academicPrintContentType,
   getAcademicPrintTemplateCandidates,
 } from "./academicPrintTemplates";
+import { isNodeExcelRuntime } from "./excelRuntime";
+import { buildNodeExportFile } from "./nodeExcel";
 
-export type ExportTemplateId = "secondary-demo" | "primary-score" | "academic-print";
+export type ExportTemplateId =
+  | "secondary-demo"
+  | "primary-score"
+  | "academic-print";
 export type ExportKind = "class" | "student";
 
 type TemplateMeta = {
@@ -34,19 +39,22 @@ const TEMPLATES: Record<ExportTemplateId, TemplateMeta> = {
   "secondary-demo": {
     fileName: "ตัวอย่างมัธยม.xlsx",
     outputName: "secondary-demo.xlsx",
-    contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    contentType:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     kind: "class",
   },
   "primary-score": {
     fileName: "เก็บคะแนนประถม.xlsx",
     outputName: "primary-score.xlsx",
-    contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    contentType:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     kind: "class",
   },
   "academic-print": {
     fileName: "ปริ้นส่งวิชาการ.xlsm",
     outputName: "academic-print.xlsx",
-    contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    contentType:
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     kind: "student",
   },
 };
@@ -97,7 +105,9 @@ function safeFilePart(value: string) {
     .replace(/^_+|_+$/g, "");
 }
 
-function buildClassExportName(payload: Awaited<ReturnType<typeof buildClassPayload>>) {
+function buildClassExportName(
+  payload: Awaited<ReturnType<typeof buildClassPayload>>
+) {
   const parts = [
     payload.assignment.classroomName,
     payload.assignment.subjectCode,
@@ -111,7 +121,7 @@ function buildClassExportName(payload: Awaited<ReturnType<typeof buildClassPaylo
 
 function buildStudentExportName(
   payload: Awaited<ReturnType<typeof buildStudentPayload>>,
-  extension = ".xlsx",
+  extension = ".xlsx"
 ) {
   const parts = [
     payload.student.studentCode,
@@ -125,7 +135,11 @@ function buildStudentExportName(
   return `${parts.join("_") || "student"}${safeExtension}`;
 }
 
-async function runPythonExporter(payload: unknown, templateFileName: string, outputPath: string) {
+async function runPythonExporter(
+  payload: unknown,
+  templateFileName: string,
+  outputPath: string
+) {
   const script = helperScriptPath();
   const template = templatePath(templateFileName);
 
@@ -142,14 +156,19 @@ async function runPythonExporter(payload: unknown, templateFileName: string, out
     child.on("error", reject);
     child.on("close", code => {
       if (code === 0) resolve();
-      else reject(new Error(stderr.trim() || `excel exporter exited with code ${code}`));
+      else
+        reject(
+          new Error(stderr.trim() || `excel exporter exited with code ${code}`)
+        );
     });
 
     child.stdin.end(JSON.stringify(payload), "utf8");
   });
 }
 
-async function resolveAcademicPrintTemplateCandidates(level?: "primary" | "secondary") {
+async function resolveAcademicPrintTemplateCandidates(
+  level?: "primary" | "secondary"
+) {
   const candidates = getAcademicPrintTemplateCandidates(level);
   const existing: string[] = [];
 
@@ -170,7 +189,7 @@ async function runAcademicPrintExporter(
   payload: unknown,
   candidates: string[],
   tmpDir: string,
-  buildName: (templateFileName: string) => string,
+  buildName: (templateFileName: string) => string
 ) {
   let lastError: unknown = null;
 
@@ -186,7 +205,21 @@ async function runAcademicPrintExporter(
     }
   }
 
-  throw lastError instanceof Error ? lastError : new Error("Failed to generate academic print workbook");
+  throw lastError instanceof Error
+    ? lastError
+    : new Error("Failed to generate academic print workbook");
+}
+
+async function runNodeExporter(
+  payload: unknown,
+  templateFileName: string,
+  outputPath: string
+) {
+  return buildNodeExportFile({
+    payload: payload as Record<string, any>,
+    templateFileName,
+    outputPath,
+  });
 }
 
 async function buildClassPayload(assignmentId: number) {
@@ -195,8 +228,12 @@ async function buildClassPayload(assignmentId: number) {
 
   const classroom = assignment.classroom;
   const subject = assignment.subject;
-  const academicYear = await getAcademicYearById(assignment.assignment.academicYearId);
-  const students = await getStudentsByClassroom(assignment.assignment.classroomId);
+  const academicYear = await getAcademicYearById(
+    assignment.assignment.academicYearId
+  );
+  const students = await getStudentsByClassroom(
+    assignment.assignment.classroomId
+  );
   const categories = await getScoreCategories(assignmentId);
   const scores = await getScoresByAssignment(assignmentId);
   const gradeResults = await getGradeResults(assignmentId);
@@ -253,7 +290,13 @@ async function buildClassPayload(assignmentId: number) {
       classroomLevel: classroom?.level ?? "",
       classroomGrade: classroom?.grade ?? null,
       classroomRoom: classroom?.room ?? null,
-      academicYear: academicYear ? { year: academicYear.year, semester: academicYear.semester, level: academicYear.level } : null,
+      academicYear: academicYear
+        ? {
+            year: academicYear.year,
+            semester: academicYear.semester,
+            level: academicYear.level,
+          }
+        : null,
     },
     students: studentRows,
     categories: categories.map(category => ({
@@ -290,10 +333,15 @@ async function buildStudentPayload(studentId: number) {
     const numericValues = results
       .map(row => Number(row.totalScore))
       .filter(value => Number.isFinite(value));
-    const average = numericValues.length > 0
-      ? numericValues.reduce((sum, value) => sum + value, 0) / numericValues.length
-      : null;
-    classAverageByAssignmentId.set(assignmentId, average === null ? "" : average.toFixed(2));
+    const average =
+      numericValues.length > 0
+        ? numericValues.reduce((sum, value) => sum + value, 0) /
+          numericValues.length
+        : null;
+    classAverageByAssignmentId.set(
+      assignmentId,
+      average === null ? "" : average.toFixed(2)
+    );
   }
 
   return {
@@ -309,14 +357,16 @@ async function buildStudentPayload(studentId: number) {
       gender: student.gender,
       status: student.status,
     },
-    classroom: classroom ? {
-      id: classroom.id,
-      name: classroom.name,
-      level: classroom.level,
-      grade: classroom.grade,
-      room: classroom.room,
-      academicYearId: classroom.academicYearId,
-    } : null,
+    classroom: classroom
+      ? {
+          id: classroom.id,
+          name: classroom.name,
+          level: classroom.level,
+          grade: classroom.grade,
+          room: classroom.room,
+          academicYearId: classroom.academicYearId,
+        }
+      : null,
     gradeResults: gradeResults.map(row => ({
       assignmentId: row.assignment?.id,
       subjectCode: row.subject?.subjectCode ?? "",
@@ -326,7 +376,8 @@ async function buildStudentPayload(studentId: number) {
       classroomLevel: row.classroom?.level ?? "",
       totalHours: row.result.totalHours,
       totalScore: normalizeCellValue(row.result.totalScore),
-      classAverage: classAverageByAssignmentId.get(row.assignment?.id ?? -1) ?? "",
+      classAverage:
+        classAverageByAssignmentId.get(row.assignment?.id ?? -1) ?? "",
       grade: row.result.grade ?? "",
       result: row.result.result ?? "",
       attendanceHours: row.result.attendanceHours ?? 0,
@@ -334,17 +385,44 @@ async function buildStudentPayload(studentId: number) {
   };
 }
 
-export async function buildExport(request: ExportRequest): Promise<ExportResult> {
+export async function buildExport(
+  request: ExportRequest
+): Promise<ExportResult> {
   const template = TEMPLATES[request.templateId];
-  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "studentbkgs-export-"));
+  const tmpDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "studentbkgs-export-")
+  );
+  const useNodeExcel = isNodeExcelRuntime();
   if (request.templateId === "academic-print" && "studentId" in request) {
     const payload = await buildStudentPayload(request.studentId);
-    const candidates = await resolveAcademicPrintTemplateCandidates(payload.classroom?.level);
+    const candidates = await resolveAcademicPrintTemplateCandidates(
+      payload.classroom?.level
+    );
+    if (useNodeExcel) {
+      const templateFileName =
+        candidates.find(
+          candidate => path.extname(candidate).toLowerCase() === ".xlsx"
+        ) ?? template.fileName;
+      const filePath = path.join(
+        tmpDir,
+        buildStudentExportName(payload, ".xlsx")
+      );
+      const result = await runNodeExporter(payload, templateFileName, filePath);
+      return {
+        filePath,
+        fileName: path.basename(filePath),
+        contentType: result.contentType,
+        cleanup: async () => {
+          await fs.rm(tmpDir, { recursive: true, force: true });
+        },
+      };
+    }
     const { filePath, templateFileName } = await runAcademicPrintExporter(
       payload,
       candidates,
       tmpDir,
-      templateName => buildStudentExportName(payload, path.extname(templateName) || ".xlsx"),
+      templateName =>
+        buildStudentExportName(payload, path.extname(templateName) || ".xlsx")
     );
 
     return {
@@ -359,12 +437,34 @@ export async function buildExport(request: ExportRequest): Promise<ExportResult>
 
   const payload = await buildClassPayload(request.assignmentId);
   if (request.templateId === "academic-print") {
-    const candidates = await resolveAcademicPrintTemplateCandidates(payload.assignment.classroomLevel as "primary" | "secondary" | undefined);
+    const candidates = await resolveAcademicPrintTemplateCandidates(
+      payload.assignment.classroomLevel as "primary" | "secondary" | undefined
+    );
+    if (useNodeExcel) {
+      const templateFileName =
+        candidates.find(
+          candidate => path.extname(candidate).toLowerCase() === ".xlsx"
+        ) ?? template.fileName;
+      const filePath = path.join(
+        tmpDir,
+        `${safeFilePart(`ปพ5_${payload.assignment.classroomName}_${payload.assignment.subjectCode}_${payload.assignment.subjectName}`) || "academic-print"}.xlsx`
+      );
+      const result = await runNodeExporter(payload, templateFileName, filePath);
+      return {
+        filePath,
+        fileName: path.basename(filePath),
+        contentType: result.contentType,
+        cleanup: async () => {
+          await fs.rm(tmpDir, { recursive: true, force: true });
+        },
+      };
+    }
     const { filePath, templateFileName } = await runAcademicPrintExporter(
       payload,
       candidates,
       tmpDir,
-      templateName => `${safeFilePart(`ปพ5_${payload.assignment.classroomName}_${payload.assignment.subjectCode}_${payload.assignment.subjectName}`) || "academic-print"}${path.extname(templateName) || ".xlsx"}`,
+      templateName =>
+        `${safeFilePart(`ปพ5_${payload.assignment.classroomName}_${payload.assignment.subjectCode}_${payload.assignment.subjectName}`) || "academic-print"}${path.extname(templateName) || ".xlsx"}`
     );
 
     return {
@@ -379,12 +479,15 @@ export async function buildExport(request: ExportRequest): Promise<ExportResult>
 
   const filePath = path.join(tmpDir, buildClassExportName(payload));
 
-  await runPythonExporter(payload, template.fileName, filePath);
+  const result = useNodeExcel
+    ? await runNodeExporter(payload, template.fileName, filePath)
+    : (await runPythonExporter(payload, template.fileName, filePath),
+      { contentType: template.contentType });
 
   return {
     filePath,
     fileName: path.basename(filePath),
-    contentType: template.contentType,
+    contentType: result.contentType,
     cleanup: async () => {
       await fs.rm(tmpDir, { recursive: true, force: true });
     },

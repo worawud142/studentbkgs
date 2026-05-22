@@ -16,6 +16,8 @@ import {
 import { registerOAuthRoutes } from "./oauth";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
+import { isNodeExcelRuntime } from "./excelRuntime";
+import { createStudentImportTemplateNode } from "./nodeExcel";
 
 type TemplateId = "secondary-demo" | "primary-score" | "academic-print";
 
@@ -50,16 +52,32 @@ function getTemplatePath(fileName: string) {
 function studentImportTemplateScriptPath() {
   const candidates = [
     path.resolve(import.meta.dirname, "student_import_template.py"),
-    path.resolve(process.cwd(), "server", "_core", "student_import_template.py"),
+    path.resolve(
+      process.cwd(),
+      "server",
+      "_core",
+      "student_import_template.py"
+    ),
   ];
-  return candidates.find(candidate => fs.existsSync(candidate)) ?? candidates[0];
+  return (
+    candidates.find(candidate => fs.existsSync(candidate)) ?? candidates[0]
+  );
 }
 
 async function createStudentImportTemplate(outputPath: string) {
+  if (isNodeExcelRuntime()) {
+    await createStudentImportTemplateNode(outputPath);
+    return;
+  }
+
   await new Promise<void>((resolve, reject) => {
-    const child = spawn("python3", [studentImportTemplateScriptPath(), outputPath], {
-      stdio: ["ignore", "pipe", "pipe"],
-    });
+    const child = spawn(
+      "python3",
+      [studentImportTemplateScriptPath(), outputPath],
+      {
+        stdio: ["ignore", "pipe", "pipe"],
+      }
+    );
 
     let stderr = "";
     child.stderr.on("data", chunk => {
@@ -68,7 +86,12 @@ async function createStudentImportTemplate(outputPath: string) {
     child.on("error", reject);
     child.on("close", code => {
       if (code === 0) resolve();
-      else reject(new Error(stderr.trim() || `student import template exited with code ${code}`));
+      else
+        reject(
+          new Error(
+            stderr.trim() || `student import template exited with code ${code}`
+          )
+        );
     });
   });
 }
@@ -98,23 +121,32 @@ export function createApp() {
   app.use(express.json({ limit: "50mb" }));
   app.use(express.urlencoded({ limit: "50mb", extended: true }));
   app.get("/api/student-import-template", async (_req, res) => {
-    const tmpDir = await fsPromises.mkdtemp(path.join(os.tmpdir(), "studentbkgs-template-"));
+    const tmpDir = await fsPromises.mkdtemp(
+      path.join(os.tmpdir(), "studentbkgs-template-")
+    );
     const filePath = path.join(tmpDir, "student-import-template.xlsx");
 
     try {
       await createStudentImportTemplate(filePath);
       res.setHeader(
         "Content-Type",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
       );
       res.download(filePath, "เทมเพลตนำเข้านักเรียน.xlsx", async err => {
-        await fsPromises.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
-        if (err) console.error("[Student Import Template] download failed", err);
+        await fsPromises
+          .rm(tmpDir, { recursive: true, force: true })
+          .catch(() => {});
+        if (err)
+          console.error("[Student Import Template] download failed", err);
       });
     } catch (error) {
-      await fsPromises.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+      await fsPromises
+        .rm(tmpDir, { recursive: true, force: true })
+        .catch(() => {});
       console.error("[Student Import Template] failed", error);
-      res.status(500).json({ error: "Failed to generate student import template" });
+      res
+        .status(500)
+        .json({ error: "Failed to generate student import template" });
     }
   });
   app.get("/api/templates/:templateId", async (req, res) => {
@@ -125,18 +157,30 @@ export function createApp() {
       return;
     }
 
-    const shouldExport = req.query.export === "1" || req.query.export === "true";
-    const assignmentId = typeof req.query.assignmentId === "string" ? Number(req.query.assignmentId) : undefined;
-    const studentId = typeof req.query.studentId === "string" ? Number(req.query.studentId) : undefined;
-    const level = typeof req.query.level === "string" && ["primary", "secondary"].includes(req.query.level)
-      ? req.query.level as "primary" | "secondary"
-      : undefined;
+    const shouldExport =
+      req.query.export === "1" || req.query.export === "true";
+    const assignmentId =
+      typeof req.query.assignmentId === "string"
+        ? Number(req.query.assignmentId)
+        : undefined;
+    const studentId =
+      typeof req.query.studentId === "string"
+        ? Number(req.query.studentId)
+        : undefined;
+    const level =
+      typeof req.query.level === "string" &&
+      ["primary", "secondary"].includes(req.query.level)
+        ? (req.query.level as "primary" | "secondary")
+        : undefined;
 
     if (shouldExport) {
       try {
         if (req.params.templateId === "academic-print") {
           if (assignmentId && !Number.isNaN(assignmentId)) {
-            const result = await buildExport({ templateId: "academic-print", assignmentId });
+            const result = await buildExport({
+              templateId: "academic-print",
+              assignmentId,
+            });
             res.setHeader("Content-Type", result.contentType);
             res.download(result.filePath, result.fileName, async err => {
               await result.cleanup().catch(() => {});
@@ -146,7 +190,10 @@ export function createApp() {
           }
 
           if (studentId && !Number.isNaN(studentId)) {
-            const result = await buildExport({ templateId: "academic-print", studentId });
+            const result = await buildExport({
+              templateId: "academic-print",
+              studentId,
+            });
             res.setHeader("Content-Type", result.contentType);
             res.download(result.filePath, result.fileName, async err => {
               await result.cleanup().catch(() => {});
@@ -155,7 +202,9 @@ export function createApp() {
             return;
           }
 
-          res.status(400).json({ error: "assignmentId or studentId is required" });
+          res
+            .status(400)
+            .json({ error: "assignmentId or studentId is required" });
           return;
         }
 
@@ -165,7 +214,10 @@ export function createApp() {
         }
 
         const result = await buildExport({
-          templateId: template.fileName === "เก็บคะแนนประถม.xlsx" ? "primary-score" : "secondary-demo",
+          templateId:
+            template.fileName === "เก็บคะแนนประถม.xlsx"
+              ? "primary-score"
+              : "secondary-demo",
           assignmentId,
         });
 
@@ -189,7 +241,10 @@ export function createApp() {
         res.status(404).json({ error: "Template file missing" });
         return;
       }
-      res.setHeader("Content-Type", academicPrintContentType(path.basename(matched)));
+      res.setHeader(
+        "Content-Type",
+        academicPrintContentType(path.basename(matched))
+      );
       res.download(matched, path.basename(matched));
       return;
     }
@@ -230,9 +285,10 @@ export async function startServer() {
   }
 
   const preferredPort = parseInt(process.env.PORT || "3000");
-  const port = process.env.NODE_ENV === "development"
-    ? await findAvailablePort(preferredPort)
-    : preferredPort;
+  const port =
+    process.env.NODE_ENV === "development"
+      ? await findAvailablePort(preferredPort)
+      : preferredPort;
 
   if (process.env.NODE_ENV === "development" && port !== preferredPort) {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);

@@ -4,6 +4,8 @@ import fs from "fs/promises";
 import os from "os";
 import path from "path";
 import { upsertStudentByCode } from "../db";
+import { isNodeExcelRuntime } from "./excelRuntime";
+import { parseStudentsWorkbookNode } from "./nodeExcel";
 
 type ParsedStudentRow = {
   rowNumber: number;
@@ -53,21 +55,33 @@ async function runPythonParser(workbookPath: string): Promise<ParsedWorkbook> {
     child.on("error", reject);
     child.on("close", code => {
       if (code !== 0) {
-        reject(new Error(stderr.trim() || `excel importer exited with code ${code}`));
+        reject(
+          new Error(stderr.trim() || `excel importer exited with code ${code}`)
+        );
         return;
       }
 
       try {
         resolve(JSON.parse(stdout || "{}") as ParsedWorkbook);
       } catch (error) {
-        reject(new Error(`Failed to parse Excel import output: ${(error as Error).message}`));
+        reject(
+          new Error(
+            `Failed to parse Excel import output: ${(error as Error).message}`
+          )
+        );
       }
     });
   });
 }
 
-function normalizeStatus(status: ParsedStudentRow["status"] | string | undefined) {
-  if (status === "transferred" || status === "graduated" || status === "dropped") {
+function normalizeStatus(
+  status: ParsedStudentRow["status"] | string | undefined
+) {
+  if (
+    status === "transferred" ||
+    status === "graduated" ||
+    status === "dropped"
+  ) {
     return status;
   }
   return "active";
@@ -83,13 +97,21 @@ function normalizeBirthDate(value: string | undefined) {
     const month = Number(isoMatch[2]);
     const day = Number(isoMatch[3]);
     const normalizedYear = year > 2400 ? year - 543 : year;
-    if (normalizedYear >= 1900 && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+    if (
+      normalizedYear >= 1900 &&
+      month >= 1 &&
+      month <= 12 &&
+      day >= 1 &&
+      day <= 31
+    ) {
       return `${normalizedYear.toString().padStart(4, "0")}-${month.toString().padStart(2, "0")}-${day.toString().padStart(2, "0")}`;
     }
     return undefined;
   }
 
-  const thaiDateMatch = raw.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+  const thaiDateMatch = raw.match(
+    /^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/
+  );
   if (thaiDateMatch) {
     const day = Number(thaiDateMatch[1]);
     const month = Number(thaiDateMatch[2]);
@@ -109,13 +131,22 @@ export async function importStudentsFromWorkbook(options: {
   fileName: string;
   fileContentBase64: string;
 }) {
-  const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "studentbkgs-import-"));
+  const tmpDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "studentbkgs-import-")
+  );
   const safeName = options.fileName.replace(/[^a-zA-Z0-9ก-๙._-]+/g, "_");
   const inputPath = path.join(tmpDir, safeName || "import.xlsx");
 
   try {
-    await fs.writeFile(inputPath, Buffer.from(options.fileContentBase64, "base64"));
-    const workbook = await runPythonParser(inputPath);
+    await fs.writeFile(
+      inputPath,
+      Buffer.from(options.fileContentBase64, "base64")
+    );
+    const workbook = isNodeExcelRuntime()
+      ? await parseStudentsWorkbookNode(
+          Buffer.from(options.fileContentBase64, "base64")
+        )
+      : await runPythonParser(inputPath);
     const created: number[] = [];
     const warnings = [...workbook.errors];
 

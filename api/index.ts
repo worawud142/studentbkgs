@@ -1,5 +1,20 @@
-import { createApp } from "../server/_core/index";
+import type { Express, Request, Response } from "express";
 
-const app = createApp();
+let app: Express | null = null;
 
-export default app;
+export default async function handler(req: Request, res: Response) {
+  try {
+    if (!app) {
+      const { createApp } = await import("../server/_core/index");
+      app = createApp();
+    }
+
+    return app(req, res);
+  } catch (error) {
+    console.error("[Vercel API] Failed to handle request:", error);
+    res.status(500).json({
+      error: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+  }
+}
