@@ -5,12 +5,7 @@
   "outputDirectory": "dist/public",
   "functions": {
     "api/index.ts": {
-      "includeFiles": [
-        "server/_core/*.py",
-        "templates/**",
-        "*.xlsx",
-        "*.xlsm"
-      ],
+      "includeFiles": "{server/_core/*.py,templates/**,*.xlsx,*.xlsm}",
       "maxDuration": 60
     }
   },
