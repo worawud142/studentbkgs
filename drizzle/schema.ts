@@ -112,6 +112,26 @@ export const teacherProfiles = appSchema.table("teacher_profiles", {
 export type TeacherProfile = typeof teacherProfiles.$inferSelect;
 export type InsertTeacherProfile = typeof teacherProfiles.$inferInsert;
 
+// ─── School Settings ─────────────────────────────────────────────────────────
+export const schoolSettings = appSchema.table("school_settings", {
+  id: serial("id").primaryKey(),
+  schoolName: varchar("schoolName", { length: 200 })
+    .default("โรงเรียนบ้านขัวก่าย")
+    .notNull(),
+  officeName: varchar("officeName", { length: 300 }).default(
+    "สำนักงานเขตพื้นที่การศึกษาประถมศึกษาสกลนคร เขต 3"
+  ),
+  homeroomTeacherName: varchar("homeroomTeacherName", { length: 200 }),
+  academicHeadName: varchar("academicHeadName", { length: 200 }),
+  directorName: varchar("directorName", { length: 200 }),
+  updatedAt: timestamp("updatedAt", { mode: "date", withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export type SchoolSettings = typeof schoolSettings.$inferSelect;
+export type InsertSchoolSettings = typeof schoolSettings.$inferInsert;
+
 // ─── Academic Years ────────────────────────────────────────────────────────────
 export const academicYears = appSchema.table("academic_years", {
   id: serial("id").primaryKey(),
@@ -288,6 +308,34 @@ export const gradeResults = appSchema.table("grade_results", {
 
 export type GradeResult = typeof gradeResults.$inferSelect;
 export type InsertGradeResult = typeof gradeResults.$inferInsert;
+
+// ─── Por6 Assessments ─────────────────────────────────────────────────────────
+export const studentPor6Assessments = appSchema.table(
+  "student_por6_assessments",
+  {
+    id: serial("id").primaryKey(),
+    studentId: integer("studentId").notNull(),
+    academicYearId: integer("academicYearId").notNull(),
+    competencies: jsonb("competencies"),
+    readingThinkingWriting: varchar("readingThinkingWriting", {
+      length: 50,
+    }).default("ดีเยี่ยม"),
+    attributes: jsonb("attributes"),
+    activities: jsonb("activities"),
+    updatedBy: integer("updatedBy"),
+    createdAt: timestamp("createdAt", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updatedAt", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }
+);
+
+export type StudentPor6Assessment =
+  typeof studentPor6Assessments.$inferSelect;
+export type InsertStudentPor6Assessment =
+  typeof studentPor6Assessments.$inferInsert;
 
 // ─── Exported Documents (เอกสาร ปพ.1 และ ปพ.6) ────────────────────────────────
 export const exportedDocuments = appSchema.table("exported_documents", {

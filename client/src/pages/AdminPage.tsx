@@ -29,7 +29,7 @@ import {
   CheckCircle2,
   Edit2,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { isAdminRole, roleLabel } from "@shared/roles";
@@ -111,6 +111,14 @@ function SystemDataTab() {
     name: string;
   } | null>(null);
   const [resetPassword, setResetPassword] = useState("");
+  const { data: schoolSettings } = trpc.schoolSettings.get.useQuery();
+  const [schoolForm, setSchoolForm] = useState({
+    schoolName: "",
+    officeName: "",
+    homeroomTeacherName: "",
+    academicHeadName: "",
+    directorName: "",
+  });
   const [teacherForm, setTeacherForm] = useState({
     email: "",
     teacherCode: "",
@@ -121,6 +129,23 @@ function SystemDataTab() {
     phone: "",
     teachingLevel: "secondary" as "primary" | "secondary" | "both",
     isHomeroom: false,
+  });
+  useEffect(() => {
+    if (!schoolSettings) return;
+    setSchoolForm({
+      schoolName: schoolSettings.schoolName || "",
+      officeName: schoolSettings.officeName || "",
+      homeroomTeacherName: schoolSettings.homeroomTeacherName || "",
+      academicHeadName: schoolSettings.academicHeadName || "",
+      directorName: schoolSettings.directorName || "",
+    });
+  }, [schoolSettings]);
+  const updateSchool = trpc.schoolSettings.update.useMutation({
+    onSuccess: () => {
+      toast.success("บันทึกตั้งค่าโรงเรียนเรียบร้อย");
+      utils.schoolSettings.get.invalidate();
+    },
+    onError: error => toast.error(error.message),
   });
   const updateUserRole = trpc.teacher.updateUserRole.useMutation({
     onSuccess: () => {
@@ -177,6 +202,93 @@ function SystemDataTab() {
 
   return (
     <div className="space-y-4">
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-200">
+          <h3 className="font-semibold text-slate-900">ตั้งค่าโรงเรียนสำหรับ ปพ.6</h3>
+          <p className="text-xs text-slate-500 mt-1">
+            ข้อมูลนี้จะใช้เป็นหัวเอกสารและรายชื่อผู้ลงนามในหน้าพิมพ์ ปพ.6
+          </p>
+        </div>
+        <form
+          onSubmit={e => {
+            e.preventDefault();
+            updateSchool.mutate(schoolForm);
+          }}
+          className="p-4 space-y-3"
+        >
+          <div className="grid gap-3 md:grid-cols-2">
+            <div>
+              <Label className="text-xs">ชื่อโรงเรียน *</Label>
+              <Input
+                value={schoolForm.schoolName}
+                onChange={e =>
+                  setSchoolForm({ ...schoolForm, schoolName: e.target.value })
+                }
+                className="mt-1"
+                required
+              />
+            </div>
+            <div>
+              <Label className="text-xs">สังกัด / เขตพื้นที่</Label>
+              <Input
+                value={schoolForm.officeName}
+                onChange={e =>
+                  setSchoolForm({ ...schoolForm, officeName: e.target.value })
+                }
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            <div>
+              <Label className="text-xs">ครูประจำชั้น</Label>
+              <Input
+                value={schoolForm.homeroomTeacherName}
+                onChange={e =>
+                  setSchoolForm({
+                    ...schoolForm,
+                    homeroomTeacherName: e.target.value,
+                  })
+                }
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">หัวหน้างานวิชาการ</Label>
+              <Input
+                value={schoolForm.academicHeadName}
+                onChange={e =>
+                  setSchoolForm({
+                    ...schoolForm,
+                    academicHeadName: e.target.value,
+                  })
+                }
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">ผู้อำนวยการ</Label>
+              <Input
+                value={schoolForm.directorName}
+                onChange={e =>
+                  setSchoolForm({ ...schoolForm, directorName: e.target.value })
+                }
+                className="mt-1"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <Button
+              type="submit"
+              className="bg-blue-600 hover:bg-blue-700"
+              disabled={updateSchool.isPending}
+            >
+              {updateSchool.isPending ? "กำลังบันทึก..." : "บันทึกตั้งค่า"}
+            </Button>
+          </div>
+        </form>
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
           <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">

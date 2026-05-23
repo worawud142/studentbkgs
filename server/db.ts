@@ -10,7 +10,9 @@ import {
   exportedDocuments,
   gradeResults,
   scoreCategories,
+  schoolSettings,
   scores,
+  studentPor6Assessments,
   students,
   subjects,
   teacherProfiles,
@@ -24,6 +26,32 @@ import { hashPassword, verifyPassword } from "./_core/password";
 let _pool: Pool | null = null;
 type Database = ReturnType<typeof drizzle>;
 let _db: Database | null = null;
+
+const DEFAULT_POR6_COMPETENCIES = {
+  communication: "ดีเยี่ยม",
+  thinking: "ดีเยี่ยม",
+  problemSolving: "ดีเยี่ยม",
+  lifeSkills: "ดีเยี่ยม",
+  technology: "ดีเยี่ยม",
+};
+
+const DEFAULT_POR6_ATTRIBUTES = {
+  nationReligionKing: "ดีเยี่ยม",
+  honesty: "ดีเยี่ยม",
+  discipline: "ดีเยี่ยม",
+  eagerness: "ดีเยี่ยม",
+  sufficiency: "ดีเยี่ยม",
+  dedication: "ดีเยี่ยม",
+  thaiIdentity: "ดีเยี่ยม",
+  publicMind: "ดีเยี่ยม",
+};
+
+const DEFAULT_POR6_ACTIVITIES = {
+  guidance: "ผ่าน",
+  scout: "ผ่าน",
+  environment: "ผ่าน",
+  volunteer: "ผ่าน",
+};
 
 function getPoolOptions() {
   const connectionUrl = new URL(ENV.databaseUrl);
@@ -62,6 +90,43 @@ async function getNextNumericId(table: any, idColumn: any): Promise<number> {
     .select({ nextId: sql<number>`coalesce(max(${idColumn}), 0) + 1` })
     .from(table);
   return Number(result?.nextId ?? 1);
+}
+
+function quotedSchemaName() {
+  return `"${ENV.dbSchema.replace(/"/g, '""')}"`;
+}
+
+async function ensurePor6Tables() {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const schemaName = quotedSchemaName();
+  await db.execute(sql.raw(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`));
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS ${schemaName}."school_settings" (
+      "id" integer PRIMARY KEY,
+      "schoolName" varchar(200) NOT NULL DEFAULT 'โรงเรียนบ้านขัวก่าย',
+      "officeName" varchar(300),
+      "homeroomTeacherName" varchar(200),
+      "academicHeadName" varchar(200),
+      "directorName" varchar(200),
+      "updatedAt" timestamptz NOT NULL DEFAULT now()
+    )
+  `));
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS ${schemaName}."student_por6_assessments" (
+      "id" integer PRIMARY KEY,
+      "studentId" integer NOT NULL,
+      "academicYearId" integer NOT NULL,
+      "competencies" jsonb,
+      "readingThinkingWriting" varchar(50) DEFAULT 'ดีเยี่ยม',
+      "attributes" jsonb,
+      "activities" jsonb,
+      "updatedBy" integer,
+      "createdAt" timestamptz NOT NULL DEFAULT now(),
+      "updatedAt" timestamptz NOT NULL DEFAULT now(),
+      UNIQUE ("studentId", "academicYearId")
+    )
+  `));
 }
 
 // ─── Users ────────────────────────────────────────────────────────────────────
@@ -1463,6 +1528,285 @@ export async function getStudentGradeResults(studentId: number) {
     .leftJoin(subjects, eq(teachingAssignments.subjectId, subjects.id))
     .leftJoin(classrooms, eq(teachingAssignments.classroomId, classrooms.id))
     .where(eq(gradeResults.studentId, studentId));
+}
+
+export async function getSchoolSettings() {
+  const db = await getDb();
+  if (!db) {
+    return {
+      id: 1,
+      schoolName: "โรงเรียนบ้านขัวก่าย",
+      officeName: "สำนักงานเขตพื้นที่การศึกษาประถมศึกษาสกลนคร เขต 3",
+      homeroomTeacherName: "",
+      academicHeadName: "",
+      directorName: "",
+      updatedAt: new Date(),
+    };
+  }
+  await ensurePor6Tables();
+  const [row] = await db
+    .select()
+    .from(schoolSettings)
+    .where(eq(schoolSettings.id, 1))
+    .limit(1);
+  if (row) return row;
+  const initial = {
+    id: 1,
+    schoolName: "โรงเรียนบ้านขัวก่าย",
+    officeName: "สำนักงานเขตพื้นที่การศึกษาประถมศึกษาสกลนคร เขต 3",
+    homeroomTeacherName: "",
+    academicHeadName: "",
+    directorName: "",
+    updatedAt: new Date(),
+  };
+  await db.insert(schoolSettings).values(initial as any).catch(() => {});
+  return initial;
+}
+
+export async function updateSchoolSettings(
+  data: Partial<typeof schoolSettings.$inferInsert>
+) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await ensurePor6Tables();
+  const existing = await getSchoolSettings();
+  if (existing) {
+    await db
+      .update(schoolSettings)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(schoolSettings.id, 1));
+  } else {
+    await db
+      .insert(schoolSettings)
+      .values({ id: 1, ...data, updatedAt: new Date() } as any);
+  }
+  return getSchoolSettings();
+}
+
+function defaultPor6Assessment(studentId: number, academicYearId: number) {
+  return {
+    id: 0,
+    studentId,
+    academicYearId,
+    competencies: DEFAULT_POR6_COMPETENCIES,
+    readingThinkingWriting: "ดีเยี่ยม",
+    attributes: DEFAULT_POR6_ATTRIBUTES,
+    activities: DEFAULT_POR6_ACTIVITIES,
+    updatedBy: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+}
+
+export async function getPor6Assessment(
+  studentId: number,
+  academicYearId: number
+) {
+  const db = await getDb();
+  if (!db) return defaultPor6Assessment(studentId, academicYearId);
+  await ensurePor6Tables();
+  const [row] = await db
+    .select()
+    .from(studentPor6Assessments)
+    .where(
+      and(
+        eq(studentPor6Assessments.studentId, studentId),
+        eq(studentPor6Assessments.academicYearId, academicYearId)
+      )
+    )
+    .limit(1);
+  return row ?? defaultPor6Assessment(studentId, academicYearId);
+}
+
+export async function upsertPor6Assessment(data: {
+  studentId: number;
+  academicYearId: number;
+  competencies?: Record<string, string>;
+  readingThinkingWriting?: string;
+  attributes?: Record<string, string>;
+  activities?: Record<string, string>;
+  updatedBy?: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await ensurePor6Tables();
+  const existing = await getPor6Assessment(data.studentId, data.academicYearId);
+  const values = {
+    studentId: data.studentId,
+    academicYearId: data.academicYearId,
+    competencies: data.competencies ?? DEFAULT_POR6_COMPETENCIES,
+    readingThinkingWriting: data.readingThinkingWriting ?? "ดีเยี่ยม",
+    attributes: data.attributes ?? DEFAULT_POR6_ATTRIBUTES,
+    activities: data.activities ?? DEFAULT_POR6_ACTIVITIES,
+    updatedBy: data.updatedBy,
+    updatedAt: new Date(),
+  };
+  if (existing.id) {
+    await db
+      .update(studentPor6Assessments)
+      .set(values as any)
+      .where(eq(studentPor6Assessments.id, existing.id));
+  } else {
+    await db.insert(studentPor6Assessments).values({
+      id: await getNextNumericId(
+        studentPor6Assessments,
+        studentPor6Assessments.id
+      ),
+      ...values,
+      createdAt: new Date(),
+    } as any);
+  }
+  return getPor6Assessment(data.studentId, data.academicYearId);
+}
+
+function toNumber(value: unknown) {
+  if (value === null || value === undefined || value === "") return null;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function subjectType(subject: any) {
+  const text = `${subject?.name ?? ""} ${subject?.subjectGroup ?? ""}`;
+  return /เพิ่มเติม/.test(text) ? "เพิ่มเติม" : "พื้นฐาน";
+}
+
+function numericGrade(value: unknown) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export async function getPor6StudentReport(studentId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const student = await getStudentById(studentId);
+  if (!student) return null;
+  const classroom = await getClassroomById(student.classroomId);
+  if (!classroom) return null;
+  const academicYear = await getAcademicYearById(classroom.academicYearId);
+  const school = await getSchoolSettings();
+  const assessment = await getPor6Assessment(student.id, classroom.academicYearId);
+  const classmates = await getStudentsByClassroom(classroom.id);
+  const assignmentRows = await db
+    .select({
+      assignment: teachingAssignments,
+      subject: subjects,
+    })
+    .from(teachingAssignments)
+    .leftJoin(subjects, eq(teachingAssignments.subjectId, subjects.id))
+    .where(
+      and(
+        eq(teachingAssignments.classroomId, classroom.id),
+        eq(teachingAssignments.academicYearId, classroom.academicYearId)
+      )
+    )
+    .orderBy(subjects.subjectCode, subjects.name);
+
+  const assignmentIds = assignmentRows.map(row => row.assignment.id);
+  const allResults =
+    assignmentIds.length === 0
+      ? []
+      : await db
+          .select()
+          .from(gradeResults)
+          .where(inArray(gradeResults.assignmentId, assignmentIds));
+  const resultsByAssignmentStudent = new Map(
+    allResults.map(result => [
+      `${result.assignmentId}-${result.studentId}`,
+      result,
+    ])
+  );
+  const classAverageByAssignment = new Map<number, number>();
+  assignmentIds.forEach(id => {
+    const values = allResults
+      .filter(result => result.assignmentId === id)
+      .map(result => toNumber(result.totalScore))
+      .filter((value): value is number => value !== null);
+    if (values.length > 0) {
+      classAverageByAssignment.set(
+        id,
+        Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 100) / 100
+      );
+    }
+  });
+
+  const rankRows = classmates.map(classmate => {
+    const totals = assignmentIds
+      .map(id => toNumber(resultsByAssignmentStudent.get(`${id}-${classmate.id}`)?.totalScore))
+      .filter((value): value is number => value !== null);
+    const percent =
+      totals.length > 0
+        ? totals.reduce((sum, value) => sum + value, 0) / totals.length
+        : null;
+    return { studentId: classmate.id, percent };
+  });
+  const ranked = rankRows
+    .filter(row => row.percent !== null)
+    .sort((a, b) => (b.percent ?? 0) - (a.percent ?? 0));
+  const rankIndex = ranked.findIndex(row => row.studentId === student.id);
+  const rank = rankIndex >= 0 ? rankIndex + 1 : null;
+
+  const subjectsReport = assignmentRows.map(row => {
+    const result = resultsByAssignmentStudent.get(
+      `${row.assignment.id}-${student.id}`
+    );
+    return {
+      assignmentId: row.assignment.id,
+      subjectType: subjectType(row.subject),
+      subjectCode: row.subject?.subjectCode ?? "",
+      subjectName: row.subject?.name ?? "รายวิชา",
+      hours: Number(row.assignment.hoursPerWeek ?? 1) * 40,
+      maxScore: 100,
+      classAverage: classAverageByAssignment.get(row.assignment.id) ?? null,
+      score: toNumber(result?.totalScore),
+      grade: result?.grade ?? null,
+      result: result?.result ?? null,
+      note: "",
+    };
+  });
+  const scoredSubjects = subjectsReport.filter(subject => subject.score !== null);
+  const totalScore = scoredSubjects.reduce(
+    (sum, subject) => sum + (subject.score ?? 0),
+    0
+  );
+  const totalMaxScore = subjectsReport.length * 100;
+  const percentage =
+    scoredSubjects.length > 0
+      ? Math.round((totalScore / (scoredSubjects.length * 100)) * 10000) / 100
+      : null;
+  const grades = subjectsReport
+    .map(subject => numericGrade(subject.grade))
+    .filter((value): value is number => value !== null);
+  const gpa =
+    grades.length > 0
+      ? Math.round((grades.reduce((sum, grade) => sum + grade, 0) / grades.length) * 100) /
+        100
+      : null;
+
+  return {
+    student,
+    classroom,
+    academicYear,
+    school,
+    assessment,
+    subjects: subjectsReport,
+    summary: {
+      totalHours: subjectsReport.reduce((sum, subject) => sum + subject.hours, 0),
+      totalMaxScore,
+      totalScore: scoredSubjects.length > 0 ? Math.round(totalScore * 100) / 100 : null,
+      percentage,
+      gpa,
+      rank,
+      rankedCount: ranked.length,
+    },
+  };
+}
+
+export async function getPor6ClassroomReports(classroomId: number) {
+  const students = await getStudentsByClassroom(classroomId);
+  const reports = await Promise.all(
+    students.map(student => getPor6StudentReport(student.id))
+  );
+  return reports.filter(Boolean);
 }
 
 // ─── Exported Documents ────────────────────────────────────────────────────────

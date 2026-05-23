@@ -46,6 +46,8 @@ import {
   getClassroomById,
   getClassrooms,
   getExportedDocuments,
+  getPor6ClassroomReports,
+  getPor6StudentReport,
   getGradeResults,
   getScoreCategories,
   getScoresByAssignment,
@@ -57,6 +59,7 @@ import {
   getSubjects,
   getTeacherAssignments,
   getTeacherProfile,
+  getSchoolSettings,
   setActiveAcademicYear,
   updateAcademicYear,
   updateClassroom,
@@ -72,11 +75,27 @@ import {
   resolveLoginUser,
   updateTeacherPassword,
   upsertScoresBatch,
+  updateSchoolSettings,
+  upsertPor6Assessment,
 } from "./db";
 import { storagePut } from "./storage";
 
 export const appRouter = router({
   system: systemRouter,
+  schoolSettings: router({
+    get: protectedProcedure.query(async () => getSchoolSettings()),
+    update: adminProcedure
+      .input(
+        z.object({
+          schoolName: z.string().min(1),
+          officeName: z.string().optional(),
+          homeroomTeacherName: z.string().optional(),
+          academicHeadName: z.string().optional(),
+          directorName: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => updateSchoolSettings(input as any)),
+  }),
   auth: router({
     me: publicProcedure.query(opts => opts.ctx.user),
     supabaseLogin: publicProcedure
@@ -879,6 +898,34 @@ export const appRouter = router({
         });
         return { success: true };
       }),
+  }),
+
+  // ─── Documents ─────────────────────────────────────────────────────────────
+  por6: router({
+    getStudentReport: protectedProcedure
+      .input(z.object({ studentId: z.number() }))
+      .query(async ({ input }) => {
+        const report = await getPor6StudentReport(input.studentId);
+        if (!report) throw new TRPCError({ code: "NOT_FOUND" });
+        return report;
+      }),
+    getClassroomReports: protectedProcedure
+      .input(z.object({ classroomId: z.number() }))
+      .query(async ({ input }) => getPor6ClassroomReports(input.classroomId)),
+    saveAssessment: editorProcedure
+      .input(
+        z.object({
+          studentId: z.number(),
+          academicYearId: z.number(),
+          competencies: z.record(z.string(), z.string()).optional(),
+          readingThinkingWriting: z.string().optional(),
+          attributes: z.record(z.string(), z.string()).optional(),
+          activities: z.record(z.string(), z.string()).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) =>
+        upsertPor6Assessment({ ...input, updatedBy: ctx.user.id })
+      ),
   }),
 
   // ─── Documents ─────────────────────────────────────────────────────────────

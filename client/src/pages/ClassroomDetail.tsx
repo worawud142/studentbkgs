@@ -298,7 +298,7 @@ export default function ClassroomDetail() {
           </div>
           <div className="flex gap-2">
             {classroom?.level === "primary" && (
-              <Link href={`/print/por6/${classroomId}/0`}>
+              <Link href={`/print/por6/classroom/${classroomId}`}>
                 <Button variant="outline" size="sm">
                   <FileText className="w-4 h-4 mr-1" />
                   ปพ.6

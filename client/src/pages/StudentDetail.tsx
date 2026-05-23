@@ -1,7 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import TeacherLayout from "@/components/TeacherLayout";
 import { useParams } from "wouter";
-import { User, BookOpen, ClipboardList, Download } from "lucide-react";
+import { User, BookOpen, Download, FileText } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 
@@ -54,12 +54,20 @@ export default function StudentDetail() {
                 {student.birthDate && <p className="text-slate-500 text-sm">วันเกิด: {String(student.birthDate)}</p>}
               </div>
               </div>
-              <Button asChild variant="outline" size="sm">
-                <a href={`/api/templates/academic-print?export=1&studentId=${studentId}`}>
-                  <Download className="w-4 h-4 mr-1" />
-                  ส่งออก ปพ.5
-                </a>
-              </Button>
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button asChild variant="outline" size="sm">
+                  <a href={`/print/por6/student/${studentId}`}>
+                    <FileText className="w-4 h-4 mr-1" />
+                    ปพ.6 รายคน
+                  </a>
+                </Button>
+                <Button asChild variant="outline" size="sm">
+                  <a href={`/api/templates/academic-print?export=1&studentId=${studentId}`}>
+                    <Download className="w-4 h-4 mr-1" />
+                    ส่งออก ปพ.5
+                  </a>
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

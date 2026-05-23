@@ -32,6 +32,8 @@ function Router() {
       <Route path="/documents" component={DocumentsPage} />
       <Route path="/admin" component={AdminPage} />
       <Route path="/print/por1/:assignmentId" component={PrintPor1} />
+      <Route path="/print/por6/student/:studentId" component={PrintPor6} />
+      <Route path="/print/por6/classroom/:classroomId" component={PrintPor6} />
       <Route path="/print/por6/:assignmentId" component={PrintPor6} />
       <Route path="/print/qr/:classroomId" component={PrintQrCards} />
       <Route path="/404" component={NotFound} />
