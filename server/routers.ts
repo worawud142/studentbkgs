@@ -78,6 +78,7 @@ import {
   upsertScoresBatch,
   updateSchoolSettings,
   upsertPor6Assessment,
+  updatePor6ClassroomActivities,
 } from "./db";
 import { storagePut } from "./storage";
 
@@ -950,6 +951,18 @@ export const appRouter = router({
       )
       .mutation(async ({ ctx, input }) =>
         upsertPor6Assessment({ ...input, updatedBy: ctx.user.id })
+      ),
+    saveClassroomActivities: editorProcedure
+      .input(
+        z.object({
+          classroomId: z.number(),
+          academicYearId: z.number(),
+          activities: z.record(z.string(), z.string()).optional(),
+          activityLabels: z.record(z.string(), z.string()).optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) =>
+        updatePor6ClassroomActivities({ ...input, updatedBy: ctx.user.id })
       ),
   }),
 

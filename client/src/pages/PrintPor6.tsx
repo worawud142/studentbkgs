@@ -2,7 +2,7 @@ import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Printer, ArrowLeft, Loader2, Save } from "lucide-react";
+import { Printer, ArrowLeft, Loader2, Save, Edit2, X } from "lucide-react";
 import { useParams, useLocation } from "wouter";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -370,6 +370,8 @@ export default function PrintPor6() {
     studentId ?? null
   );
   const [form, setForm] = useState<AssessmentForm | null>(null);
+  const [isEditingAssessment, setIsEditingAssessment] = useState(false);
+  const [isSavingAssessment, setIsSavingAssessment] = useState(false);
 
   const studentReport = trpc.por6.getStudentReport.useQuery(
     { studentId: studentId || 0 },
@@ -381,12 +383,19 @@ export default function PrintPor6() {
   );
   const saveAssessment = trpc.por6.saveAssessment.useMutation({
     onSuccess: async () => {
-      toast.success("บันทึกการประเมินเรียบร้อย");
       await utils.por6.getStudentReport.invalidate();
       await utils.por6.getClassroomReports.invalidate();
     },
     onError: error => toast.error(error.message),
   });
+  const saveClassroomActivities =
+    trpc.por6.saveClassroomActivities.useMutation({
+      onSuccess: async () => {
+        await utils.por6.getStudentReport.invalidate();
+        await utils.por6.getClassroomReports.invalidate();
+      },
+      onError: error => toast.error(error.message),
+    });
 
   const reports = useMemo(() => {
     if (studentReport.data) return [studentReport.data];
@@ -425,17 +434,36 @@ export default function PrintPor6() {
     );
   };
 
-  const handleSaveAssessment = () => {
+  const handleSaveAssessment = async () => {
     if (!selectedReport || !form) return;
-    saveAssessment.mutate({
-      studentId: selectedReport.student.id,
-      academicYearId: selectedReport.classroom.academicYearId,
-      competencies: form.competencies,
-      readingThinkingWriting: form.readingThinkingWriting,
-      attributes: form.attributes,
-      activities: form.activities,
-      activityLabels: form.activityLabels,
-    });
+    setIsSavingAssessment(true);
+    try {
+      await saveAssessment.mutateAsync({
+        studentId: selectedReport.student.id,
+        academicYearId: selectedReport.classroom.academicYearId,
+        competencies: form.competencies,
+        readingThinkingWriting: form.readingThinkingWriting,
+        attributes: form.attributes,
+        activities: form.activities,
+        activityLabels: form.activityLabels,
+      });
+      if (reports.length > 1) {
+        await saveClassroomActivities.mutateAsync({
+          classroomId: selectedReport.classroom.id,
+          academicYearId: selectedReport.classroom.academicYearId,
+          activities: form.activities,
+          activityLabels: form.activityLabels,
+        });
+      }
+      toast.success(
+        reports.length > 1
+          ? "บันทึกการประเมิน และปรับกิจกรรมให้ทั้งห้องเรียบร้อย"
+          : "บันทึกการประเมินเรียบร้อย"
+      );
+      setIsEditingAssessment(false);
+    } finally {
+      setIsSavingAssessment(false);
+    }
   };
 
   if (isLoading) {
@@ -484,14 +512,30 @@ export default function PrintPor6() {
               {reports.length > 1 ? `${reports.length} คน` : selectedReport?.student?.firstName}
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => window.print()}>
-            <Printer className="w-4 h-4 mr-1" />
-            พิมพ์ / Save PDF
-          </Button>
+          <div className="flex items-center gap-2">
+            {selectedReport && form && (
+              <Button
+                variant={isEditingAssessment ? "outline" : "secondary"}
+                size="sm"
+                onClick={() => setIsEditingAssessment((value) => !value)}
+              >
+                {isEditingAssessment ? (
+                  <X className="w-4 h-4 mr-1" />
+                ) : (
+                  <Edit2 className="w-4 h-4 mr-1" />
+                )}
+                {isEditingAssessment ? "ปิดแก้ไข" : "แก้ไขประเมิน"}
+              </Button>
+            )}
+            <Button variant="outline" size="sm" onClick={() => window.print()}>
+              <Printer className="w-4 h-4 mr-1" />
+              พิมพ์ / Save PDF
+            </Button>
+          </div>
         </div>
 
-        {selectedReport && form && (
-          <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+        {isEditingAssessment && selectedReport && form && (
+          <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
             <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
               <div>
                 <Label className="text-xs">แก้ประเมินนักเรียน</Label>
@@ -511,14 +555,17 @@ export default function PrintPor6() {
               <Button
                 size="sm"
                 onClick={handleSaveAssessment}
-                disabled={saveAssessment.isPending}
+                disabled={isSavingAssessment}
                 className="bg-green-600 hover:bg-green-700"
               >
                 <Save className="w-4 h-4 mr-1" />
-                {saveAssessment.isPending ? "กำลังบันทึก..." : "บันทึกประเมิน"}
+                {isSavingAssessment ? "กำลังบันทึก..." : "บันทึกประเมิน"}
               </Button>
             </div>
 
+            <div className="mb-2 text-xs font-semibold text-slate-600">
+              ผลประเมินรายคน
+            </div>
             <div className="grid gap-3 md:grid-cols-4">
               <div>
                 <Label className="text-xs">อ่าน คิดวิเคราะห์ และเขียน</Label>
@@ -558,6 +605,20 @@ export default function PrintPor6() {
                   />
                 </div>
               ))}
+            </div>
+
+            <div className="mt-4 border-t border-slate-200 pt-4">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-semibold text-slate-600">
+                  กิจกรรมพัฒนาผู้เรียน
+                </p>
+                {reports.length > 1 && (
+                  <p className="text-xs text-blue-600">
+                    แก้ครั้งเดียวและบันทึกให้ทุกคนในห้องนี้
+                  </p>
+                )}
+              </div>
+              <div className="grid gap-3 md:grid-cols-4">
               {ACTIVITY_LABELS.map(([key, label]) => (
                 <div key={key}>
                   <Label className="text-xs">ชื่อกิจกรรม: {label}</Label>
@@ -578,6 +639,7 @@ export default function PrintPor6() {
                   />
                 </div>
               ))}
+              </div>
             </div>
           </div>
         )}

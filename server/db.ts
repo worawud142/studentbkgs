@@ -1757,6 +1757,67 @@ export async function upsertPor6Assessment(data: {
   return getPor6Assessment(data.studentId, data.academicYearId);
 }
 
+export async function updatePor6ClassroomActivities(data: {
+  classroomId: number;
+  academicYearId: number;
+  activities?: Record<string, string>;
+  activityLabels?: Record<string, string>;
+  updatedBy?: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await ensurePor6Tables();
+  const classroomStudents = await getStudentsByClassroom(data.classroomId);
+  if (classroomStudents.length === 0) return [];
+
+  const studentIds = classroomStudents.map(student => student.id);
+  const existingRows = await db
+    .select()
+    .from(studentPor6Assessments)
+    .where(
+      and(
+        eq(studentPor6Assessments.academicYearId, data.academicYearId),
+        inArray(studentPor6Assessments.studentId, studentIds)
+      )
+    );
+  const existingByStudentId = new Map(
+    existingRows.map(row => [row.studentId, row])
+  );
+  const now = new Date();
+
+  for (const student of classroomStudents) {
+    const existing = existingByStudentId.get(student.id);
+    const values = {
+      activities: data.activities ?? DEFAULT_POR6_ACTIVITIES,
+      activityLabels: data.activityLabels ?? DEFAULT_POR6_ACTIVITY_LABELS,
+      updatedBy: data.updatedBy,
+      updatedAt: now,
+    };
+    if (existing) {
+      await db
+        .update(studentPor6Assessments)
+        .set(values as any)
+        .where(eq(studentPor6Assessments.id, existing.id));
+    } else {
+      await db.insert(studentPor6Assessments).values({
+        id: await getNextNumericId(
+          studentPor6Assessments,
+          studentPor6Assessments.id
+        ),
+        studentId: student.id,
+        academicYearId: data.academicYearId,
+        competencies: null,
+        readingThinkingWriting: null,
+        attributes: null,
+        ...values,
+        createdAt: now,
+      } as any);
+    }
+  }
+
+  return getPor6ClassroomReports(data.classroomId);
+}
+
 function toNumber(value: unknown) {
   if (value === null || value === undefined || value === "") return null;
   const parsed = Number(value);
