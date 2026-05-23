@@ -65,6 +65,42 @@ const EMPTY_HISTORY: {
   note: string | null;
 }[] = [];
 
+const THAI_WEEKDAYS = [
+  "วันอาทิตย์",
+  "วันจันทร์",
+  "วันอังคาร",
+  "วันพุธ",
+  "วันพฤหัสบดี",
+  "วันศุกร์",
+  "วันเสาร์",
+];
+const THAI_MONTHS = [
+  "มกราคม",
+  "กุมภาพันธ์",
+  "มีนาคม",
+  "เมษายน",
+  "พฤษภาคม",
+  "มิถุนายน",
+  "กรกฎาคม",
+  "สิงหาคม",
+  "กันยายน",
+  "ตุลาคม",
+  "พฤศจิกายน",
+  "ธันวาคม",
+];
+
+function formatThaiFullDate(value: string | Date) {
+  const date =
+    value instanceof Date
+      ? value
+      : new Date(`${String(value).slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return String(value);
+
+  return `${THAI_WEEKDAYS[date.getDay()]} ที่ ${date.getDate()} ${
+    THAI_MONTHS[date.getMonth()]
+  } ${date.getFullYear() + 543}`;
+}
+
 declare global {
   interface Window {
     BarcodeDetector?: new (options?: { formats?: string[] }) => {
@@ -755,7 +791,7 @@ export default function AttendancePage() {
                           className="flex items-center justify-between py-3"
                         >
                           <span className="text-sm text-slate-700">
-                            {String(item.date)}
+                            {formatThaiFullDate(item.date)}
                           </span>
                           <span
                             className={`rounded-full border px-2.5 py-1 text-xs font-medium ${cfg.color}`}
