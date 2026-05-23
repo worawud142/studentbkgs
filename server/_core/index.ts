@@ -383,10 +383,12 @@ export async function startServer() {
   const server = createServer(app);
 
   // development mode uses Vite, production mode uses static files
-  const { serveStatic, setupVite } = await import("./vite");
   if (process.env.NODE_ENV === "development") {
+    const viteModulePath = "./vite";
+    const { setupVite } = await import(viteModulePath);
     await setupVite(app, server);
   } else {
+    const { serveStatic } = await import("./static");
     serveStatic(app);
   }
 
