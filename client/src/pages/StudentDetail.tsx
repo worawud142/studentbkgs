@@ -56,7 +56,11 @@ export default function StudentDetail() {
               </div>
               <div className="flex flex-wrap justify-end gap-2">
                 <Button asChild variant="outline" size="sm">
-                  <a href={`/print/por6/student/${studentId}`}>
+                  <a
+                    href={`/print/por6/student/${studentId}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
                     <FileText className="w-4 h-4 mr-1" />
                     ปพ.6 รายคน
                   </a>

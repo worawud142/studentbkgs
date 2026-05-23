@@ -298,12 +298,16 @@ export default function ClassroomDetail() {
           </div>
           <div className="flex gap-2">
             {classroom && (
-              <Link href={`/print/por6/classroom/${classroomId}`}>
+              <a
+                href={`/print/por6/classroom/${classroomId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
                 <Button variant="outline" size="sm">
                   <FileText className="w-4 h-4 mr-1" />
                   ปพ.6
                 </Button>
-              </Link>
+              </a>
             )}
             <Link href={`/print/qr/${classroomId}`}>
               <Button variant="outline" size="sm">

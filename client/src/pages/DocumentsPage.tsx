@@ -84,6 +84,8 @@ export default function DocumentsPage() {
                 <a
                   key={id}
                   href={`/print/por6/classroom/${id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
                   className="group rounded-xl border border-slate-200 bg-slate-50 p-4 transition-colors hover:border-emerald-300 hover:bg-emerald-50"
                 >
                   <div className="flex items-start justify-between gap-3">
