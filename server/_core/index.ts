@@ -1,4 +1,3 @@
-import "dotenv/config";
 import { spawn } from "child_process";
 import express from "express";
 import fs from "fs";
@@ -22,6 +21,14 @@ import {
   requireExcelServiceAuth,
 } from "./remoteExcel";
 import { parseStudentsWorkbookForExcelService } from "./studentImport";
+
+if (process.env.NODE_ENV !== "production") {
+  void (new Function("specifier", "return import(specifier)") as (
+    specifier: string
+  ) => Promise<unknown>)("dotenv/config").catch(error => {
+    console.warn("[env] Failed to load dotenv/config", error);
+  });
+}
 
 type TemplateId = "secondary-demo" | "primary-score" | "academic-print";
 
