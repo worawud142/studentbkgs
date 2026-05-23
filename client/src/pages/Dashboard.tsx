@@ -278,7 +278,6 @@ export default function Dashboard() {
                     <Button asChild size="sm" className="w-full mt-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs shadow-sm">
                       <a
                         href={`/api/templates/academic-print?export=1&assignmentId=${a.assignment.id}`}
-                        download
                       >
                         <Download className="w-3.5 h-3.5 mr-1" />
                         ส่งออก ปพ.5

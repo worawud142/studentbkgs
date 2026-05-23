@@ -84,7 +84,7 @@ export default function PrintPor1() {
         </div>
         <div className="flex gap-2">
           <Button asChild variant="outline" size="sm">
-            <a href={`/api/templates/secondary-demo?export=1&assignmentId=${aId}`} download>
+            <a href={`/api/templates/secondary-demo?export=1&assignmentId=${aId}`}>
               <Download className="w-4 h-4 mr-1" />
               ส่งออก Excel
             </a>

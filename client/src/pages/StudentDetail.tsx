@@ -55,7 +55,7 @@ export default function StudentDetail() {
               </div>
               </div>
               <Button asChild variant="outline" size="sm">
-                <a href={`/api/templates/academic-print?export=1&studentId=${studentId}`} download>
+                <a href={`/api/templates/academic-print?export=1&studentId=${studentId}`}>
                   <Download className="w-4 h-4 mr-1" />
                   ส่งออก ปพ.5
                 </a>

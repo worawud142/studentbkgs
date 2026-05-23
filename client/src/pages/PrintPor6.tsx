@@ -62,7 +62,7 @@ export default function PrintPor6() {
         </div>
         <div className="flex gap-2">
           <Button asChild variant="outline" size="sm">
-            <a href={`/api/templates/primary-score?export=1&assignmentId=${aId}`} download>
+            <a href={`/api/templates/primary-score?export=1&assignmentId=${aId}`}>
               <Download className="w-4 h-4 mr-1" />
               ส่งออก Excel
             </a>

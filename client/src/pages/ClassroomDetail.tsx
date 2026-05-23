@@ -312,7 +312,7 @@ export default function ClassroomDetail() {
               </Button>
             </Link>
             <Button asChild variant="outline" size="sm">
-              <a href="/api/student-import-template" download>
+              <a href="/api/student-import-template">
                 <Download className="w-4 h-4 mr-1" />
                 โหลดเทมเพลต
               </a>
