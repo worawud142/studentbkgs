@@ -2,6 +2,21 @@ import { trpc } from "@/lib/trpc";
 import TeacherLayout from "@/components/TeacherLayout";
 import { FileText, Download, Calendar, FileDown } from "lucide-react";
 
+type ListedDocument = {
+  documentType?: string;
+  metadata?: unknown;
+};
+
+function effectiveDocumentType(doc: ListedDocument) {
+  const metadata =
+    doc.metadata && typeof doc.metadata === "object"
+      ? (doc.metadata as { documentType?: unknown })
+      : null;
+  return typeof metadata?.documentType === "string"
+    ? metadata.documentType
+    : doc.documentType ?? "";
+}
+
 function documentLabel(type: string) {
   if (type === "por1") return "ปพ.1";
   if (type === "por5") return "ปพ.5";
@@ -104,11 +119,13 @@ export default function DocumentsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {documents.map((doc) => (
+                {documents.map((doc) => {
+                  const type = effectiveDocumentType(doc);
+                  return (
                   <tr key={doc.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${documentBadgeClass(doc.documentType)}`}>
-                        {documentLabel(doc.documentType)}
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${documentBadgeClass(type)}`}>
+                        {documentLabel(type)}
                       </span>
                     </td>
                     <td className="px-4 py-3">
@@ -140,7 +157,8 @@ export default function DocumentsPage() {
                       )}
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>

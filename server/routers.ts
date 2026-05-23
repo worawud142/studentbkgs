@@ -910,13 +910,14 @@ export const appRouter = router({
           input.title ??
           `ปพ.5 ${assignment.classroom?.name ?? ""} ${assignment.subject?.name ?? ""}`.trim();
         const id = await createExportedDocument({
-          documentType: input.documentType,
+          documentType: input.documentType === "por5" ? "por6" : input.documentType,
           title,
           classroomId: assignment.assignment.classroomId,
           academicYearId: assignment.assignment.academicYearId,
           fileUrl: input.fileUrl,
           exportedBy: ctx.user.id,
           metadata: {
+            documentType: input.documentType,
             assignmentId: input.assignmentId,
             subjectId: assignment.assignment.subjectId,
             subjectName: assignment.subject?.name,
