@@ -1,18 +1,11 @@
 import type { Express, Request, Response } from "express";
+import { createApp } from "../server/_core/index";
 
 let app: Express | null = null;
 
 export default async function handler(req: Request, res: Response) {
   try {
-    if (!app) {
-      // Lazy init: import createApp only when needed
-      const { createApp } = await import("../server/_core/index");
-      app = createApp();
-    }
-
-    if (!app) {
-      throw new Error("Failed to initialize express application");
-    }
+    if (!app) app = createApp();
 
     return app(req, res);
   } catch (error) {

@@ -4,7 +4,8 @@ import fs from "fs/promises";
 import os from "os";
 import path from "path";
 import { upsertStudentByCode } from "../db";
-import { isNodeExcelRuntime } from "./excelRuntime";
+import { isNodeExcelRuntime, isRemoteExcelRuntime } from "./excelRuntime";
+import { parseStudentsWorkbookRemote } from "./remoteExcel";
 
 type ParsedStudentRow = {
   rowNumber: number;
@@ -71,6 +72,43 @@ async function runPythonParser(workbookPath: string): Promise<ParsedWorkbook> {
       }
     });
   });
+}
+
+async function parseStudentsWorkbookLocal(input: {
+  workbookPath: string;
+  fileContentBase64: string;
+}): Promise<ParsedWorkbook> {
+  return isNodeExcelRuntime()
+    ? await import("./nodeExcel").then(({ parseStudentsWorkbookNode }) =>
+        parseStudentsWorkbookNode(
+          Buffer.from(input.fileContentBase64, "base64")
+        )
+      )
+    : await runPythonParser(input.workbookPath);
+}
+
+export async function parseStudentsWorkbookForExcelService(options: {
+  fileName: string;
+  fileContentBase64: string;
+}) {
+  const tmpDir = await fs.mkdtemp(
+    path.join(os.tmpdir(), "studentbkgs-import-")
+  );
+  const safeName = options.fileName.replace(/[^a-zA-Z0-9ก-๙._-]+/g, "_");
+  const inputPath = path.join(tmpDir, safeName || "import.xlsx");
+
+  try {
+    await fs.writeFile(
+      inputPath,
+      Buffer.from(options.fileContentBase64, "base64")
+    );
+    return await parseStudentsWorkbookLocal({
+      workbookPath: inputPath,
+      fileContentBase64: options.fileContentBase64,
+    });
+  } finally {
+    await fs.rm(tmpDir, { recursive: true, force: true });
+  }
 }
 
 function normalizeStatus(
@@ -141,13 +179,15 @@ export async function importStudentsFromWorkbook(options: {
       inputPath,
       Buffer.from(options.fileContentBase64, "base64")
     );
-    const workbook = isNodeExcelRuntime()
-      ? await import("./nodeExcel").then(({ parseStudentsWorkbookNode }) =>
-          parseStudentsWorkbookNode(
-            Buffer.from(options.fileContentBase64, "base64")
-          )
-        )
-      : await runPythonParser(inputPath);
+    const workbook = isRemoteExcelRuntime()
+      ? await parseStudentsWorkbookRemote({
+          fileName: options.fileName,
+          fileContentBase64: options.fileContentBase64,
+        })
+      : await parseStudentsWorkbookLocal({
+          workbookPath: inputPath,
+          fileContentBase64: options.fileContentBase64,
+        });
     const created: number[] = [];
     const warnings = [...workbook.errors];
 
