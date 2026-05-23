@@ -228,6 +228,9 @@ async function buildClassPayload(assignmentId: number) {
 
   const classroom = assignment.classroom;
   const subject = assignment.subject;
+  const teacherName = assignment.teacherProfile
+    ? `${assignment.teacherProfile.prefix ?? ""}${assignment.teacherProfile.firstName} ${assignment.teacherProfile.lastName}`.trim()
+    : (assignment.teacher?.name ?? "");
   const academicYear = await getAcademicYearById(
     assignment.assignment.academicYearId
   );
@@ -286,6 +289,9 @@ async function buildClassPayload(assignmentId: number) {
       subjectCode: subject?.subjectCode ?? "",
       subjectName: subject?.name ?? "",
       subjectGroup: subject?.subjectGroup ?? "",
+      subjectCredits: normalizeCellValue(subject?.credits),
+      hoursPerWeek: assignment.assignment.hoursPerWeek ?? "",
+      teacherName,
       classroomName: classroom?.name ?? "",
       classroomLevel: classroom?.level ?? "",
       classroomGrade: classroom?.grade ?? null,

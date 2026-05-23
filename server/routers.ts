@@ -8,7 +8,13 @@ import { systemRouter } from "./_core/systemRouter";
 import { importStudentsFromWorkbook } from "./_core/studentImport";
 import { sdk } from "./_core/sdk";
 import { verifyPassword } from "./_core/password";
-import { adminProcedure, editorProcedure, protectedProcedure, publicProcedure, router } from "./_core/trpc";
+import {
+  adminProcedure,
+  editorProcedure,
+  protectedProcedure,
+  publicProcedure,
+  router,
+} from "./_core/trpc";
 import {
   createAcademicYear,
   createClassroom,
@@ -34,6 +40,7 @@ import {
   getAttendanceByAssignment,
   getAttendanceByAssignmentAndDate,
   getAttendanceDatesByAssignment,
+  getAttendanceHistoryForStudent,
   getAttendanceSession,
   getAttendanceSummary,
   getClassroomById,
@@ -57,6 +64,7 @@ import {
   updateStudent,
   updateSubject,
   updateTeachingAssignment,
+  updateTeacherAccount,
   upsertGradeResult,
   upsertScore,
   upsertUser,
@@ -70,36 +78,52 @@ import { storagePut } from "./storage";
 export const appRouter = router({
   system: systemRouter,
   auth: router({
-    me: publicProcedure.query((opts) => opts.ctx.user),
+    me: publicProcedure.query(opts => opts.ctx.user),
     supabaseLogin: publicProcedure
-      .input(z.object({ email: z.string().email(), password: z.string().min(1) }))
+      .input(
+        z.object({ email: z.string().email(), password: z.string().min(1) })
+      )
       .mutation(async ({ ctx, input }) => {
         if (!ENV.supabaseUrl || !ENV.supabaseAnonKey) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
-            message: "ยังไม่ได้ตั้งค่า SUPABASE_URL และ SUPABASE_ANON_KEY บน server",
+            message:
+              "ยังไม่ได้ตั้งค่า SUPABASE_URL และ SUPABASE_ANON_KEY บน server",
           });
         }
 
         let result: Awaited<ReturnType<typeof sdk.loginSupabaseWithEmail>>;
         try {
-          result = await sdk.loginSupabaseWithEmail(input.email, input.password);
+          result = await sdk.loginSupabaseWithEmail(
+            input.email,
+            input.password
+          );
         } catch (error) {
-          const message = error instanceof Error ? error.message : "เข้าสู่ระบบ Supabase ไม่สำเร็จ";
+          const message =
+            error instanceof Error
+              ? error.message
+              : "เข้าสู่ระบบ Supabase ไม่สำเร็จ";
           throw new TRPCError({ code: "UNAUTHORIZED", message });
         }
 
         if (!result?.session) {
-          throw new TRPCError({ code: "UNAUTHORIZED", message: "Supabase ไม่ได้ส่ง session กลับมา กรุณาตรวจอีเมลและรหัสผ่าน" });
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message:
+              "Supabase ไม่ได้ส่ง session กลับมา กรุณาตรวจอีเมลและรหัสผ่าน",
+          });
         }
 
-        const user = result.user ?? (await sdk.authenticateSupabaseRequest(
-          (result.session as { access_token: string }).access_token
-        ));
+        const user =
+          result.user ??
+          (await sdk.authenticateSupabaseRequest(
+            (result.session as { access_token: string }).access_token
+          ));
         if (!user) {
           throw new TRPCError({
             code: "UNAUTHORIZED",
-            message: "เข้าสู่ระบบ Supabase สำเร็จ แต่ระบบยังอ่าน/บันทึกผู้ใช้ในฐานข้อมูลไม่ได้ กรุณาตรวจ DATABASE_URL",
+            message:
+              "เข้าสู่ระบบ Supabase สำเร็จ แต่ระบบยังอ่าน/บันทึกผู้ใช้ในฐานข้อมูลไม่ได้ กรุณาตรวจ DATABASE_URL",
           });
         }
 
@@ -117,7 +141,9 @@ export const appRouter = router({
         return { success: true, user, session: result.session, sessionToken };
       }),
     localLogin: publicProcedure
-      .input(z.object({ username: z.string().min(1), password: z.string().min(1) }))
+      .input(
+        z.object({ username: z.string().min(1), password: z.string().min(1) })
+      )
       .mutation(async ({ ctx, input }) => {
         if (!ENV.databaseUrl) {
           throw new TRPCError({
@@ -132,23 +158,31 @@ export const appRouter = router({
         if (!user) {
           throw new TRPCError({
             code: "UNAUTHORIZED",
-            message: "ไม่พบบัญชีครู/ผู้ตรวจสอบนี้ กรุณาให้แอดมินสร้างบัญชีในหน้าแอดมินก่อน",
+            message:
+              "ไม่พบบัญชีครู/ผู้ตรวจสอบนี้ กรุณาให้แอดมินสร้างบัญชีในหน้าแอดมินก่อน",
           });
         }
 
         if (user.role === "admin") {
-          throw new TRPCError({ code: "UNAUTHORIZED", message: "กรุณาใช้บัญชีผู้ดูแลระบบสำหรับแอดมิน" });
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "กรุณาใช้บัญชีผู้ดูแลระบบสำหรับแอดมิน",
+          });
         }
 
         if (!user.passwordHash) {
           throw new TRPCError({
             code: "UNAUTHORIZED",
-            message: "บัญชีนี้ยังไม่มีรหัสผ่าน กรุณาให้แอดมินตั้งรหัสผ่านในหน้าแอดมินก่อน",
+            message:
+              "บัญชีนี้ยังไม่มีรหัสผ่าน กรุณาให้แอดมินตั้งรหัสผ่านในหน้าแอดมินก่อน",
           });
         }
 
         if (!verifyPassword(input.password, user.passwordHash)) {
-          throw new TRPCError({ code: "UNAUTHORIZED", message: "รหัสครูหรือรหัสผ่านไม่ถูกต้อง" });
+          throw new TRPCError({
+            code: "UNAUTHORIZED",
+            message: "รหัสครูหรือรหัสผ่านไม่ถูกต้อง",
+          });
         }
 
         const sessionToken = await sdk.createSessionToken(user.openId, {
@@ -165,10 +199,17 @@ export const appRouter = router({
         return { success: true, user, sessionToken };
       }),
     devLogin: publicProcedure
-      .input(z.object({ preset: z.enum(["teacher", "admin", "reviewer"]).default("teacher") }))
+      .input(
+        z.object({
+          preset: z.enum(["teacher", "admin", "reviewer"]).default("teacher"),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
         if (ENV.isProduction) {
-          throw new TRPCError({ code: "FORBIDDEN", message: "Dev login is disabled in production" });
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Dev login is disabled in production",
+          });
         }
 
         const preset =
@@ -188,13 +229,13 @@ export const appRouter = router({
                   loginMethod: "dev",
                   role: "reviewer" as const,
                 }
-            : {
-                openId: "dev-teacher",
-                name: "Demo Teacher",
-                email: "teacher@demo.local",
-                loginMethod: "dev",
-                role: "teacher" as const,
-              };
+              : {
+                  openId: "dev-teacher",
+                  name: "Demo Teacher",
+                  email: "teacher@demo.local",
+                  loginMethod: "dev",
+                  role: "teacher" as const,
+                };
 
         try {
           await upsertUser({
@@ -236,23 +277,31 @@ export const appRouter = router({
       try {
         return await getTeacherProfile(ctx.user.id);
       } catch (error) {
-        console.warn("[Teacher] Failed to load profile, falling back to empty state:", error);
+        console.warn(
+          "[Teacher] Failed to load profile, falling back to empty state:",
+          error
+        );
         return null;
       }
     }),
     upsertProfile: protectedProcedure
-      .input(z.object({
-        teacherCode: z.string().optional(),
-        prefix: z.string().optional(),
-        firstName: z.string().min(1),
-        lastName: z.string().min(1),
-        phone: z.string().optional(),
-        teachingLevel: z.enum(["primary", "secondary", "both"]),
-        isHomeroom: z.boolean().default(false),
-      }))
+      .input(
+        z.object({
+          teacherCode: z.string().optional(),
+          prefix: z.string().optional(),
+          firstName: z.string().min(1),
+          lastName: z.string().min(1),
+          phone: z.string().optional(),
+          teachingLevel: z.enum(["primary", "secondary", "both"]),
+          isHomeroom: z.boolean().default(false),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
         const isNew = !(await getTeacherProfile(ctx.user.id));
-        const id = await upsertTeacherProfile({ ...input, userId: ctx.user.id });
+        const id = await upsertTeacherProfile({
+          ...input,
+          userId: ctx.user.id,
+        });
         if (isNew) {
           await notifyOwner({
             title: "ครูใหม่เข้าสู่ระบบ",
@@ -278,23 +327,30 @@ export const appRouter = router({
       }
     }),
     updateUserRole: adminProcedure
-      .input(z.object({ userId: z.number(), role: z.enum(["teacher", "admin", "reviewer"]) }))
+      .input(
+        z.object({
+          userId: z.number(),
+          role: z.enum(["teacher", "admin", "reviewer"]),
+        })
+      )
       .mutation(async ({ input }) => {
         await updateUserRole(input.userId, input.role);
         return { success: true };
       }),
     createAccount: adminProcedure
-      .input(z.object({
-        teacherCode: z.string().min(1),
-        password: z.string().min(6),
-        email: z.string().email().optional().or(z.literal("")),
-        prefix: z.string().optional(),
-        firstName: z.string().min(1),
-        lastName: z.string().min(1),
-        phone: z.string().optional(),
-        teachingLevel: z.enum(["primary", "secondary", "both"]),
-        isHomeroom: z.boolean().default(false),
-      }))
+      .input(
+        z.object({
+          teacherCode: z.string().min(1),
+          password: z.string().min(6),
+          email: z.string().email().optional().or(z.literal("")),
+          prefix: z.string().optional(),
+          firstName: z.string().min(1),
+          lastName: z.string().min(1),
+          phone: z.string().optional(),
+          teachingLevel: z.enum(["primary", "secondary", "both"]),
+          isHomeroom: z.boolean().default(false),
+        })
+      )
       .mutation(async ({ input }) => {
         const result = await createTeacherAccount({
           teacherCode: input.teacherCode,
@@ -308,6 +364,33 @@ export const appRouter = router({
           isHomeroom: input.isHomeroom,
         });
         return result;
+      }),
+    updateAccount: adminProcedure
+      .input(
+        z.object({
+          userId: z.number(),
+          teacherCode: z.string().min(1),
+          email: z.string().email().optional().or(z.literal("")),
+          prefix: z.string().optional(),
+          firstName: z.string().min(1),
+          lastName: z.string().min(1),
+          phone: z.string().optional(),
+          teachingLevel: z.enum(["primary", "secondary", "both"]),
+          isHomeroom: z.boolean().default(false),
+        })
+      )
+      .mutation(async ({ input }) => {
+        await updateTeacherAccount(input.userId, {
+          teacherCode: input.teacherCode,
+          email: input.email || undefined,
+          prefix: input.prefix,
+          firstName: input.firstName,
+          lastName: input.lastName,
+          phone: input.phone,
+          teachingLevel: input.teachingLevel,
+          isHomeroom: input.isHomeroom,
+        });
+        return { success: true };
       }),
     deleteAccount: adminProcedure
       .input(z.object({ userId: z.number() }))
@@ -332,131 +415,202 @@ export const appRouter = router({
       .input(z.object({ level: z.enum(["primary", "secondary"]) }))
       .query(async ({ input }) => getActiveAcademicYear(input.level)),
     create: adminProcedure
-      .input(z.object({
-        year: z.number().int(),
-        level: z.enum(["primary", "secondary"]),
-        startDate: z.string().optional(),
-        endDate: z.string().optional(),
-        isActive: z.boolean().default(false),
-        semester: z.number().int().optional(),
-      }).superRefine((value, ctx) => {
-        if (value.level === "secondary" && ![1, 2].includes(value.semester ?? 0)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ["semester"],
-            message: "กรุณาเลือกภาคเรียน 1 หรือ 2 สำหรับมัธยมศึกษา",
-          });
-        }
-      }))
+      .input(
+        z
+          .object({
+            year: z.number().int(),
+            level: z.enum(["primary", "secondary"]),
+            startDate: z.string().optional(),
+            endDate: z.string().optional(),
+            isActive: z.boolean().default(false),
+            semester: z.number().int().optional(),
+          })
+          .superRefine((value, ctx) => {
+            if (
+              value.level === "secondary" &&
+              ![1, 2].includes(value.semester ?? 0)
+            ) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["semester"],
+                message: "กรุณาเลือกภาคเรียน 1 หรือ 2 สำหรับมัธยมศึกษา",
+              });
+            }
+          })
+      )
       .mutation(async ({ input }) => {
-        const semester = input.level === "secondary" ? input.semester : undefined;
-        const id = await createAcademicYear({ ...input, semester, startDate: input.startDate as any, endDate: input.endDate as any });
+        const semester =
+          input.level === "secondary" ? input.semester : undefined;
+        const id = await createAcademicYear({
+          ...input,
+          semester,
+          startDate: input.startDate as any,
+          endDate: input.endDate as any,
+        });
         if (input.isActive) await setActiveAcademicYear(id, input.level);
         return { id };
       }),
     update: adminProcedure
-      .input(z.object({
-        id: z.number(),
-        year: z.number().int().optional(),
-        level: z.enum(["primary", "secondary"]).optional(),
-        startDate: z.string().optional(),
-        endDate: z.string().optional(),
-        isActive: z.boolean().optional(),
-        semester: z.number().int().optional(),
-      }).superRefine((value, ctx) => {
-        if (value.level === "secondary" && value.semester !== undefined && ![1, 2].includes(value.semester)) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            path: ["semester"],
-            message: "ภาคเรียนต้องเป็น 1 หรือ 2",
-          });
-        }
-      }))
+      .input(
+        z
+          .object({
+            id: z.number(),
+            year: z.number().int().optional(),
+            level: z.enum(["primary", "secondary"]).optional(),
+            startDate: z.string().optional(),
+            endDate: z.string().optional(),
+            isActive: z.boolean().optional(),
+            semester: z.number().int().optional(),
+          })
+          .superRefine((value, ctx) => {
+            if (
+              value.level === "secondary" &&
+              value.semester !== undefined &&
+              ![1, 2].includes(value.semester)
+            ) {
+              ctx.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: ["semester"],
+                message: "ภาคเรียนต้องเป็น 1 หรือ 2",
+              });
+            }
+          })
+      )
       .mutation(async ({ input }) => {
         const { id, isActive, ...data } = input;
         const semester = data.level === "primary" ? undefined : data.semester;
-        await updateAcademicYear(id, { ...data, semester, startDate: data.startDate as any, endDate: data.endDate as any });
+        await updateAcademicYear(id, {
+          ...data,
+          semester,
+          startDate: data.startDate as any,
+          endDate: data.endDate as any,
+        });
         if (typeof isActive === "boolean" && data.level) {
           if (isActive) await setActiveAcademicYear(id, data.level);
         }
         return { success: true };
       }),
     setActive: adminProcedure
-      .input(z.object({ id: z.number(), level: z.enum(["primary", "secondary"]) }))
-      .mutation(async ({ input }) => { await setActiveAcademicYear(input.id, input.level); return { success: true }; }),
+      .input(
+        z.object({ id: z.number(), level: z.enum(["primary", "secondary"]) })
+      )
+      .mutation(async ({ input }) => {
+        await setActiveAcademicYear(input.id, input.level);
+        return { success: true };
+      }),
     delete: adminProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => { await deleteAcademicYear(input.id); return { success: true }; }),
+      .mutation(async ({ input }) => {
+        await deleteAcademicYear(input.id);
+        return { success: true };
+      }),
   }),
 
   // ─── Classrooms ────────────────────────────────────────────────────────────
   classroom: router({
     list: protectedProcedure
-      .input(z.object({ academicYearId: z.number().optional(), level: z.enum(["primary", "secondary"]).optional() }))
-      .query(async ({ input }) => getClassrooms(input.academicYearId, input.level)),
+      .input(
+        z.object({
+          academicYearId: z.number().optional(),
+          level: z.enum(["primary", "secondary"]).optional(),
+        })
+      )
+      .query(async ({ input }) =>
+        getClassrooms(input.academicYearId, input.level)
+      ),
     get: protectedProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => getClassroomById(input.id)),
     create: adminProcedure
-      .input(z.object({
-        name: z.string().min(1),
-        level: z.enum(["primary", "secondary"]),
-        grade: z.number().int().min(1).max(6),
-        room: z.number().int().min(1),
-        academicYearId: z.number(),
-        homeroomTeacherId: z.number().optional(),
-      }))
-      .mutation(async ({ input }) => { const id = await createClassroom(input); return { id }; }),
+      .input(
+        z.object({
+          name: z.string().min(1),
+          level: z.enum(["primary", "secondary"]),
+          grade: z.number().int().min(1).max(6),
+          room: z.number().int().min(1),
+          academicYearId: z.number(),
+          homeroomTeacherId: z.number().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const id = await createClassroom(input);
+        return { id };
+      }),
     update: adminProcedure
-      .input(z.object({
-        id: z.number(),
-        name: z.string().optional(),
-        level: z.enum(["primary", "secondary"]).optional(),
-        grade: z.number().int().min(1).max(6).optional(),
-        room: z.number().int().min(1).optional(),
-        academicYearId: z.number().optional(),
-        homeroomTeacherId: z.number().optional(),
-      }))
-      .mutation(async ({ input }) => { const { id, ...data } = input; await updateClassroom(id, data); return { success: true }; }),
+      .input(
+        z.object({
+          id: z.number(),
+          name: z.string().optional(),
+          level: z.enum(["primary", "secondary"]).optional(),
+          grade: z.number().int().min(1).max(6).optional(),
+          room: z.number().int().min(1).optional(),
+          academicYearId: z.number().optional(),
+          homeroomTeacherId: z.number().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        await updateClassroom(id, data);
+        return { success: true };
+      }),
     delete: adminProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => { await deleteClassroom(input.id); return { success: true }; }),
+      .mutation(async ({ input }) => {
+        await deleteClassroom(input.id);
+        return { success: true };
+      }),
   }),
 
   // ─── Subjects ─────────────────────────────────────────────────────────────
   subject: router({
     list: protectedProcedure
-      .input(z.object({ level: z.enum(["primary", "secondary", "both"]).optional() }))
+      .input(
+        z.object({ level: z.enum(["primary", "secondary", "both"]).optional() })
+      )
       .query(async ({ input }) => getSubjects(input.level)),
     get: protectedProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => getSubjectById(input.id)),
     create: adminProcedure
-      .input(z.object({
-        subjectCode: z.string().min(1),
-        name: z.string().min(1),
-        credits: z.string().optional(),
-        level: z.enum(["primary", "secondary", "both"]),
-        gradeGroup: z.string().optional(),
-        subjectGroup: z.string().optional(),
-        description: z.string().optional(),
-      }))
-      .mutation(async ({ input }) => { const id = await createSubject(input as any); return { id }; }),
+      .input(
+        z.object({
+          subjectCode: z.string().min(1),
+          name: z.string().min(1),
+          credits: z.string().optional(),
+          level: z.enum(["primary", "secondary", "both"]),
+          gradeGroup: z.string().optional(),
+          subjectGroup: z.string().optional(),
+          description: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const id = await createSubject(input as any);
+        return { id };
+      }),
     update: adminProcedure
-      .input(z.object({
-        id: z.number(),
-        subjectCode: z.string().optional(),
-        name: z.string().optional(),
-        credits: z.string().optional(),
-        level: z.enum(["primary", "secondary", "both"]).optional(),
-        gradeGroup: z.string().optional(),
-        subjectGroup: z.string().optional(),
-        description: z.string().optional(),
-      }))
-      .mutation(async ({ input }) => { const { id, ...data } = input; await updateSubject(id, data as any); return { success: true }; }),
+      .input(
+        z.object({
+          id: z.number(),
+          subjectCode: z.string().optional(),
+          name: z.string().optional(),
+          credits: z.string().optional(),
+          level: z.enum(["primary", "secondary", "both"]).optional(),
+          gradeGroup: z.string().optional(),
+          subjectGroup: z.string().optional(),
+          description: z.string().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        await updateSubject(id, data as any);
+        return { success: true };
+      }),
     delete: adminProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => { await deleteSubject(input.id); return { success: true }; }),
+      .mutation(async ({ input }) => {
+        await deleteSubject(input.id);
+        return { success: true };
+      }),
   }),
 
   // ─── Students ─────────────────────────────────────────────────────────────
@@ -468,44 +622,62 @@ export const appRouter = router({
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => getStudentById(input.id)),
     create: editorProcedure
-      .input(z.object({
-        studentCode: z.string().min(1),
-        prefix: z.string().optional(),
-        firstName: z.string().min(1),
-        lastName: z.string().min(1),
-        nationalId: z.string().optional(),
-        birthDate: z.string().optional(),
-        gender: z.enum(["male", "female"]).optional(),
-        classroomId: z.number(),
-        studentNumber: z.number().optional(),
-      }))
-      .mutation(async ({ input }) => { const id = await createStudent(input as any); return { id }; }),
+      .input(
+        z.object({
+          studentCode: z.string().min(1),
+          prefix: z.string().optional(),
+          firstName: z.string().min(1),
+          lastName: z.string().min(1),
+          nationalId: z.string().optional(),
+          birthDate: z.string().optional(),
+          gender: z.enum(["male", "female"]).optional(),
+          classroomId: z.number(),
+          studentNumber: z.number().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const id = await createStudent(input as any);
+        return { id };
+      }),
     importFromExcel: editorProcedure
-      .input(z.object({
-        classroomId: z.number(),
-        fileName: z.string().min(1),
-        fileContentBase64: z.string().min(1),
-      }))
+      .input(
+        z.object({
+          classroomId: z.number(),
+          fileName: z.string().min(1),
+          fileContentBase64: z.string().min(1),
+        })
+      )
       .mutation(async ({ input }) => {
         const result = await importStudentsFromWorkbook(input);
         return { success: true, ...result };
       }),
     update: editorProcedure
-      .input(z.object({
-        id: z.number(),
-        prefix: z.string().optional(),
-        firstName: z.string().optional(),
-        lastName: z.string().optional(),
-        nationalId: z.string().optional(),
-        birthDate: z.string().optional(),
-        gender: z.enum(["male", "female"]).optional(),
-        studentNumber: z.number().optional(),
-        status: z.enum(["active", "transferred", "graduated", "dropped"]).optional(),
-      }))
-      .mutation(async ({ input }) => { const { id, ...data } = input; await updateStudent(id, data as any); return { success: true }; }),
+      .input(
+        z.object({
+          id: z.number(),
+          prefix: z.string().optional(),
+          firstName: z.string().optional(),
+          lastName: z.string().optional(),
+          nationalId: z.string().optional(),
+          birthDate: z.string().optional(),
+          gender: z.enum(["male", "female"]).optional(),
+          studentNumber: z.number().optional(),
+          status: z
+            .enum(["active", "transferred", "graduated", "dropped"])
+            .optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        await updateStudent(id, data as any);
+        return { success: true };
+      }),
     delete: editorProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => { await deleteStudent(input.id); return { success: true }; }),
+      .mutation(async ({ input }) => {
+        await deleteStudent(input.id);
+        return { success: true };
+      }),
     gradeResults: protectedProcedure
       .input(z.object({ studentId: z.number() }))
       .query(async ({ input }) => getStudentGradeResults(input.studentId)),
@@ -515,29 +687,38 @@ export const appRouter = router({
   assignment: router({
     myList: protectedProcedure
       .input(z.object({ academicYearId: z.number().optional() }))
-      .query(async ({ ctx, input }) => getTeacherAssignments(ctx.user.id, input.academicYearId)),
+      .query(async ({ ctx, input }) =>
+        getTeacherAssignments(ctx.user.id, input.academicYearId)
+      ),
     get: protectedProcedure
       .input(z.object({ id: z.number() }))
       .query(async ({ input }) => getAssignmentById(input.id)),
     create: adminProcedure
-      .input(z.object({
-        teacherId: z.number(),
-        subjectId: z.number(),
-        classroomId: z.number(),
-        academicYearId: z.number(),
-        hoursPerWeek: z.number().optional(),
-      }))
-      .mutation(async ({ input }) => { const id = await createTeachingAssignment(input); return { id }; }),
+      .input(
+        z.object({
+          teacherId: z.number(),
+          subjectId: z.number(),
+          classroomId: z.number(),
+          academicYearId: z.number(),
+          hoursPerWeek: z.number().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const id = await createTeachingAssignment(input);
+        return { id };
+      }),
     listAll: adminProcedure.query(async () => getAllTeachingAssignments()),
     update: adminProcedure
-      .input(z.object({
-        id: z.number(),
-        teacherId: z.number().optional(),
-        subjectId: z.number().optional(),
-        classroomId: z.number().optional(),
-        academicYearId: z.number().optional(),
-        hoursPerWeek: z.number().optional(),
-      }))
+      .input(
+        z.object({
+          id: z.number(),
+          teacherId: z.number().optional(),
+          subjectId: z.number().optional(),
+          classroomId: z.number().optional(),
+          academicYearId: z.number().optional(),
+          hoursPerWeek: z.number().optional(),
+        })
+      )
       .mutation(async ({ input }) => {
         const { id, ...data } = input;
         await updateTeachingAssignment(id, data);
@@ -545,44 +726,68 @@ export const appRouter = router({
       }),
     delete: adminProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => { await deleteTeachingAssignment(input.id); return { success: true }; }),
+      .mutation(async ({ input }) => {
+        await deleteTeachingAssignment(input.id);
+        return { success: true };
+      }),
   }),
 
   // ─── Attendance ────────────────────────────────────────────────────────────
   attendance: router({
     session: protectedProcedure
       .input(z.object({ assignmentId: z.number(), date: z.string() }))
-      .query(async ({ input }) => getAttendanceSession(input.assignmentId, input.date)),
+      .query(async ({ input }) =>
+        getAttendanceSession(input.assignmentId, input.date)
+      ),
     getByDate: protectedProcedure
       .input(z.object({ assignmentId: z.number(), date: z.string() }))
-      .query(async ({ input }) => getAttendanceByAssignmentAndDate(input.assignmentId, input.date)),
+      .query(async ({ input }) =>
+        getAttendanceByAssignmentAndDate(input.assignmentId, input.date)
+      ),
     getByAssignment: protectedProcedure
       .input(z.object({ assignmentId: z.number() }))
-      .query(async ({ input }) => getAttendanceByAssignment(input.assignmentId)),
+      .query(async ({ input }) =>
+        getAttendanceByAssignment(input.assignmentId)
+      ),
+    history: protectedProcedure
+      .input(z.object({ assignmentId: z.number(), studentId: z.number() }))
+      .query(async ({ input }) =>
+        getAttendanceHistoryForStudent(input.assignmentId, input.studentId)
+      ),
     getDates: protectedProcedure
       .input(z.object({ assignmentId: z.number() }))
-      .query(async ({ input }) => getAttendanceDatesByAssignment(input.assignmentId)),
+      .query(async ({ input }) =>
+        getAttendanceDatesByAssignment(input.assignmentId)
+      ),
     save: editorProcedure
-      .input(z.array(z.object({
-        assignmentId: z.number(),
-        studentId: z.number(),
-        date: z.string(),
-        status: z.enum(["present", "absent", "late", "excused"]),
-        note: z.string().optional(),
-      })))
+      .input(
+        z.array(
+          z.object({
+            assignmentId: z.number(),
+            studentId: z.number(),
+            date: z.string(),
+            status: z.enum(["present", "absent", "late", "excused"]),
+            note: z.string().optional(),
+          })
+        )
+      )
       .mutation(async ({ ctx, input }) => {
-        await replaceAttendanceForDate(input.map((item) => ({
-          ...item,
-          date: new Date(`${item.date}T00:00:00.000Z`) as any,
-          recordedBy: ctx.user.id,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        })));
+        await replaceAttendanceForDate(
+          input.map(item => ({
+            ...item,
+            date: new Date(`${item.date}T00:00:00.000Z`) as any,
+            recordedBy: ctx.user.id,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }))
+        );
         return { success: true };
       }),
     summary: protectedProcedure
       .input(z.object({ assignmentId: z.number(), studentId: z.number() }))
-      .query(async ({ input }) => getAttendanceSummary(input.assignmentId, input.studentId)),
+      .query(async ({ input }) =>
+        getAttendanceSummary(input.assignmentId, input.studentId)
+      ),
   }),
 
   // ─── Scores ────────────────────────────────────────────────────────────────
@@ -591,54 +796,82 @@ export const appRouter = router({
       .input(z.object({ assignmentId: z.number() }))
       .query(async ({ input }) => getScoreCategories(input.assignmentId)),
     createCategory: editorProcedure
-      .input(z.object({
-        assignmentId: z.number(),
-        name: z.string().min(1),
-        maxScore: z.string(),
-        order: z.number().optional(),
-        term: z.enum(["midyear", "endyear"]).optional(),
-      }))
-      .mutation(async ({ input }) => { const id = await createScoreCategory(input as any); return { id }; }),
+      .input(
+        z.object({
+          assignmentId: z.number(),
+          name: z.string().min(1),
+          maxScore: z.string(),
+          order: z.number().optional(),
+          term: z.enum(["midyear", "endyear"]).optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const id = await createScoreCategory(input as any);
+        return { id };
+      }),
     updateCategory: editorProcedure
-      .input(z.object({
-        id: z.number(),
-        name: z.string().optional(),
-        maxScore: z.string().optional(),
-        order: z.number().optional(),
-        term: z.enum(["midyear", "endyear"]).optional(),
-      }))
-      .mutation(async ({ input }) => { const { id, ...data } = input; await updateScoreCategory(id, data as any); return { success: true }; }),
+      .input(
+        z.object({
+          id: z.number(),
+          name: z.string().optional(),
+          maxScore: z.string().optional(),
+          order: z.number().optional(),
+          term: z.enum(["midyear", "endyear"]).optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        await updateScoreCategory(id, data as any);
+        return { success: true };
+      }),
     deleteCategory: editorProcedure
       .input(z.object({ id: z.number() }))
-      .mutation(async ({ input }) => { await deleteScoreCategory(input.id); return { success: true }; }),
+      .mutation(async ({ input }) => {
+        await deleteScoreCategory(input.id);
+        return { success: true };
+      }),
     getByAssignment: protectedProcedure
       .input(z.object({ assignmentId: z.number() }))
       .query(async ({ input }) => getScoresByAssignment(input.assignmentId)),
     save: editorProcedure
-      .input(z.array(z.object({
-        categoryId: z.number(),
-        studentId: z.number(),
-        score: z.string().nullable(),
-        note: z.string().optional(),
-      })))
+      .input(
+        z.array(
+          z.object({
+            categoryId: z.number(),
+            studentId: z.number(),
+            score: z.string().nullable(),
+            note: z.string().optional(),
+          })
+        )
+      )
       .mutation(async ({ ctx, input }) => {
-        await Promise.all(input.map((item) => upsertScore({ ...item, score: item.score as any, recordedBy: ctx.user.id })));
+        await Promise.all(
+          input.map(item =>
+            upsertScore({
+              ...item,
+              score: item.score as any,
+              recordedBy: ctx.user.id,
+            })
+          )
+        );
         return { success: true };
       }),
     getGradeResults: protectedProcedure
       .input(z.object({ assignmentId: z.number() }))
       .query(async ({ input }) => getGradeResults(input.assignmentId)),
     saveGradeResult: editorProcedure
-      .input(z.object({
-        assignmentId: z.number(),
-        studentId: z.number(),
-        totalScore: z.string().nullable().optional(),
-        grade: z.string().optional(),
-        result: z.enum(["pass", "fail", "incomplete", "exempted"]).optional(),
-        attendanceHours: z.number().optional(),
-        totalHours: z.number().optional(),
-        isFinalized: z.boolean().optional(),
-      }))
+      .input(
+        z.object({
+          assignmentId: z.number(),
+          studentId: z.number(),
+          totalScore: z.string().nullable().optional(),
+          grade: z.string().optional(),
+          result: z.enum(["pass", "fail", "incomplete", "exempted"]).optional(),
+          attendanceHours: z.number().optional(),
+          totalHours: z.number().optional(),
+          isFinalized: z.boolean().optional(),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
         await upsertGradeResult({
           ...input,
@@ -654,21 +887,27 @@ export const appRouter = router({
   document: router({
     list: protectedProcedure
       .input(z.object({ documentType: z.enum(["por1", "por6"]).optional() }))
-      .query(async ({ ctx, input }) => getExportedDocuments(ctx.user.id, input.documentType)),
+      .query(async ({ ctx, input }) =>
+        getExportedDocuments(ctx.user.id, input.documentType)
+      ),
     listAll: adminProcedure
       .input(z.object({ documentType: z.enum(["por1", "por6"]).optional() }))
-      .query(async ({ input }) => getExportedDocuments(undefined, input.documentType)),
+      .query(async ({ input }) =>
+        getExportedDocuments(undefined, input.documentType)
+      ),
     save: editorProcedure
-      .input(z.object({
-        documentType: z.enum(["por1", "por6"]),
-        title: z.string(),
-        classroomId: z.number().optional(),
-        studentId: z.number().optional(),
-        academicYearId: z.number(),
-        fileContent: z.string(), // base64 PDF
-        fileName: z.string(),
-        metadata: z.any().optional(),
-      }))
+      .input(
+        z.object({
+          documentType: z.enum(["por1", "por6"]),
+          title: z.string(),
+          classroomId: z.number().optional(),
+          studentId: z.number().optional(),
+          academicYearId: z.number(),
+          fileContent: z.string(), // base64 PDF
+          fileName: z.string(),
+          metadata: z.any().optional(),
+        })
+      )
       .mutation(async ({ ctx, input }) => {
         const { fileContent, fileName, ...rest } = input;
         const buffer = Buffer.from(fileContent, "base64");

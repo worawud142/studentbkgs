@@ -27,7 +27,9 @@ let _db: Database | null = null;
 
 function getPoolOptions() {
   const connectionUrl = new URL(ENV.databaseUrl);
-  const isSupabase = /supabase\.co|pooler\.supabase\.com/i.test(ENV.databaseUrl);
+  const isSupabase = /supabase\.co|pooler\.supabase\.com/i.test(
+    ENV.databaseUrl
+  );
 
   return {
     host: connectionUrl.hostname,
@@ -86,11 +88,13 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       updateSet[field] = normalized;
     };
     textFields.forEach(assignNullable);
-    if (user.lastSignedIn !== undefined) { values.lastSignedIn = user.lastSignedIn; updateSet.lastSignedIn = user.lastSignedIn; }
+    if (user.lastSignedIn !== undefined) {
+      values.lastSignedIn = user.lastSignedIn;
+      updateSet.lastSignedIn = user.lastSignedIn;
+    }
     const isOwner =
       ENV.ownerOpenId &&
-      (user.openId === ENV.ownerOpenId || user.email === ENV.ownerOpenId)
-    ;
+      (user.openId === ENV.ownerOpenId || user.email === ENV.ownerOpenId);
     if (isOwner) {
       values.role = "admin";
       updateSet.role = "admin";
@@ -99,7 +103,8 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       updateSet.role = user.role;
     }
     if (!values.lastSignedIn) values.lastSignedIn = new Date();
-    if (Object.keys(updateSet).length === 0) updateSet.lastSignedIn = new Date();
+    if (Object.keys(updateSet).length === 0)
+      updateSet.lastSignedIn = new Date();
     await db.insert(users).values(values).onConflictDoUpdate({
       target: users.openId,
       set: updateSet,
@@ -113,14 +118,22 @@ export async function upsertUser(user: InsertUser): Promise<void> {
 export async function getUserByOpenId(openId: string) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
+  const result = await db
+    .select()
+    .from(users)
+    .where(eq(users.openId, openId))
+    .limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
 
 export async function getUserByEmail(email: string) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db.select().from(users).where(eq(users.email, email)).limit(1);
+  const result = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, email))
+    .limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
 
@@ -140,17 +153,24 @@ export async function getUserByTeacherCode(teacherCode: string) {
 
 export async function resolveLoginUser(identifier: string) {
   const normalized = identifier.trim();
-  if (!normalized) return { email: null as string | null, user: undefined as typeof users.$inferSelect | undefined };
+  if (!normalized)
+    return {
+      email: null as string | null,
+      user: undefined as typeof users.$inferSelect | undefined,
+    };
 
   const teacherCodeUser = await getUserByTeacherCode(normalized);
   if (teacherCodeUser) {
     return {
-      email: teacherCodeUser.email ?? `${normalized.toLowerCase()}@school.local`,
+      email:
+        teacherCodeUser.email ?? `${normalized.toLowerCase()}@school.local`,
       user: teacherCodeUser,
     };
   }
 
-  const emailUser = normalized.includes("@") ? await getUserByEmail(normalized) : undefined;
+  const emailUser = normalized.includes("@")
+    ? await getUserByEmail(normalized)
+    : undefined;
   if (emailUser) {
     return {
       email: emailUser.email ?? normalized,
@@ -167,7 +187,9 @@ export async function resolveLoginUser(identifier: string) {
   }
 
   return {
-    email: normalized.includes("@") ? normalized : `${normalized.toLowerCase()}@school.local`,
+    email: normalized.includes("@")
+      ? normalized
+      : `${normalized.toLowerCase()}@school.local`,
     user: undefined,
   };
 }
@@ -178,23 +200,36 @@ export async function getAllUsers() {
   return db.select().from(users).orderBy(desc(users.createdAt));
 }
 
-export async function updateUserRole(userId: number, role: "teacher" | "admin" | "reviewer") {
+export async function updateUserRole(
+  userId: number,
+  role: "teacher" | "admin" | "reviewer"
+) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.update(users).set({ role, updatedAt: new Date() }).where(eq(users.id, userId));
+  await db
+    .update(users)
+    .set({ role, updatedAt: new Date() })
+    .where(eq(users.id, userId));
 }
 
 export async function updateTeacherPassword(userId: number, password: string) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const [existing] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+  const [existing] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, userId))
+    .limit(1);
   if (!existing) {
     throw new Error("ไม่พบผู้ใช้งาน");
   }
-  await db.update(users).set({
-    passwordHash: hashPassword(password),
-    updatedAt: new Date(),
-  }).where(eq(users.id, userId));
+  await db
+    .update(users)
+    .set({
+      passwordHash: hashPassword(password),
+      updatedAt: new Date(),
+    })
+    .where(eq(users.id, userId));
 }
 
 // ─── Teacher Profiles ─────────────────────────────────────────────────────────
@@ -202,7 +237,11 @@ export async function getTeacherProfile(userId: number) {
   const db = await getDb();
   if (!db) return null;
   try {
-    const result = await db.select().from(teacherProfiles).where(eq(teacherProfiles.userId, userId)).limit(1);
+    const result = await db
+      .select()
+      .from(teacherProfiles)
+      .where(eq(teacherProfiles.userId, userId))
+      .limit(1);
     return result.length > 0 ? result[0] : null;
   } catch (error) {
     console.warn("[Database] Failed to read teacher profile:", error);
@@ -210,20 +249,30 @@ export async function getTeacherProfile(userId: number) {
   }
 }
 
-export async function upsertTeacherProfile(data: typeof teacherProfiles.$inferInsert) {
+export async function upsertTeacherProfile(
+  data: typeof teacherProfiles.$inferInsert
+) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const existing = await getTeacherProfile(data.userId);
   if (existing) {
-    await db.update(teacherProfiles).set({ ...data, updatedAt: new Date() }).where(eq(teacherProfiles.userId, data.userId));
+    await db
+      .update(teacherProfiles)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(teacherProfiles.userId, data.userId));
     return existing.id;
   } else {
-    const [result] = await db.insert(teacherProfiles).values({
-      ...data,
-      id: data.id ?? (await getNextNumericId(teacherProfiles, teacherProfiles.id)),
-      createdAt: data.createdAt ?? new Date(),
-      updatedAt: data.updatedAt ?? new Date(),
-    }).returning({ id: teacherProfiles.id });
+    const [result] = await db
+      .insert(teacherProfiles)
+      .values({
+        ...data,
+        id:
+          data.id ??
+          (await getNextNumericId(teacherProfiles, teacherProfiles.id)),
+        createdAt: data.createdAt ?? new Date(),
+        updatedAt: data.updatedAt ?? new Date(),
+      })
+      .returning({ id: teacherProfiles.id });
     return result.id;
   }
 }
@@ -241,6 +290,70 @@ export async function getAllTeacherProfiles() {
     console.warn("[Database] Failed to list teacher profiles:", error);
     return [];
   }
+}
+
+export async function updateTeacherAccount(
+  userId: number,
+  data: {
+    teacherCode: string;
+    email?: string;
+    prefix?: string;
+    firstName: string;
+    lastName: string;
+    phone?: string;
+    teachingLevel: "primary" | "secondary" | "both";
+    isHomeroom?: boolean;
+  }
+) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+
+  const normalizedTeacherCode = data.teacherCode.trim();
+  if (!normalizedTeacherCode) {
+    throw new Error("กรุณากรอกรหัสครู");
+  }
+
+  const [profile] = await db
+    .select()
+    .from(teacherProfiles)
+    .where(eq(teacherProfiles.userId, userId))
+    .limit(1);
+  if (!profile) {
+    throw new Error("ไม่พบข้อมูลครู");
+  }
+
+  const duplicateUser = await getUserByTeacherCode(normalizedTeacherCode);
+  if (duplicateUser && duplicateUser.id !== userId) {
+    throw new Error("รหัสครูนี้ถูกใช้แล้ว");
+  }
+
+  const displayName =
+    `${data.prefix || ""}${data.firstName} ${data.lastName}`.trim();
+  await db.transaction(async tx => {
+    await tx
+      .update(users)
+      .set({
+        name: displayName,
+        email:
+          data.email || `${normalizedTeacherCode.toLowerCase()}@school.local`,
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+
+    await tx
+      .update(teacherProfiles)
+      .set({
+        teacherCode: normalizedTeacherCode,
+        prefix: data.prefix || null,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        phone: data.phone || null,
+        teachingLevel: data.teachingLevel,
+        isHomeroom: data.isHomeroom ?? false,
+        updatedAt: new Date(),
+      })
+      .where(eq(teacherProfiles.userId, userId));
+  });
 }
 
 export async function createTeacherAccount(data: {
@@ -281,7 +394,10 @@ export async function createTeacherAccount(data: {
     lastSignedIn: new Date(),
   });
 
-  const teacherProfileId = await getNextNumericId(teacherProfiles, teacherProfiles.id);
+  const teacherProfileId = await getNextNumericId(
+    teacherProfiles,
+    teacherProfiles.id
+  );
   await db.insert(teacherProfiles).values({
     id: teacherProfileId,
     userId,
@@ -303,7 +419,11 @@ export async function deleteTeacherAccount(userId: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
 
-  const [profile] = await db.select().from(teacherProfiles).where(eq(teacherProfiles.userId, userId)).limit(1);
+  const [profile] = await db
+    .select()
+    .from(teacherProfiles)
+    .where(eq(teacherProfiles.userId, userId))
+    .limit(1);
   if (!profile) {
     throw new Error("ไม่พบข้อมูลครู");
   }
@@ -323,7 +443,9 @@ export async function deleteTeacherAccount(userId: number) {
     .where(eq(classrooms.homeroomTeacherId, userId));
 
   if (Number(homeroomUsage?.count ?? 0) > 0) {
-    throw new Error("ครูคนนี้ยังเป็นครูประจำชั้นอยู่ กรุณาเปลี่ยนครูประจำชั้นก่อน");
+    throw new Error(
+      "ครูคนนี้ยังเป็นครูประจำชั้นอยู่ กรุณาเปลี่ยนครูประจำชั้นก่อน"
+    );
   }
 
   const [attendanceUsage] = await db
@@ -367,37 +489,57 @@ export async function getAcademicYears(level?: "primary" | "secondary") {
   const db = await getDb();
   if (!db) return [];
   const query = db.select().from(academicYears);
-  if (level) return query.where(eq(academicYears.level, level)).orderBy(desc(academicYears.year));
+  if (level)
+    return query
+      .where(eq(academicYears.level, level))
+      .orderBy(desc(academicYears.year));
   return query.orderBy(desc(academicYears.year));
 }
 
 export async function getAcademicYearById(id: number) {
   const db = await getDb();
   if (!db) return null;
-  const result = await db.select().from(academicYears).where(eq(academicYears.id, id)).limit(1);
+  const result = await db
+    .select()
+    .from(academicYears)
+    .where(eq(academicYears.id, id))
+    .limit(1);
   return result[0] ?? null;
 }
 
 export async function getActiveAcademicYear(level: "primary" | "secondary") {
   const db = await getDb();
   if (!db) return null;
-  const result = await db.select().from(academicYears)
-    .where(and(eq(academicYears.level, level), eq(academicYears.isActive, true))).limit(1);
+  const result = await db
+    .select()
+    .from(academicYears)
+    .where(
+      and(eq(academicYears.level, level), eq(academicYears.isActive, true))
+    )
+    .limit(1);
   return result[0] ?? null;
 }
 
-export async function createAcademicYear(data: typeof academicYears.$inferInsert) {
+export async function createAcademicYear(
+  data: typeof academicYears.$inferInsert
+) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const [result] = await db.insert(academicYears).values({
-    ...data,
-    id: data.id ?? (await getNextNumericId(academicYears, academicYears.id)),
-    createdAt: data.createdAt ?? new Date(),
-  }).returning({ id: academicYears.id });
+  const [result] = await db
+    .insert(academicYears)
+    .values({
+      ...data,
+      id: data.id ?? (await getNextNumericId(academicYears, academicYears.id)),
+      createdAt: data.createdAt ?? new Date(),
+    })
+    .returning({ id: academicYears.id });
   return result.id;
 }
 
-export async function updateAcademicYear(id: number, data: Partial<typeof academicYears.$inferInsert>) {
+export async function updateAcademicYear(
+  id: number,
+  data: Partial<typeof academicYears.$inferInsert>
+) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await db.update(academicYears).set(data).where(eq(academicYears.id, id));
@@ -409,48 +551,77 @@ export async function deleteAcademicYear(id: number) {
   await db.delete(academicYears).where(eq(academicYears.id, id));
 }
 
-export async function setActiveAcademicYear(id: number, level: "primary" | "secondary") {
+export async function setActiveAcademicYear(
+  id: number,
+  level: "primary" | "secondary"
+) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.update(academicYears).set({ isActive: false }).where(eq(academicYears.level, level));
-  await db.update(academicYears).set({ isActive: true }).where(eq(academicYears.id, id));
+  await db
+    .update(academicYears)
+    .set({ isActive: false })
+    .where(eq(academicYears.level, level));
+  await db
+    .update(academicYears)
+    .set({ isActive: true })
+    .where(eq(academicYears.id, id));
 }
 
 // ─── Classrooms ────────────────────────────────────────────────────────────────
-export async function getClassrooms(academicYearId?: number, level?: "primary" | "secondary") {
+export async function getClassrooms(
+  academicYearId?: number,
+  level?: "primary" | "secondary"
+) {
   const db = await getDb();
   if (!db) return [];
   const conditions = [];
-  if (academicYearId) conditions.push(eq(classrooms.academicYearId, academicYearId));
+  if (academicYearId)
+    conditions.push(eq(classrooms.academicYearId, academicYearId));
   if (level) conditions.push(eq(classrooms.level, level));
   const query = db.select().from(classrooms);
-  if (conditions.length > 0) return query.where(and(...conditions)).orderBy(classrooms.grade, classrooms.room);
+  if (conditions.length > 0)
+    return query
+      .where(and(...conditions))
+      .orderBy(classrooms.grade, classrooms.room);
   return query.orderBy(classrooms.grade, classrooms.room);
 }
 
 export async function getClassroomById(id: number) {
   const db = await getDb();
   if (!db) return null;
-  const result = await db.select().from(classrooms).where(eq(classrooms.id, id)).limit(1);
+  const result = await db
+    .select()
+    .from(classrooms)
+    .where(eq(classrooms.id, id))
+    .limit(1);
   return result[0] ?? null;
 }
 
 export async function createClassroom(data: typeof classrooms.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const [result] = await db.insert(classrooms).values({
-    ...data,
-    id: data.id ?? (await getNextNumericId(classrooms, classrooms.id)),
-    createdAt: data.createdAt ?? new Date(),
-    updatedAt: data.updatedAt ?? new Date(),
-  }).returning({ id: classrooms.id });
+  const [result] = await db
+    .insert(classrooms)
+    .values({
+      ...data,
+      id: data.id ?? (await getNextNumericId(classrooms, classrooms.id)),
+      createdAt: data.createdAt ?? new Date(),
+      updatedAt: data.updatedAt ?? new Date(),
+    })
+    .returning({ id: classrooms.id });
   return result.id;
 }
 
-export async function updateClassroom(id: number, data: Partial<typeof classrooms.$inferInsert>) {
+export async function updateClassroom(
+  id: number,
+  data: Partial<typeof classrooms.$inferInsert>
+) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.update(classrooms).set({ ...data, updatedAt: new Date() }).where(eq(classrooms.id, id));
+  await db
+    .update(classrooms)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(classrooms.id, id));
 }
 
 export async function deleteClassroom(id: number) {
@@ -464,36 +635,54 @@ export async function getSubjects(level?: "primary" | "secondary" | "both") {
   const db = await getDb();
   if (!db) return [];
   if (level) {
-    return db.select().from(subjects)
+    return db
+      .select()
+      .from(subjects)
       .where(sql`${subjects.level} = ${level} OR ${subjects.level} = 'both'`)
       .orderBy(subjects.subjectGroup, subjects.name);
   }
-  return db.select().from(subjects).orderBy(subjects.subjectGroup, subjects.name);
+  return db
+    .select()
+    .from(subjects)
+    .orderBy(subjects.subjectGroup, subjects.name);
 }
 
 export async function getSubjectById(id: number) {
   const db = await getDb();
   if (!db) return null;
-  const result = await db.select().from(subjects).where(eq(subjects.id, id)).limit(1);
+  const result = await db
+    .select()
+    .from(subjects)
+    .where(eq(subjects.id, id))
+    .limit(1);
   return result[0] ?? null;
 }
 
 export async function createSubject(data: typeof subjects.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const [result] = await db.insert(subjects).values({
-    ...data,
-    id: data.id ?? (await getNextNumericId(subjects, subjects.id)),
-    createdAt: data.createdAt ?? new Date(),
-    updatedAt: data.updatedAt ?? new Date(),
-  }).returning({ id: subjects.id });
+  const [result] = await db
+    .insert(subjects)
+    .values({
+      ...data,
+      id: data.id ?? (await getNextNumericId(subjects, subjects.id)),
+      createdAt: data.createdAt ?? new Date(),
+      updatedAt: data.updatedAt ?? new Date(),
+    })
+    .returning({ id: subjects.id });
   return result.id;
 }
 
-export async function updateSubject(id: number, data: Partial<typeof subjects.$inferInsert>) {
+export async function updateSubject(
+  id: number,
+  data: Partial<typeof subjects.$inferInsert>
+) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.update(subjects).set({ ...data, updatedAt: new Date() }).where(eq(subjects.id, id));
+  await db
+    .update(subjects)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(subjects.id, id));
 }
 
 export async function deleteSubject(id: number) {
@@ -506,73 +695,101 @@ export async function deleteSubject(id: number) {
 export async function getStudentsByClassroom(classroomId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(students)
-    .where(and(eq(students.classroomId, classroomId), eq(students.status, "active")))
+  return db
+    .select()
+    .from(students)
+    .where(
+      and(eq(students.classroomId, classroomId), eq(students.status, "active"))
+    )
     .orderBy(students.studentNumber, students.firstName);
 }
 
 export async function getStudentById(id: number) {
   const db = await getDb();
   if (!db) return null;
-  const result = await db.select().from(students).where(eq(students.id, id)).limit(1);
+  const result = await db
+    .select()
+    .from(students)
+    .where(eq(students.id, id))
+    .limit(1);
   return result[0] ?? null;
 }
 
 export async function createStudent(data: typeof students.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const [result] = await db.insert(students).values({
-    ...data,
-    id: data.id ?? (await getNextNumericId(students, students.id)),
-    createdAt: data.createdAt ?? new Date(),
-    updatedAt: data.updatedAt ?? new Date(),
-  }).returning({ id: students.id });
+  const [result] = await db
+    .insert(students)
+    .values({
+      ...data,
+      id: data.id ?? (await getNextNumericId(students, students.id)),
+      createdAt: data.createdAt ?? new Date(),
+      updatedAt: data.updatedAt ?? new Date(),
+    })
+    .returning({ id: students.id });
   return result.id;
 }
 
 export async function upsertStudentByCode(data: typeof students.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const [result] = await db.insert(students).values({
-    ...data,
-    status: data.status ?? "active",
-    updatedAt: new Date(),
-  }).onConflictDoUpdate({
-    target: students.studentCode,
-    set: {
-      prefix: data.prefix,
-      firstName: data.firstName,
-      lastName: data.lastName,
-      nationalId: data.nationalId,
-      birthDate: data.birthDate,
-      gender: data.gender,
-      classroomId: data.classroomId,
-      studentNumber: data.studentNumber,
+  const [result] = await db
+    .insert(students)
+    .values({
+      ...data,
       status: data.status ?? "active",
       updatedAt: new Date(),
-    },
-  }).returning({ id: students.id });
+    })
+    .onConflictDoUpdate({
+      target: students.studentCode,
+      set: {
+        prefix: data.prefix,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        nationalId: data.nationalId,
+        birthDate: data.birthDate,
+        gender: data.gender,
+        classroomId: data.classroomId,
+        studentNumber: data.studentNumber,
+        status: data.status ?? "active",
+        updatedAt: new Date(),
+      },
+    })
+    .returning({ id: students.id });
   return result.id;
 }
 
-export async function updateStudent(id: number, data: Partial<typeof students.$inferInsert>) {
+export async function updateStudent(
+  id: number,
+  data: Partial<typeof students.$inferInsert>
+) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.update(students).set({ ...data, updatedAt: new Date() }).where(eq(students.id, id));
+  await db
+    .update(students)
+    .set({ ...data, updatedAt: new Date() })
+    .where(eq(students.id, id));
 }
 
 export async function deleteStudent(id: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.update(students).set({ status: "dropped", updatedAt: new Date() }).where(eq(students.id, id));
+  await db
+    .update(students)
+    .set({ status: "dropped", updatedAt: new Date() })
+    .where(eq(students.id, id));
 }
 
 // ─── Teaching Assignments ─────────────────────────────────────────────────────
-export async function getTeacherAssignments(teacherId: number, academicYearId?: number) {
+export async function getTeacherAssignments(
+  teacherId: number,
+  academicYearId?: number
+) {
   const db = await getDb();
   if (!db) return [];
   const conditions = [eq(teachingAssignments.teacherId, teacherId)];
-  if (academicYearId) conditions.push(eq(teachingAssignments.academicYearId, academicYearId));
+  if (academicYearId)
+    conditions.push(eq(teachingAssignments.academicYearId, academicYearId));
   return db
     .select({
       assignment: teachingAssignments,
@@ -590,29 +807,54 @@ export async function getAssignmentById(id: number) {
   const db = await getDb();
   if (!db) return null;
   const result = await db
-    .select({ assignment: teachingAssignments, subject: subjects, classroom: classrooms })
+    .select({
+      assignment: teachingAssignments,
+      subject: subjects,
+      classroom: classrooms,
+      teacher: users,
+      teacherProfile: teacherProfiles,
+    })
     .from(teachingAssignments)
     .leftJoin(subjects, eq(teachingAssignments.subjectId, subjects.id))
     .leftJoin(classrooms, eq(teachingAssignments.classroomId, classrooms.id))
-    .where(eq(teachingAssignments.id, id)).limit(1);
+    .leftJoin(users, eq(teachingAssignments.teacherId, users.id))
+    .leftJoin(
+      teacherProfiles,
+      eq(teachingAssignments.teacherId, teacherProfiles.userId)
+    )
+    .where(eq(teachingAssignments.id, id))
+    .limit(1);
   return result[0] ?? null;
 }
 
-export async function createTeachingAssignment(data: typeof teachingAssignments.$inferInsert) {
+export async function createTeachingAssignment(
+  data: typeof teachingAssignments.$inferInsert
+) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const [result] = await db.insert(teachingAssignments).values({
-    ...data,
-    id: data.id ?? (await getNextNumericId(teachingAssignments, teachingAssignments.id)),
-    createdAt: data.createdAt ?? new Date(),
-  }).returning({ id: teachingAssignments.id });
+  const [result] = await db
+    .insert(teachingAssignments)
+    .values({
+      ...data,
+      id:
+        data.id ??
+        (await getNextNumericId(teachingAssignments, teachingAssignments.id)),
+      createdAt: data.createdAt ?? new Date(),
+    })
+    .returning({ id: teachingAssignments.id });
   return result.id;
 }
 
-export async function updateTeachingAssignment(id: number, data: Partial<typeof teachingAssignments.$inferInsert>) {
+export async function updateTeachingAssignment(
+  id: number,
+  data: Partial<typeof teachingAssignments.$inferInsert>
+) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  await db.update(teachingAssignments).set(data).where(eq(teachingAssignments.id, id));
+  await db
+    .update(teachingAssignments)
+    .set(data)
+    .where(eq(teachingAssignments.id, id));
 }
 
 export async function deleteTeachingAssignment(id: number) {
@@ -635,28 +877,76 @@ export async function getAllTeachingAssignments() {
     })
     .from(teachingAssignments)
     .leftJoin(users, eq(teachingAssignments.teacherId, users.id))
-    .leftJoin(teacherProfiles, eq(teachingAssignments.teacherId, teacherProfiles.userId))
+    .leftJoin(
+      teacherProfiles,
+      eq(teachingAssignments.teacherId, teacherProfiles.userId)
+    )
     .leftJoin(subjects, eq(teachingAssignments.subjectId, subjects.id))
     .leftJoin(classrooms, eq(teachingAssignments.classroomId, classrooms.id))
-    .leftJoin(academicYears, eq(teachingAssignments.academicYearId, academicYears.id))
-    .orderBy(desc(academicYears.year), classrooms.grade, classrooms.room, subjects.name);
+    .leftJoin(
+      academicYears,
+      eq(teachingAssignments.academicYearId, academicYears.id)
+    )
+    .orderBy(
+      desc(academicYears.year),
+      classrooms.grade,
+      classrooms.room,
+      subjects.name
+    );
 }
 
 // ─── Attendance ────────────────────────────────────────────────────────────────
-export async function getAttendanceByAssignmentAndDate(assignmentId: number, date: string) {
+export async function getAttendanceByAssignmentAndDate(
+  assignmentId: number,
+  date: string
+) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(attendance)
-    .where(and(eq(attendance.assignmentId, assignmentId), eq(attendance.date, date as any)));
+  return db
+    .select()
+    .from(attendance)
+    .where(
+      and(
+        eq(attendance.assignmentId, assignmentId),
+        eq(attendance.date, date as any)
+      )
+    );
 }
 
 export async function getAttendanceByAssignment(assignmentId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(attendance).where(eq(attendance.assignmentId, assignmentId)).orderBy(desc(attendance.date));
+  return db
+    .select()
+    .from(attendance)
+    .where(eq(attendance.assignmentId, assignmentId))
+    .orderBy(desc(attendance.date));
 }
 
-export async function getAttendanceDatesByAssignment(assignmentId: number, limit = 20) {
+export async function getAttendanceHistoryForStudent(
+  assignmentId: number,
+  studentId: number,
+  limit = 30
+) {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select()
+    .from(attendance)
+    .where(
+      and(
+        eq(attendance.assignmentId, assignmentId),
+        eq(attendance.studentId, studentId)
+      )
+    )
+    .orderBy(desc(attendance.date))
+    .limit(limit);
+}
+
+export async function getAttendanceDatesByAssignment(
+  assignmentId: number,
+  limit = 20
+) {
   const db = await getDb();
   if (!db) return [];
   return db
@@ -673,7 +963,11 @@ export async function getAttendanceSession(assignmentId: number, date: string) {
   if (!db) return { assignment: null, students: [], attendance: [], dates: [] };
 
   const [assignment] = await db
-    .select({ assignment: teachingAssignments, subject: subjects, classroom: classrooms })
+    .select({
+      assignment: teachingAssignments,
+      subject: subjects,
+      classroom: classrooms,
+    })
     .from(teachingAssignments)
     .leftJoin(subjects, eq(teachingAssignments.subjectId, subjects.id))
     .leftJoin(classrooms, eq(teachingAssignments.classroomId, classrooms.id))
@@ -681,7 +975,12 @@ export async function getAttendanceSession(assignmentId: number, date: string) {
     .limit(1);
 
   if (!assignment?.assignment.classroomId) {
-    return { assignment: assignment ?? null, students: [], attendance: [], dates: [] };
+    return {
+      assignment: assignment ?? null,
+      students: [],
+      attendance: [],
+      dates: [],
+    };
   }
 
   const [studentRows, attendanceRows, dateRows] = await Promise.all([
@@ -695,7 +994,12 @@ export async function getAttendanceSession(assignmentId: number, date: string) {
         lastName: students.lastName,
       })
       .from(students)
-      .where(and(eq(students.classroomId, assignment.assignment.classroomId), eq(students.status, "active")))
+      .where(
+        and(
+          eq(students.classroomId, assignment.assignment.classroomId),
+          eq(students.status, "active")
+        )
+      )
       .orderBy(students.studentNumber, students.firstName),
     db
       .select({
@@ -707,7 +1011,12 @@ export async function getAttendanceSession(assignmentId: number, date: string) {
         note: attendance.note,
       })
       .from(attendance)
-      .where(and(eq(attendance.assignmentId, assignmentId), eq(attendance.date, date as any))),
+      .where(
+        and(
+          eq(attendance.assignmentId, assignmentId),
+          eq(attendance.date, date as any)
+        )
+      ),
     db
       .select({ date: attendance.date })
       .from(attendance)
@@ -728,40 +1037,77 @@ export async function getAttendanceSession(assignmentId: number, date: string) {
 export async function upsertAttendance(data: typeof attendance.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const existing = await db.select().from(attendance)
-    .where(and(eq(attendance.assignmentId, data.assignmentId), eq(attendance.studentId, data.studentId), eq(attendance.date, data.date as any))).limit(1);
+  const existing = await db
+    .select()
+    .from(attendance)
+    .where(
+      and(
+        eq(attendance.assignmentId, data.assignmentId),
+        eq(attendance.studentId, data.studentId),
+        eq(attendance.date, data.date as any)
+      )
+    )
+    .limit(1);
   if (existing.length > 0) {
-    await db.update(attendance).set({ status: data.status, note: data.note, updatedAt: new Date() }).where(eq(attendance.id, existing[0].id));
+    await db
+      .update(attendance)
+      .set({ status: data.status, note: data.note, updatedAt: new Date() })
+      .where(eq(attendance.id, existing[0].id));
   } else {
     await db.insert(attendance).values(data);
   }
 }
 
-export async function replaceAttendanceForDate(records: Array<typeof attendance.$inferInsert>) {
+export async function replaceAttendanceForDate(
+  records: Array<typeof attendance.$inferInsert>
+) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   if (records.length === 0) return;
 
   const first = records[0];
-  await db.transaction(async (tx) => {
+  await db.transaction(async tx => {
     await tx
       .delete(attendance)
-      .where(and(eq(attendance.assignmentId, first.assignmentId), eq(attendance.date, first.date as any)));
+      .where(
+        and(
+          eq(attendance.assignmentId, first.assignmentId),
+          eq(attendance.date, first.date as any)
+        )
+      );
     await tx.insert(attendance).values(records);
   });
 }
 
-export async function getAttendanceSummary(assignmentId: number, studentId: number) {
+export async function getAttendanceSummary(
+  assignmentId: number,
+  studentId: number
+) {
   const db = await getDb();
   if (!db) return { present: 0, absent: 0, late: 0, excused: 0, total: 0 };
-  const records = await db.select().from(attendance)
-    .where(and(eq(attendance.assignmentId, assignmentId), eq(attendance.studentId, studentId)));
-  const summary = { present: 0, absent: 0, late: 0, excused: 0, total: records.length };
+  const records = await db
+    .select()
+    .from(attendance)
+    .where(
+      and(
+        eq(attendance.assignmentId, assignmentId),
+        eq(attendance.studentId, studentId)
+      )
+    );
+  const summary = {
+    present: 0,
+    absent: 0,
+    late: 0,
+    excused: 0,
+    total: records.length,
+  };
   for (const r of records) summary[r.status as keyof typeof summary]++;
   return summary;
 }
 
-function scoreCategoryTermFromWeight(weight: unknown): "midyear" | "endyear" | undefined {
+function scoreCategoryTermFromWeight(
+  weight: unknown
+): "midyear" | "endyear" | undefined {
   if (weight === null || weight === undefined) return undefined;
   const normalized = String(weight).trim();
   if (["1", "1.0", "1.00"].includes(normalized)) return "midyear";
@@ -791,13 +1137,18 @@ const ALL_FIXED_FINAL_CATEGORIES = [
 ];
 
 function isPrimaryFixedFinalCategoryName(name: unknown) {
-  return ALL_FIXED_FINAL_CATEGORIES.some((category) => category.name === String(name ?? "").trim());
+  return ALL_FIXED_FINAL_CATEGORIES.some(
+    category => category.name === String(name ?? "").trim()
+  );
 }
 
-function sortScoreCategoriesForDisplay<T extends { name?: unknown; order?: unknown; term?: unknown }>(categories: T[]) {
+function sortScoreCategoriesForDisplay<
+  T extends { name?: unknown; order?: unknown; term?: unknown },
+>(categories: T[]) {
   return [...categories].sort((a, b) => {
     const termRank = (term: unknown) => (term === "endyear" ? 1 : 0);
-    const fixedRank = (name: unknown) => (isPrimaryFixedFinalCategoryName(name) ? 1 : 0);
+    const fixedRank = (name: unknown) =>
+      isPrimaryFixedFinalCategoryName(name) ? 1 : 0;
     return (
       termRank(a.term) - termRank(b.term) ||
       fixedRank(a.name) - fixedRank(b.name) ||
@@ -807,13 +1158,17 @@ function sortScoreCategoriesForDisplay<T extends { name?: unknown; order?: unkno
   });
 }
 
-async function ensureFixedFinalCategories(assignmentId: number, categories: any[]) {
+async function ensureFixedFinalCategories(
+  assignmentId: number,
+  categories: any[]
+) {
   const assignment = await getAssignmentById(assignmentId);
-  const fixedCategories = assignment?.classroom?.level === "primary"
-    ? PRIMARY_FIXED_FINAL_CATEGORIES
-    : assignment?.classroom?.level === "secondary"
-      ? SECONDARY_FIXED_FINAL_CATEGORIES
-      : [];
+  const fixedCategories =
+    assignment?.classroom?.level === "primary"
+      ? PRIMARY_FIXED_FINAL_CATEGORIES
+      : assignment?.classroom?.level === "secondary"
+        ? SECONDARY_FIXED_FINAL_CATEGORIES
+        : [];
 
   if (fixedCategories.length === 0) {
     return categories;
@@ -825,18 +1180,23 @@ async function ensureFixedFinalCategories(assignmentId: number, categories: any[
   const nextCategories = [...categories];
 
   for (const fixedCategory of fixedCategories) {
-    const existing = nextCategories.find((category) => String(category.name ?? "").trim() === fixedCategory.name);
+    const existing = nextCategories.find(
+      category => String(category.name ?? "").trim() === fixedCategory.name
+    );
 
     if (!existing) {
-      const insertedRows = await db.insert(scoreCategories).values({
-        id: await getNextNumericId(scoreCategories, scoreCategories.id),
-        assignmentId,
-        name: fixedCategory.name,
-        maxScore: fixedCategory.maxScore,
-        weight: scoreCategoryWeightFromTerm(fixedCategory.term),
-        order: fixedCategory.order,
-        createdAt: new Date(),
-      }).returning() as any[];
+      const insertedRows = (await db
+        .insert(scoreCategories)
+        .values({
+          id: await getNextNumericId(scoreCategories, scoreCategories.id),
+          assignmentId,
+          name: fixedCategory.name,
+          maxScore: fixedCategory.maxScore,
+          weight: scoreCategoryWeightFromTerm(fixedCategory.term),
+          order: fixedCategory.order,
+          createdAt: new Date(),
+        })
+        .returning()) as any[];
       const inserted = insertedRows[0];
 
       nextCategories.push({
@@ -847,11 +1207,17 @@ async function ensureFixedFinalCategories(assignmentId: number, categories: any[
     }
 
     const nextWeight = scoreCategoryWeightFromTerm(fixedCategory.term);
-    if (scoreCategoryTermFromWeight(existing.weight) !== fixedCategory.term || Number(existing.order ?? 0) !== fixedCategory.order) {
-      await db.update(scoreCategories).set({
-        weight: nextWeight,
-        order: fixedCategory.order,
-      }).where(eq(scoreCategories.id, existing.id));
+    if (
+      scoreCategoryTermFromWeight(existing.weight) !== fixedCategory.term ||
+      Number(existing.order ?? 0) !== fixedCategory.order
+    ) {
+      await db
+        .update(scoreCategories)
+        .set({
+          weight: nextWeight,
+          order: fixedCategory.order,
+        })
+        .where(eq(scoreCategories.id, existing.id));
       existing.weight = nextWeight;
       existing.order = fixedCategory.order;
     }
@@ -868,45 +1234,72 @@ export async function getScoreCategories(assignmentId: number): Promise<any[]> {
     .from(scoreCategories)
     .where(eq(scoreCategories.assignmentId, assignmentId))
     .orderBy(scoreCategories.order, scoreCategories.createdAt);
-  const ensured = await ensureFixedFinalCategories(assignmentId, existing as any[]);
-  return sortScoreCategoriesForDisplay(ensured.map((category) => ({
-    ...category,
-    term: scoreCategoryTermFromWeight(category.weight),
-  })));
+  const ensured = await ensureFixedFinalCategories(
+    assignmentId,
+    existing as any[]
+  );
+  return sortScoreCategoriesForDisplay(
+    ensured.map(category => ({
+      ...category,
+      term: scoreCategoryTermFromWeight(category.weight),
+    }))
+  );
 }
 
-export async function createScoreCategory(data: typeof scoreCategories.$inferInsert & { term?: "midyear" | "endyear" }) {
+export async function createScoreCategory(
+  data: typeof scoreCategories.$inferInsert & { term?: "midyear" | "endyear" }
+) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const { term, ...rest } = data;
-  const [result] = await db.insert(scoreCategories).values({
-    ...rest,
-    weight: rest.weight ?? scoreCategoryWeightFromTerm(term),
-    id: data.id ?? (await getNextNumericId(scoreCategories, scoreCategories.id)),
-    createdAt: data.createdAt ?? new Date(),
-  }).returning({ id: scoreCategories.id });
+  const [result] = await db
+    .insert(scoreCategories)
+    .values({
+      ...rest,
+      weight: rest.weight ?? scoreCategoryWeightFromTerm(term),
+      id:
+        data.id ??
+        (await getNextNumericId(scoreCategories, scoreCategories.id)),
+      createdAt: data.createdAt ?? new Date(),
+    })
+    .returning({ id: scoreCategories.id });
   return result.id;
 }
 
 export async function updateScoreCategory(
   id: number,
-  data: Partial<typeof scoreCategories.$inferInsert> & { term?: "midyear" | "endyear" },
+  data: Partial<typeof scoreCategories.$inferInsert> & {
+    term?: "midyear" | "endyear";
+  }
 ) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   const { term, ...rest } = data;
-  const [existing] = await db.select().from(scoreCategories).where(eq(scoreCategories.id, id)).limit(1);
+  const [existing] = await db
+    .select()
+    .from(scoreCategories)
+    .where(eq(scoreCategories.id, id))
+    .limit(1);
   const isFixedCategory = isPrimaryFixedFinalCategoryName(existing?.name);
-  await db.update(scoreCategories).set({
-    ...(isFixedCategory ? { maxScore: rest.maxScore } : rest),
-    ...((term && !isFixedCategory) ? { weight: scoreCategoryWeightFromTerm(term) } : {}),
-  }).where(eq(scoreCategories.id, id));
+  await db
+    .update(scoreCategories)
+    .set({
+      ...(isFixedCategory ? { maxScore: rest.maxScore } : rest),
+      ...(term && !isFixedCategory
+        ? { weight: scoreCategoryWeightFromTerm(term) }
+        : {}),
+    })
+    .where(eq(scoreCategories.id, id));
 }
 
 export async function deleteScoreCategory(id: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const [existing] = await db.select().from(scoreCategories).where(eq(scoreCategories.id, id)).limit(1);
+  const [existing] = await db
+    .select()
+    .from(scoreCategories)
+    .where(eq(scoreCategories.id, id))
+    .limit(1);
   if (isPrimaryFixedFinalCategoryName(existing?.name)) {
     throw new Error("หมวดสอบเป็นหมวดคงที่ของเทมเพลต ไม่สามารถลบได้");
   }
@@ -926,17 +1319,33 @@ export async function getScoresByAssignment(assignmentId: number) {
   if (!db) return [];
   const cats = await getScoreCategories(assignmentId);
   if (cats.length === 0) return [];
-  const catIds = cats.map((c) => c.id);
+  const catIds = cats.map(c => c.id);
   return db.select().from(scores).where(inArray(scores.categoryId, catIds));
 }
 
 export async function upsertScore(data: typeof scores.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const existing = await db.select().from(scores)
-    .where(and(eq(scores.categoryId, data.categoryId), eq(scores.studentId, data.studentId))).limit(1);
+  const existing = await db
+    .select()
+    .from(scores)
+    .where(
+      and(
+        eq(scores.categoryId, data.categoryId),
+        eq(scores.studentId, data.studentId)
+      )
+    )
+    .limit(1);
   if (existing.length > 0) {
-    await db.update(scores).set({ score: data.score, note: data.note, recordedBy: data.recordedBy, updatedAt: new Date() }).where(eq(scores.id, existing[0].id));
+    await db
+      .update(scores)
+      .set({
+        score: data.score,
+        note: data.note,
+        recordedBy: data.recordedBy,
+        updatedAt: new Date(),
+      })
+      .where(eq(scores.id, existing[0].id));
   } else {
     await db.insert(scores).values(data);
   }
@@ -946,16 +1355,32 @@ export async function upsertScore(data: typeof scores.$inferInsert) {
 export async function getGradeResults(assignmentId: number) {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(gradeResults).where(eq(gradeResults.assignmentId, assignmentId));
+  return db
+    .select()
+    .from(gradeResults)
+    .where(eq(gradeResults.assignmentId, assignmentId));
 }
 
-export async function upsertGradeResult(data: typeof gradeResults.$inferInsert) {
+export async function upsertGradeResult(
+  data: typeof gradeResults.$inferInsert
+) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const existing = await db.select().from(gradeResults)
-    .where(and(eq(gradeResults.assignmentId, data.assignmentId), eq(gradeResults.studentId, data.studentId))).limit(1);
+  const existing = await db
+    .select()
+    .from(gradeResults)
+    .where(
+      and(
+        eq(gradeResults.assignmentId, data.assignmentId),
+        eq(gradeResults.studentId, data.studentId)
+      )
+    )
+    .limit(1);
   if (existing.length > 0) {
-    await db.update(gradeResults).set({ ...data, updatedAt: new Date() }).where(eq(gradeResults.id, existing[0].id));
+    await db
+      .update(gradeResults)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(gradeResults.id, existing[0].id));
   } else {
     await db.insert(gradeResults).values(data);
   }
@@ -965,33 +1390,55 @@ export async function getStudentGradeResults(studentId: number) {
   const db = await getDb();
   if (!db) return [];
   return db
-    .select({ result: gradeResults, assignment: teachingAssignments, subject: subjects, classroom: classrooms })
+    .select({
+      result: gradeResults,
+      assignment: teachingAssignments,
+      subject: subjects,
+      classroom: classrooms,
+    })
     .from(gradeResults)
-    .leftJoin(teachingAssignments, eq(gradeResults.assignmentId, teachingAssignments.id))
+    .leftJoin(
+      teachingAssignments,
+      eq(gradeResults.assignmentId, teachingAssignments.id)
+    )
     .leftJoin(subjects, eq(teachingAssignments.subjectId, subjects.id))
     .leftJoin(classrooms, eq(teachingAssignments.classroomId, classrooms.id))
     .where(eq(gradeResults.studentId, studentId));
 }
 
 // ─── Exported Documents ────────────────────────────────────────────────────────
-export async function getExportedDocuments(exportedBy?: number, documentType?: "por1" | "por6") {
+export async function getExportedDocuments(
+  exportedBy?: number,
+  documentType?: "por1" | "por6"
+) {
   const db = await getDb();
   if (!db) return [];
   const conditions = [];
   if (exportedBy) conditions.push(eq(exportedDocuments.exportedBy, exportedBy));
-  if (documentType) conditions.push(eq(exportedDocuments.documentType, documentType));
+  if (documentType)
+    conditions.push(eq(exportedDocuments.documentType, documentType));
   const query = db.select().from(exportedDocuments);
-  if (conditions.length > 0) return query.where(and(...conditions)).orderBy(desc(exportedDocuments.createdAt));
+  if (conditions.length > 0)
+    return query
+      .where(and(...conditions))
+      .orderBy(desc(exportedDocuments.createdAt));
   return query.orderBy(desc(exportedDocuments.createdAt));
 }
 
-export async function createExportedDocument(data: typeof exportedDocuments.$inferInsert) {
+export async function createExportedDocument(
+  data: typeof exportedDocuments.$inferInsert
+) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
-  const [result] = await db.insert(exportedDocuments).values({
-    ...data,
-    id: data.id ?? (await getNextNumericId(exportedDocuments, exportedDocuments.id)),
-    createdAt: data.createdAt ?? new Date(),
-  }).returning({ id: exportedDocuments.id });
+  const [result] = await db
+    .insert(exportedDocuments)
+    .values({
+      ...data,
+      id:
+        data.id ??
+        (await getNextNumericId(exportedDocuments, exportedDocuments.id)),
+      createdAt: data.createdAt ?? new Date(),
+    })
+    .returning({ id: exportedDocuments.id });
   return result.id;
 }

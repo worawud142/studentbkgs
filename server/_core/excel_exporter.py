@@ -310,6 +310,9 @@ def write_latest_cover(wb, assignment):
     write_if_not_merged(ws, 9, 15, academic_year.get("year", ""))
     write_if_not_merged(ws, 10, 5, assignment.get("subjectName", ""))
     write_if_not_merged(ws, 10, 12, assignment.get("subjectCode", ""))
+    write_if_not_merged(ws, 11, 5, assignment.get("hoursPerWeek", ""))
+    write_if_not_merged(ws, 11, 14, assignment.get("subjectCredits", ""))
+    write_if_not_merged(ws, 12, 5, assignment.get("teacherName", ""))
 
 
 def write_latest_student_lists(wb, visible_students):
@@ -321,6 +324,32 @@ def write_latest_student_lists(wb, visible_students):
             write_if_not_merged(ws, row, 1, student.get("studentNumber") or row - 5)
             write_if_not_merged(ws, row, 2, student.get("studentCode") or "")
             write_if_not_merged(ws, row, 3, student_visible_name(student))
+
+
+def write_latest_score_student_names(wb, visible_students):
+    sheet_rows = []
+    if has_latest_primary_layout(wb):
+        sheet_rows.extend(
+            [
+                (LATEST_PRIMARY_TERM_SHEETS["midyear"], 7),
+                (LATEST_PRIMARY_TERM_SHEETS["endyear"], 7),
+                (LATEST_PRIMARY_SUMMARY_SHEET, 8),
+            ]
+        )
+    if has_latest_secondary_layout(wb):
+        sheet_rows.extend(
+            [(sheet_name, 6) for sheet_name, _ in LATEST_SECONDARY_UNIT_SHEETS]
+        )
+        sheet_rows.append((LATEST_SECONDARY_SUMMARY_SHEET, 7))
+
+    for sheet_name, start_row in sheet_rows:
+        if sheet_name not in wb.sheetnames:
+            continue
+        ws = wb[sheet_name]
+        clear_rect(ws, start_row, ws.max_row, 1, 2)
+        for row, student in enumerate(visible_students, start=start_row):
+            write_if_not_merged(ws, row, 1, student.get("studentNumber") or row - start_row + 1)
+            write_if_not_merged(ws, row, 2, student_visible_name(student))
 
 
 def thai_month_from_label(value):
@@ -537,6 +566,7 @@ def fill_latest_academic_print_workbook(wb, payload):
 
     write_latest_cover(wb, assignment)
     write_latest_student_lists(wb, visible_students)
+    write_latest_score_student_names(wb, visible_students)
     write_latest_attendance(wb, payload, visible_students)
 
     if has_latest_primary_layout(wb):
@@ -637,6 +667,13 @@ def fill_class_workbook(wb, payload, template_name):
         cover["A9"] = f"ชั้นประถมศึกษา {assignment.get('classroomName', '')} ปีการศึกษา {assignment.get('academicYear', {}).get('year', '')}"
 
     cover["A5"] = title or cover["A5"].value
+    if is_primary_template(template_name, assignment) and "ปก" in wb.sheetnames:
+        cover["A11"] = (
+            f"รายวิชา {assignment.get('subjectName', '')} "
+            f"รหัสวิชา {assignment.get('subjectCode', '')} "
+            f"หน่วยกิต {assignment.get('subjectCredits', '')} "
+            f"ครูผู้สอน {assignment.get('teacherName', '')}"
+        ).strip()
 
     if is_primary_template(template_name, assignment):
         subject_ws = find_subject_sheet(wb, assignment)
