@@ -2,6 +2,18 @@ import { trpc } from "@/lib/trpc";
 import TeacherLayout from "@/components/TeacherLayout";
 import { FileText, Download, Calendar, FileDown } from "lucide-react";
 
+function documentLabel(type: string) {
+  if (type === "por1") return "ปพ.1";
+  if (type === "por5") return "ปพ.5";
+  return "ปพ.6";
+}
+
+function documentBadgeClass(type: string) {
+  if (type === "por1") return "bg-blue-100 text-blue-700";
+  if (type === "por5") return "bg-violet-100 text-violet-700";
+  return "bg-green-100 text-green-700";
+}
+
 const templateDownloads = [
   {
     title: "ตัวอย่างมัธยม.xlsx",
@@ -32,7 +44,7 @@ export default function DocumentsPage() {
         <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
           <p className="text-blue-900 font-medium">เอกสารที่ส่งออกแล้ว</p>
           <p className="text-blue-600 text-sm mt-1">
-            เอกสาร ปพ.1 และ ปพ.6 ที่เคยสร้างไว้จะถูกเก็บที่นี่ สามารถดาวน์โหลดย้อนหลังได้
+            เอกสาร ปพ.1, ปพ.5 และ ปพ.6 ที่เคยสร้างไว้จะถูกเก็บที่นี่ สามารถดาวน์โหลดย้อนหลังได้
           </p>
         </div>
 
@@ -77,7 +89,7 @@ export default function DocumentsPage() {
             <FileText className="w-12 h-12 text-slate-200 mx-auto mb-3" />
             <p className="text-slate-500 font-medium">ยังไม่มีเอกสาร</p>
             <p className="text-slate-400 text-sm mt-1">
-              ไปที่หน้าคะแนนเพื่อสร้างเอกสาร ปพ.1 หรือ ปพ.6
+              ไปที่หน้าคะแนนเพื่อสร้างเอกสาร ปพ.
             </p>
           </div>
         ) : (
@@ -95,12 +107,8 @@ export default function DocumentsPage() {
                 {documents.map((doc) => (
                   <tr key={doc.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-3">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                        doc.documentType === "por1"
-                          ? "bg-blue-100 text-blue-700"
-                          : "bg-green-100 text-green-700"
-                      }`}>
-                        {doc.documentType === "por1" ? "ปพ.1" : "ปพ.6"}
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${documentBadgeClass(doc.documentType)}`}>
+                        {documentLabel(doc.documentType)}
                       </span>
                     </td>
                     <td className="px-4 py-3">

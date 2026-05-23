@@ -60,6 +60,7 @@ export default function ScorePage() {
   const [editCat, setEditCat] = useState<any>(null);
   const [editCatForm, setEditCatForm] = useState({ name: "", maxScore: "", order: 0, term: "midyear" as "midyear" | "endyear" });
   const [scoreInputs, setScoreInputs] = useState<Record<string, string>>({});
+  const [dirtyScoreKeys, setDirtyScoreKeys] = useState<Set<string>>(() => new Set());
   const [pendingSave, setPendingSave] = useState(false);
 
   const { data: assignment } = trpc.assignment.get.useQuery({ id: aId });
@@ -106,12 +107,17 @@ export default function ScorePage() {
   });
 
   const saveScores = trpc.score.save.useMutation({
-    onSuccess: () => {
-      toast.success("บันทึกคะแนนเรียบร้อย");
+    onSuccess: (result) => {
+      toast.success(`บันทึกคะแนนเรียบร้อย (${(result.inserted ?? 0) + (result.updated ?? 0)} รายการ)`);
       utils.score.getByAssignment.invalidate({ assignmentId: aId });
       utils.score.getGradeResults.invalidate({ assignmentId: aId });
+      setDirtyScoreKeys(new Set());
       setPendingSave(false);
     },
+    onError: (e) => toast.error(e.message),
+  });
+
+  const recordExport = trpc.document.recordExport.useMutation({
     onError: (e) => toast.error(e.message),
   });
 
@@ -128,23 +134,48 @@ export default function ScorePage() {
       map[`${s.categoryId}-${s.studentId}`] = s.score?.toString() || "";
     });
     setScoreInputs(map);
+    setDirtyScoreKeys(new Set());
+    setPendingSave(false);
   }, [scores]);
 
   const handleScoreChange = (catId: number, studentId: number, value: string) => {
-    setScoreInputs((prev) => ({ ...prev, [`${catId}-${studentId}`]: value }));
+    const key = `${catId}-${studentId}`;
+    setScoreInputs((prev) => ({ ...prev, [key]: value }));
+    setDirtyScoreKeys((prev) => {
+      const next = new Set(prev);
+      next.add(key);
+      return next;
+    });
     setPendingSave(true);
   };
 
   const handleSaveAll = () => {
     const records: { categoryId: number; studentId: number; score: string | null }[] = [];
-    categories.forEach((cat) => {
-      students.forEach((s) => {
-        const key = `${cat.id}-${s.id}`;
-        const val = scoreInputs[key];
-        records.push({ categoryId: cat.id, studentId: s.id, score: val !== undefined && val !== "" ? val : null });
-      });
+    dirtyScoreKeys.forEach((key) => {
+      const [categoryId, studentId] = key.split("-").map(Number);
+      const val = scoreInputs[key];
+      if (!Number.isFinite(categoryId) || !Number.isFinite(studentId)) return;
+      records.push({ categoryId, studentId, score: val !== undefined && val !== "" ? val : null });
     });
+    if (records.length === 0) {
+      setPendingSave(false);
+      toast.info("ไม่มีคะแนนที่เปลี่ยนแปลง");
+      return;
+    }
     saveScores.mutate(records);
+  };
+
+  const handleExportAcademicPrint = async () => {
+    const href = `${isSecondary ? templateByLevel.secondary.href : templateByLevel.primary.href}&assignmentId=${aId}`;
+    try {
+      await recordExport.mutateAsync({
+        assignmentId: aId,
+        documentType: "por5",
+        fileUrl: href,
+      });
+    } finally {
+      window.location.href = href;
+    }
   };
 
   // Calculate total score for a student
@@ -236,13 +267,15 @@ export default function ScorePage() {
                 ดาวน์โหลดไฟล์ Excel ที่เติมข้อมูลจากคะแนนและเช็คชื่อของห้องนี้
               </p>
             </div>
-            <a
-              href={`${isSecondary ? templateByLevel.secondary.href : templateByLevel.primary.href}&assignmentId=${aId}`}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700"
+            <button
+              type="button"
+              onClick={handleExportAcademicPrint}
+              disabled={recordExport.isPending}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               <Download className="w-4 h-4" />
-              ส่งออก ปพ.5
-            </a>
+              {recordExport.isPending ? "กำลังเตรียม..." : "ส่งออก ปพ.5"}
+            </button>
           </div>
         </div>
 

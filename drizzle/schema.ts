@@ -58,7 +58,11 @@ export const gradeResultEnum = appSchema.enum("grade_result", [
   "incomplete",
   "exempted",
 ]);
-export const documentTypeEnum = appSchema.enum("document_type", ["por1", "por6"]);
+export const documentTypeEnum = appSchema.enum("document_type", [
+  "por1",
+  "por5",
+  "por6",
+]);
 
 // ─── Users / Teachers ─────────────────────────────────────────────────────────
 export const users = appSchema.table("users", {

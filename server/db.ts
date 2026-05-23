@@ -1351,6 +1351,65 @@ export async function upsertScore(data: typeof scores.$inferInsert) {
   }
 }
 
+export async function upsertScoresBatch(items: (typeof scores.$inferInsert)[]) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  if (items.length === 0) return { inserted: 0, updated: 0, skipped: 0 };
+
+  const categoryIds = Array.from(new Set(items.map(item => item.categoryId)));
+  const studentIds = Array.from(new Set(items.map(item => item.studentId)));
+  const existing = await db
+    .select()
+    .from(scores)
+    .where(
+      and(
+        inArray(scores.categoryId, categoryIds),
+        inArray(scores.studentId, studentIds)
+      )
+    );
+  const existingByKey = new Map(
+    existing.map(score => [`${score.categoryId}-${score.studentId}`, score])
+  );
+
+  let updated = 0;
+  let skipped = 0;
+  const inserts: (typeof scores.$inferInsert)[] = [];
+
+  await Promise.all(
+    items.map(async item => {
+      const existingScore = existingByKey.get(
+        `${item.categoryId}-${item.studentId}`
+      );
+      if (existingScore) {
+        updated += 1;
+        await db
+          .update(scores)
+          .set({
+            score: item.score,
+            note: item.note,
+            recordedBy: item.recordedBy,
+            updatedAt: new Date(),
+          })
+          .where(eq(scores.id, existingScore.id));
+        return;
+      }
+
+      if (item.score === null || item.score === undefined || item.score === "") {
+        skipped += 1;
+        return;
+      }
+
+      inserts.push(item);
+    })
+  );
+
+  if (inserts.length > 0) {
+    await db.insert(scores).values(inserts);
+  }
+
+  return { inserted: inserts.length, updated, skipped };
+}
+
 // ─── Grade Results ─────────────────────────────────────────────────────────────
 export async function getGradeResults(assignmentId: number) {
   const db = await getDb();
@@ -1409,7 +1468,7 @@ export async function getStudentGradeResults(studentId: number) {
 // ─── Exported Documents ────────────────────────────────────────────────────────
 export async function getExportedDocuments(
   exportedBy?: number,
-  documentType?: "por1" | "por6"
+  documentType?: "por1" | "por5" | "por6"
 ) {
   const db = await getDb();
   if (!db) return [];
@@ -1430,6 +1489,18 @@ export async function createExportedDocument(
 ) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
+  if (data.documentType === "por5") {
+    const schemaName = ENV.dbSchema.replace(/"/g, '""');
+    await db
+      .execute(
+        sql.raw(
+          `ALTER TYPE "${schemaName}"."document_type" ADD VALUE IF NOT EXISTS 'por5'`
+        )
+      )
+      .catch(error => {
+        console.warn("[Documents] Unable to ensure por5 document type", error);
+      });
+  }
   const [result] = await db
     .insert(exportedDocuments)
     .values({

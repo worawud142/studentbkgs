@@ -66,12 +66,12 @@ import {
   updateTeachingAssignment,
   updateTeacherAccount,
   upsertGradeResult,
-  upsertScore,
   upsertUser,
   upsertTeacherProfile,
   updateUserRole,
   resolveLoginUser,
   updateTeacherPassword,
+  upsertScoresBatch,
 } from "./db";
 import { storagePut } from "./storage";
 
@@ -845,16 +845,14 @@ export const appRouter = router({
         )
       )
       .mutation(async ({ ctx, input }) => {
-        await Promise.all(
-          input.map(item =>
-            upsertScore({
-              ...item,
-              score: item.score as any,
-              recordedBy: ctx.user.id,
-            })
-          )
+        const result = await upsertScoresBatch(
+          input.map(item => ({
+            ...item,
+            score: item.score as any,
+            recordedBy: ctx.user.id,
+          }))
         );
-        return { success: true };
+        return { success: true, ...result };
       }),
     getGradeResults: protectedProcedure
       .input(z.object({ assignmentId: z.number() }))
@@ -886,19 +884,52 @@ export const appRouter = router({
   // ─── Documents ─────────────────────────────────────────────────────────────
   document: router({
     list: protectedProcedure
-      .input(z.object({ documentType: z.enum(["por1", "por6"]).optional() }))
+      .input(z.object({ documentType: z.enum(["por1", "por5", "por6"]).optional() }))
       .query(async ({ ctx, input }) =>
         getExportedDocuments(ctx.user.id, input.documentType)
       ),
     listAll: adminProcedure
-      .input(z.object({ documentType: z.enum(["por1", "por6"]).optional() }))
+      .input(z.object({ documentType: z.enum(["por1", "por5", "por6"]).optional() }))
       .query(async ({ input }) =>
         getExportedDocuments(undefined, input.documentType)
       ),
+    recordExport: editorProcedure
+      .input(
+        z.object({
+          assignmentId: z.number(),
+          documentType: z.enum(["por1", "por5", "por6"]).default("por5"),
+          fileUrl: z.string(),
+          title: z.string().optional(),
+          metadata: z.any().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const assignment = await getAssignmentById(input.assignmentId);
+        if (!assignment) throw new TRPCError({ code: "NOT_FOUND" });
+        const title =
+          input.title ??
+          `ปพ.5 ${assignment.classroom?.name ?? ""} ${assignment.subject?.name ?? ""}`.trim();
+        const id = await createExportedDocument({
+          documentType: input.documentType,
+          title,
+          classroomId: assignment.assignment.classroomId,
+          academicYearId: assignment.assignment.academicYearId,
+          fileUrl: input.fileUrl,
+          exportedBy: ctx.user.id,
+          metadata: {
+            assignmentId: input.assignmentId,
+            subjectId: assignment.assignment.subjectId,
+            subjectName: assignment.subject?.name,
+            classroomName: assignment.classroom?.name,
+            ...(input.metadata ?? {}),
+          },
+        });
+        return { id };
+      }),
     save: editorProcedure
       .input(
         z.object({
-          documentType: z.enum(["por1", "por6"]),
+          documentType: z.enum(["por1", "por5", "por6"]),
           title: z.string(),
           classroomId: z.number().optional(),
           studentId: z.number().optional(),
