@@ -2,6 +2,7 @@ import { trpc } from "@/lib/trpc";
 import TeacherLayout from "@/components/TeacherLayout";
 import { FileText, Download, Calendar, FileDown, BookOpen } from "lucide-react";
 import { toast } from "sonner";
+import { useMemo } from "react";
 
 type ListedDocument = {
   documentType?: string;
@@ -55,6 +56,19 @@ export default function DocumentsPage() {
   const { data: documents = [], isLoading } = trpc.document.list.useQuery({});
   const { data: assignments = [], isLoading: assignmentsLoading } =
     trpc.assignment.myList.useQuery({});
+  const por6Classrooms = useMemo(() => {
+    const map = new Map<number, any>();
+    assignments.forEach((assignment: any) => {
+      const classroom = assignment.classroom;
+      const classroomId = assignment.assignment?.classroomId;
+      if (!classroomId || classroom?.level !== "primary") return;
+      if (!map.has(classroomId)) map.set(classroomId, classroom);
+    });
+    return Array.from(map.entries()).map(([id, classroom]) => ({
+      id,
+      classroom,
+    }));
+  }, [assignments]);
   const recordExport = trpc.document.recordExport.useMutation({
     onError: (e) => toast.error(e.message),
   });
@@ -80,6 +94,51 @@ export default function DocumentsPage() {
           <p className="text-blue-600 text-sm mt-1">
             เอกสาร ปพ.1, ปพ.5 และ ปพ.6 ที่เคยสร้างไว้จะถูกเก็บที่นี่ สามารถดาวน์โหลดย้อนหลังได้
           </p>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <FileText className="w-5 h-5 text-emerald-600" />
+            <div>
+              <p className="font-semibold text-slate-900">พิมพ์ ปพ.6 รวมทั้งห้องเรียน</p>
+              <p className="text-sm text-slate-500">
+                เปิดหน้าพิมพ์ ปพ.6 รายบุคคลแบบรวมทั้งห้อง จากห้องประถมที่คุณสอน
+              </p>
+            </div>
+          </div>
+
+          {assignmentsLoading ? (
+            <div className="text-center py-8 text-slate-400">กำลังโหลดห้องเรียน...</div>
+          ) : por6Classrooms.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-slate-200 py-8 text-center text-sm text-slate-400">
+              ยังไม่มีห้องประถมที่สอน
+            </div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {por6Classrooms.map(({ id, classroom }) => (
+                <a
+                  key={id}
+                  href={`/print/por6/classroom/${id}`}
+                  className="group rounded-xl border border-slate-200 bg-slate-50 p-4 transition-colors hover:border-emerald-300 hover:bg-emerald-50"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                        ปพ.6 ทั้งห้อง
+                      </span>
+                      <p className="mt-2 font-semibold text-slate-900">
+                        ห้อง {classroom?.name || "-"}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        คลิกเพื่อเปิดหน้าพิมพ์ / Save PDF
+                      </p>
+                    </div>
+                    <FileText className="w-4 h-4 text-slate-400 transition-transform group-hover:-translate-y-0.5 group-hover:text-emerald-600" />
+                  </div>
+                </a>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="bg-white border border-slate-200 rounded-xl p-4">

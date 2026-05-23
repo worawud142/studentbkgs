@@ -6,6 +6,7 @@ import {
   InsertUser,
   academicYears,
   attendance,
+  classroomHomeroomTeachers,
   classrooms,
   exportedDocuments,
   gradeResults,
@@ -51,6 +52,13 @@ const DEFAULT_POR6_ACTIVITIES = {
   scout: "ผ่าน",
   environment: "ผ่าน",
   volunteer: "ผ่าน",
+};
+
+const DEFAULT_POR6_ACTIVITY_LABELS = {
+  guidance: "แนะแนว",
+  scout: "ลูกเสือ/เนตรนารี",
+  environment: "สิ่งแวดล้อม",
+  volunteer: "จิตอาสา",
 };
 
 function getPoolOptions() {
@@ -121,10 +129,31 @@ async function ensurePor6Tables() {
       "readingThinkingWriting" varchar(50) DEFAULT 'ดีเยี่ยม',
       "attributes" jsonb,
       "activities" jsonb,
+      "activityLabels" jsonb,
       "updatedBy" integer,
       "createdAt" timestamptz NOT NULL DEFAULT now(),
       "updatedAt" timestamptz NOT NULL DEFAULT now(),
       UNIQUE ("studentId", "academicYearId")
+    )
+  `));
+  await db.execute(sql.raw(`
+    ALTER TABLE ${schemaName}."student_por6_assessments"
+    ADD COLUMN IF NOT EXISTS "activityLabels" jsonb
+  `));
+}
+
+async function ensureClassroomHomeroomTable() {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const schemaName = quotedSchemaName();
+  await db.execute(sql.raw(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`));
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS ${schemaName}."classroom_homeroom_teachers" (
+      "id" integer PRIMARY KEY,
+      "classroomId" integer NOT NULL,
+      "teacherUserId" integer NOT NULL,
+      "createdAt" timestamptz NOT NULL DEFAULT now(),
+      UNIQUE ("classroomId", "teacherUserId")
     )
   `));
 }
@@ -636,7 +665,7 @@ export async function setActiveAcademicYear(
 export async function getClassrooms(
   academicYearId?: number,
   level?: "primary" | "secondary"
-) {
+): Promise<any[]> {
   const db = await getDb();
   if (!db) return [];
   const conditions = [];
@@ -644,14 +673,16 @@ export async function getClassrooms(
     conditions.push(eq(classrooms.academicYearId, academicYearId));
   if (level) conditions.push(eq(classrooms.level, level));
   const query = db.select().from(classrooms);
-  if (conditions.length > 0)
-    return query
+  const rows =
+    conditions.length > 0
+      ? await query
       .where(and(...conditions))
-      .orderBy(classrooms.grade, classrooms.room);
-  return query.orderBy(classrooms.grade, classrooms.room);
+          .orderBy(classrooms.grade, classrooms.room)
+      : await query.orderBy(classrooms.grade, classrooms.room);
+  return Promise.all(rows.map(classroom => attachHomeroomTeachers(classroom)));
 }
 
-export async function getClassroomById(id: number) {
+export async function getClassroomById(id: number): Promise<any | null> {
   const db = await getDb();
   if (!db) return null;
   const result = await db
@@ -659,7 +690,71 @@ export async function getClassroomById(id: number) {
     .from(classrooms)
     .where(eq(classrooms.id, id))
     .limit(1);
-  return result[0] ?? null;
+  return result[0] ? attachHomeroomTeachers(result[0]) : null;
+}
+
+export async function getClassroomHomeroomTeachers(classroomId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  await ensureClassroomHomeroomTable();
+  return db
+    .select({
+      link: classroomHomeroomTeachers,
+      profile: teacherProfiles,
+      user: users,
+    })
+    .from(classroomHomeroomTeachers)
+    .leftJoin(
+      teacherProfiles,
+      eq(classroomHomeroomTeachers.teacherUserId, teacherProfiles.userId)
+    )
+    .leftJoin(users, eq(classroomHomeroomTeachers.teacherUserId, users.id))
+    .where(eq(classroomHomeroomTeachers.classroomId, classroomId))
+    .orderBy(teacherProfiles.firstName, teacherProfiles.lastName);
+}
+
+async function attachHomeroomTeachers(classroom: any) {
+  const homeroomTeachers = await getClassroomHomeroomTeachers(classroom.id);
+  const ids = new Set(homeroomTeachers.map(row => row.link.teacherUserId));
+  if (classroom.homeroomTeacherId && !ids.has(classroom.homeroomTeacherId)) {
+    ids.add(classroom.homeroomTeacherId);
+  }
+  return {
+    ...classroom,
+    homeroomTeacherIds: Array.from(ids),
+    homeroomTeachers,
+  };
+}
+
+export async function setClassroomHomeroomTeachers(
+  classroomId: number,
+  teacherUserIds: number[]
+) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await ensureClassroomHomeroomTable();
+  const uniqueIds = Array.from(new Set(teacherUserIds.filter(Boolean)));
+  await db
+    .delete(classroomHomeroomTeachers)
+    .where(eq(classroomHomeroomTeachers.classroomId, classroomId));
+  for (const teacherUserId of uniqueIds) {
+    await db.insert(classroomHomeroomTeachers).values({
+      id: await getNextNumericId(
+        classroomHomeroomTeachers,
+        classroomHomeroomTeachers.id
+      ),
+      classroomId,
+      teacherUserId,
+      createdAt: new Date(),
+    } as any);
+  }
+  await db
+    .update(classrooms)
+    .set({
+      homeroomTeacherId: uniqueIds[0] ?? null,
+      updatedAt: new Date(),
+    } as any)
+    .where(eq(classrooms.id, classroomId));
 }
 
 export async function createClassroom(data: typeof classrooms.$inferInsert) {
@@ -1592,6 +1687,7 @@ function defaultPor6Assessment(studentId: number, academicYearId: number) {
     readingThinkingWriting: "ดีเยี่ยม",
     attributes: DEFAULT_POR6_ATTRIBUTES,
     activities: DEFAULT_POR6_ACTIVITIES,
+    activityLabels: DEFAULT_POR6_ACTIVITY_LABELS,
     updatedBy: null,
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -1625,6 +1721,7 @@ export async function upsertPor6Assessment(data: {
   readingThinkingWriting?: string;
   attributes?: Record<string, string>;
   activities?: Record<string, string>;
+  activityLabels?: Record<string, string>;
   updatedBy?: number;
 }) {
   const db = await getDb();
@@ -1638,6 +1735,7 @@ export async function upsertPor6Assessment(data: {
     readingThinkingWriting: data.readingThinkingWriting ?? "ดีเยี่ยม",
     attributes: data.attributes ?? DEFAULT_POR6_ATTRIBUTES,
     activities: data.activities ?? DEFAULT_POR6_ACTIVITIES,
+    activityLabels: data.activityLabels ?? DEFAULT_POR6_ACTIVITY_LABELS,
     updatedBy: data.updatedBy,
     updatedAt: new Date(),
   };
@@ -1685,6 +1783,15 @@ export async function getPor6StudentReport(studentId: number) {
   const academicYear = await getAcademicYearById(classroom.academicYearId);
   const school = await getSchoolSettings();
   const assessment = await getPor6Assessment(student.id, classroom.academicYearId);
+  const homeroomTeachers = await getClassroomHomeroomTeachers(classroom.id);
+  const homeroomTeacherNames = homeroomTeachers
+    .map(row =>
+      `${row.profile?.prefix ?? ""}${row.profile?.firstName ?? ""} ${row.profile?.lastName ?? ""}`.trim() ||
+      row.user?.name ||
+      row.user?.email ||
+      ""
+    )
+    .filter(Boolean);
   const classmates = await getStudentsByClassroom(classroom.id);
   const assignmentRows = await db
     .select({
@@ -1787,6 +1894,7 @@ export async function getPor6StudentReport(studentId: number) {
     classroom,
     academicYear,
     school,
+    homeroomTeacherNames,
     assessment,
     subjects: subjectsReport,
     summary: {

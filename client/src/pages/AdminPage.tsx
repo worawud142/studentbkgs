@@ -1270,7 +1270,7 @@ function ClassroomsTab() {
     grade: "1",
     room: "1",
     academicYearId: "",
-    homeroomTeacherId: "",
+    homeroomTeacherIds: [] as string[],
   });
   const [editForm, setEditForm] = useState({
     name: "",
@@ -1278,7 +1278,7 @@ function ClassroomsTab() {
     grade: "1",
     room: "1",
     academicYearId: "",
-    homeroomTeacherId: "",
+    homeroomTeacherIds: [] as string[],
   });
 
   const create = trpc.classroom.create.useMutation({
@@ -1333,9 +1333,7 @@ function ClassroomsTab() {
                   grade: parseInt(form.grade),
                   room: parseInt(form.room),
                   academicYearId: parseInt(form.academicYearId),
-                  homeroomTeacherId: form.homeroomTeacherId
-                    ? parseInt(form.homeroomTeacherId)
-                    : undefined,
+                  homeroomTeacherIds: form.homeroomTeacherIds.map(Number),
                 });
               }}
               className="space-y-3"
@@ -1423,28 +1421,34 @@ function ClassroomsTab() {
                 </Select>
               </div>
               <div>
-                <Label className="text-xs">ครูประจำชั้น</Label>
-                <Select
-                  value={form.homeroomTeacherId}
-                  onValueChange={v =>
-                    setForm({ ...form, homeroomTeacherId: v })
-                  }
-                >
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="เลือกครูประจำชั้น" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {teachers.map(t => (
-                      <SelectItem
-                        key={t.profile.id}
-                        value={String(t.user?.id ?? t.profile.userId)}
-                      >
+                <Label className="text-xs">ครูประจำชั้น (เลือกได้หลายคน)</Label>
+                <div className="mt-1 max-h-40 space-y-2 overflow-y-auto rounded-lg border border-slate-200 p-3">
+                  {teachers.map(t => {
+                    const userId = String(t.user?.id ?? t.profile.userId);
+                    const checked = form.homeroomTeacherIds.includes(userId);
+                    return (
+                      <label key={t.profile.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={e =>
+                            setForm({
+                              ...form,
+                              homeroomTeacherIds: e.target.checked
+                                ? [...form.homeroomTeacherIds, userId]
+                                : form.homeroomTeacherIds.filter(id => id !== userId),
+                            })
+                          }
+                        />
                         {t.profile.prefix}
                         {t.profile.firstName} {t.profile.lastName}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      </label>
+                    );
+                  })}
+                  {teachers.length === 0 && (
+                    <p className="text-xs text-slate-400">ยังไม่มีข้อมูลครู</p>
+                  )}
+                </div>
               </div>
               <Button
                 type="submit"
@@ -1508,9 +1512,11 @@ function ClassroomsTab() {
                               grade: String(c.grade),
                               room: String(c.room),
                               academicYearId: String(c.academicYearId),
-                              homeroomTeacherId: c.homeroomTeacherId
-                                ? String(c.homeroomTeacherId)
-                                : "",
+                              homeroomTeacherIds:
+                                c.homeroomTeacherIds?.map(String) ??
+                                (c.homeroomTeacherId
+                                  ? [String(c.homeroomTeacherId)]
+                                  : []),
                             });
                             setEditClassroom(c);
                           }}
@@ -1535,9 +1541,8 @@ function ClassroomsTab() {
                               grade: parseInt(editForm.grade),
                               room: parseInt(editForm.room),
                               academicYearId: parseInt(editForm.academicYearId),
-                              homeroomTeacherId: editForm.homeroomTeacherId
-                                ? parseInt(editForm.homeroomTeacherId)
-                                : undefined,
+                              homeroomTeacherIds:
+                                editForm.homeroomTeacherIds.map(Number),
                             });
                           }}
                           className="space-y-3"
@@ -1642,33 +1647,35 @@ function ClassroomsTab() {
                             </Select>
                           </div>
                           <div>
-                            <Label className="text-xs">ครูประจำชั้น</Label>
-                            <Select
-                              value={editForm.homeroomTeacherId}
-                              onValueChange={v =>
-                                setEditForm({
-                                  ...editForm,
-                                  homeroomTeacherId: v,
-                                })
-                              }
-                            >
-                              <SelectTrigger className="mt-1">
-                                <SelectValue placeholder="เลือกครูประจำชั้น" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {teachers.map(t => (
-                                  <SelectItem
-                                    key={t.profile.id}
-                                    value={String(
-                                      t.user?.id ?? t.profile.userId
-                                    )}
-                                  >
+                            <Label className="text-xs">ครูประจำชั้น (เลือกได้หลายคน)</Label>
+                            <div className="mt-1 max-h-40 space-y-2 overflow-y-auto rounded-lg border border-slate-200 p-3">
+                              {teachers.map(t => {
+                                const userId = String(t.user?.id ?? t.profile.userId);
+                                const checked =
+                                  editForm.homeroomTeacherIds.includes(userId);
+                                return (
+                                  <label key={t.profile.id} className="flex items-center gap-2 text-sm">
+                                    <input
+                                      type="checkbox"
+                                      checked={checked}
+                                      onChange={e =>
+                                        setEditForm({
+                                          ...editForm,
+                                          homeroomTeacherIds: e.target.checked
+                                            ? [...editForm.homeroomTeacherIds, userId]
+                                            : editForm.homeroomTeacherIds.filter(id => id !== userId),
+                                        })
+                                      }
+                                    />
                                     {t.profile.prefix}
                                     {t.profile.firstName} {t.profile.lastName}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                                  </label>
+                                );
+                              })}
+                              {teachers.length === 0 && (
+                                <p className="text-xs text-slate-400">ยังไม่มีข้อมูลครู</p>
+                              )}
+                            </div>
                           </div>
                           <Button
                             type="submit"

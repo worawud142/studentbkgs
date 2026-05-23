@@ -61,6 +61,7 @@ import {
   getTeacherProfile,
   getSchoolSettings,
   setActiveAcademicYear,
+  setClassroomHomeroomTeachers,
   updateAcademicYear,
   updateClassroom,
   updateScoreCategory,
@@ -549,10 +550,21 @@ export const appRouter = router({
           room: z.number().int().min(1),
           academicYearId: z.number(),
           homeroomTeacherId: z.number().optional(),
+          homeroomTeacherIds: z.array(z.number()).optional(),
         })
       )
       .mutation(async ({ input }) => {
-        const id = await createClassroom(input);
+        const { homeroomTeacherIds, ...data } = input;
+        const ids = homeroomTeacherIds?.length
+          ? homeroomTeacherIds
+          : data.homeroomTeacherId
+            ? [data.homeroomTeacherId]
+            : [];
+        const id = await createClassroom({
+          ...data,
+          homeroomTeacherId: ids[0],
+        });
+        await setClassroomHomeroomTeachers(id, ids);
         return { id };
       }),
     update: adminProcedure
@@ -565,11 +577,23 @@ export const appRouter = router({
           room: z.number().int().min(1).optional(),
           academicYearId: z.number().optional(),
           homeroomTeacherId: z.number().optional(),
+          homeroomTeacherIds: z.array(z.number()).optional(),
         })
       )
       .mutation(async ({ input }) => {
-        const { id, ...data } = input;
-        await updateClassroom(id, data);
+        const { id, homeroomTeacherIds, ...data } = input;
+        const ids = homeroomTeacherIds?.length
+          ? homeroomTeacherIds
+          : data.homeroomTeacherId
+            ? [data.homeroomTeacherId]
+            : [];
+        await updateClassroom(id, {
+          ...data,
+          homeroomTeacherId: ids[0],
+        });
+        if (homeroomTeacherIds !== undefined || data.homeroomTeacherId !== undefined) {
+          await setClassroomHomeroomTeachers(id, ids);
+        }
         return { success: true };
       }),
     delete: adminProcedure
@@ -921,6 +945,7 @@ export const appRouter = router({
           readingThinkingWriting: z.string().optional(),
           attributes: z.record(z.string(), z.string()).optional(),
           activities: z.record(z.string(), z.string()).optional(),
+          activityLabels: z.record(z.string(), z.string()).optional(),
         })
       )
       .mutation(async ({ ctx, input }) =>

@@ -169,6 +169,24 @@ export const classrooms = appSchema.table("classrooms", {
 export type Classroom = typeof classrooms.$inferSelect;
 export type InsertClassroom = typeof classrooms.$inferInsert;
 
+// ─── Classroom Homeroom Teachers ──────────────────────────────────────────────
+export const classroomHomeroomTeachers = appSchema.table(
+  "classroom_homeroom_teachers",
+  {
+    id: serial("id").primaryKey(),
+    classroomId: integer("classroomId").notNull(),
+    teacherUserId: integer("teacherUserId").notNull(),
+    createdAt: timestamp("createdAt", { mode: "date", withTimezone: true })
+      .defaultNow()
+      .notNull(),
+  }
+);
+
+export type ClassroomHomeroomTeacher =
+  typeof classroomHomeroomTeachers.$inferSelect;
+export type InsertClassroomHomeroomTeacher =
+  typeof classroomHomeroomTeachers.$inferInsert;
+
 // ─── Students ─────────────────────────────────────────────────────────────────
 export const students = appSchema.table("students", {
   id: serial("id").primaryKey(),
@@ -322,6 +340,7 @@ export const studentPor6Assessments = appSchema.table(
     }).default("ดีเยี่ยม"),
     attributes: jsonb("attributes"),
     activities: jsonb("activities"),
+    activityLabels: jsonb("activityLabels"),
     updatedBy: integer("updatedBy"),
     createdAt: timestamp("createdAt", { mode: "date", withTimezone: true })
       .defaultNow()

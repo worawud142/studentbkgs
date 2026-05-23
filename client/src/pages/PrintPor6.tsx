@@ -38,6 +38,7 @@ type AssessmentForm = {
   readingThinkingWriting: string;
   attributes: Record<string, string>;
   activities: Record<string, string>;
+  activityLabels: Record<string, string>;
 };
 
 function valueOrDash(value: unknown) {
@@ -58,6 +59,7 @@ function buildAssessmentForm(report: any): AssessmentForm {
       report?.assessment?.readingThinkingWriting ?? "ดีเยี่ยม",
     attributes: { ...(report?.assessment?.attributes ?? {}) },
     activities: { ...(report?.assessment?.activities ?? {}) },
+    activityLabels: { ...(report?.assessment?.activityLabels ?? {}) },
   };
 }
 
@@ -70,6 +72,13 @@ function Por6Page({ report, pageIndex }: { report: any; pageIndex: number }) {
   const competencies = assessment.competencies ?? {};
   const attributes = assessment.attributes ?? {};
   const activities = assessment.activities ?? {};
+  const activityLabels = assessment.activityLabels ?? {};
+  const homeroomTeacherNames =
+    report.homeroomTeacherNames?.length > 0
+      ? report.homeroomTeacherNames
+      : school?.homeroomTeacherName
+        ? [school.homeroomTeacherName]
+        : [];
 
   return (
     <section
@@ -187,7 +196,7 @@ function Por6Page({ report, pageIndex }: { report: any; pageIndex: number }) {
           </p>
           {ACTIVITY_LABELS.map(([key, label]) => (
             <p key={key}>
-              {label} {activities[key] || "ผ่าน"}
+              {activityLabels[key] || label} {activities[key] || "ผ่าน"}
             </p>
           ))}
         </div>
@@ -223,10 +232,19 @@ function Por6Page({ report, pageIndex }: { report: any; pageIndex: number }) {
         </div>
 
         <div className="space-y-5 pt-2 text-center">
-          <div>
-            <p>ลงชื่อ ........................................ ครูประจำชั้น</p>
-            <p>({school?.homeroomTeacherName || "........................................"})</p>
-          </div>
+          {homeroomTeacherNames.length > 0 ? (
+            homeroomTeacherNames.map((name: string, index: number) => (
+              <div key={`${name}-${index}`}>
+                <p>ลงชื่อ ........................................ ครูประจำชั้น</p>
+                <p>({name})</p>
+              </div>
+            ))
+          ) : (
+            <div>
+              <p>ลงชื่อ ........................................ ครูประจำชั้น</p>
+              <p>(........................................)</p>
+            </div>
+          )}
           <div>
             <p>ลงชื่อ ........................................ หัวหน้างานวิชาการ</p>
             <p>({school?.academicHeadName || "........................................"})</p>
@@ -305,7 +323,7 @@ export default function PrintPor6() {
   }, [selectedReport?.student?.id, selectedReport?.assessment?.updatedAt]);
 
   const updateFormMap = (
-    group: "competencies" | "attributes" | "activities",
+    group: "competencies" | "attributes" | "activities" | "activityLabels",
     key: string,
     value: string
   ) => {
@@ -328,6 +346,7 @@ export default function PrintPor6() {
       readingThinkingWriting: form.readingThinkingWriting,
       attributes: form.attributes,
       activities: form.activities,
+      activityLabels: form.activityLabels,
     });
   };
 
@@ -432,7 +451,15 @@ export default function PrintPor6() {
               ))}
               {ACTIVITY_LABELS.map(([key, label]) => (
                 <div key={key}>
-                  <Label className="text-xs">{label}</Label>
+                  <Label className="text-xs">ชื่อกิจกรรม: {label}</Label>
+                  <Input
+                    value={form.activityLabels[key] ?? label}
+                    onChange={event =>
+                      updateFormMap("activityLabels", key, event.target.value)
+                    }
+                    className="mt-1 h-8"
+                  />
+                  <Label className="mt-2 block text-xs">ผลกิจกรรม</Label>
                   <Input
                     value={form.activities[key] ?? "ผ่าน"}
                     onChange={event =>
