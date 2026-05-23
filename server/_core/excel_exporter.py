@@ -827,6 +827,10 @@ def main():
     else:
         fill_student_workbook(wb, payload, os.path.basename(template_path))
 
+    wb.calculation.calcMode = "auto"
+    wb.calculation.fullCalcOnLoad = True
+    wb.calculation.forceFullCalc = True
+
     wb.save(output_path)
     return 0
 

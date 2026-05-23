@@ -41,6 +41,13 @@ type AssessmentForm = {
   activityLabels: Record<string, string>;
 };
 
+const ASSESSMENT_LEVEL_LABELS: Record<number, string> = {
+  3: "ดีเยี่ยม",
+  2: "ดี",
+  1: "ผ่านเกณฑ์",
+  0: "ควรปรับปรุง",
+};
+
 function valueOrDash(value: unknown) {
   if (value === null || value === undefined || value === "") return "-";
   return String(value);
@@ -52,14 +59,85 @@ function numberOrDash(value: unknown, digits = 2) {
   return parsed.toFixed(digits);
 }
 
-function buildAssessmentForm(report: any): AssessmentForm {
+function assessmentLabelFromScore(value: unknown, excellentThreshold: number) {
+  const score = Number(value);
+  if (!Number.isFinite(score)) return ASSESSMENT_LEVEL_LABELS[3];
+  if (score > excellentThreshold) return ASSESSMENT_LEVEL_LABELS[3];
+  if (score > 59) return ASSESSMENT_LEVEL_LABELS[2];
+  if (score > 49) return ASSESSMENT_LEVEL_LABELS[1];
+  return ASSESSMENT_LEVEL_LABELS[0];
+}
+
+function normalizeAssessmentValue(value: unknown) {
+  if (value === null || value === undefined || value === "") return "";
+  const text = String(value).trim();
+  if (text === "3" || text === "3.0") return ASSESSMENT_LEVEL_LABELS[3];
+  if (text === "2" || text === "2.0") return ASSESSMENT_LEVEL_LABELS[2];
+  if (text === "1" || text === "1.0") return ASSESSMENT_LEVEL_LABELS[1];
+  if (text === "0" || text === "0.0") return ASSESSMENT_LEVEL_LABELS[0];
+  return text;
+}
+
+function mostCommonAssessmentValue(values: string[]) {
+  const counts = new Map<string, number>();
+  values.forEach((value) => counts.set(value, (counts.get(value) ?? 0) + 1));
+  return (
+    Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ??
+    ASSESSMENT_LEVEL_LABELS[3]
+  );
+}
+
+function autoAssessmentForm(report: any): AssessmentForm {
+  const percentage = report?.summary?.percentage;
+  const attributeLabel = assessmentLabelFromScore(percentage, 70);
+  const readingLabel = assessmentLabelFromScore(percentage, 74);
+
   return {
-    competencies: { ...(report?.assessment?.competencies ?? {}) },
+    competencies: Object.fromEntries(
+      COMPETENCY_LABELS.map(([key]) => [key, readingLabel])
+    ),
+    readingThinkingWriting: readingLabel,
+    attributes: Object.fromEntries(
+      ATTRIBUTE_LABELS.map(([key]) => [key, attributeLabel])
+    ),
+    activities: Object.fromEntries(
+      ACTIVITY_LABELS.map(([key]) => [key, "ผ่าน"])
+    ),
+    activityLabels: Object.fromEntries(
+      ACTIVITY_LABELS.map(([key, label]) => [key, label])
+    ),
+  };
+}
+
+function buildAssessmentForm(report: any): AssessmentForm {
+  const auto = autoAssessmentForm(report);
+  if (!report?.assessment?.id) return auto;
+
+  return {
+    competencies: {
+      ...auto.competencies,
+      ...Object.fromEntries(
+        Object.entries(report?.assessment?.competencies ?? {}).map(
+          ([key, value]) => [key, normalizeAssessmentValue(value)]
+        )
+      ),
+    },
     readingThinkingWriting:
-      report?.assessment?.readingThinkingWriting ?? "ดีเยี่ยม",
-    attributes: { ...(report?.assessment?.attributes ?? {}) },
-    activities: { ...(report?.assessment?.activities ?? {}) },
-    activityLabels: { ...(report?.assessment?.activityLabels ?? {}) },
+      normalizeAssessmentValue(report?.assessment?.readingThinkingWriting) ||
+      auto.readingThinkingWriting,
+    attributes: {
+      ...auto.attributes,
+      ...Object.fromEntries(
+        Object.entries(report?.assessment?.attributes ?? {}).map(
+          ([key, value]) => [key, normalizeAssessmentValue(value)]
+        )
+      ),
+    },
+    activities: { ...auto.activities, ...(report?.assessment?.activities ?? {}) },
+    activityLabels: {
+      ...auto.activityLabels,
+      ...(report?.assessment?.activityLabels ?? {}),
+    },
   };
 }
 
@@ -68,9 +146,15 @@ function Por6Page({ report, pageIndex }: { report: any; pageIndex: number }) {
   const classroom = report.classroom;
   const academicYear = report.academicYear;
   const school = report.school;
-  const assessment = report.assessment ?? {};
-  const competencies = assessment.competencies ?? {};
-  const attributes = assessment.attributes ?? {};
+  const assessment = buildAssessmentForm(report);
+  const competencies = assessment.competencies;
+  const competencySummary = mostCommonAssessmentValue(
+    COMPETENCY_LABELS.map(([key]) => competencies[key])
+  );
+  const attributes = assessment.attributes;
+  const attributeSummary = mostCommonAssessmentValue(
+    ATTRIBUTE_LABELS.map(([key]) => attributes[key])
+  );
   const activities = assessment.activities ?? {};
   const activityLabels = assessment.activityLabels ?? {};
   const homeroomTeacherNames =
@@ -205,15 +289,15 @@ function Por6Page({ report, pageIndex }: { report: any; pageIndex: number }) {
           <p className="font-semibold">ผลการประเมินสมรรถนะสำคัญของผู้เรียน</p>
           {COMPETENCY_LABELS.map(([key, label], index) => (
             <p key={key}>
-              {index + 1}. {label} {competencies[key] || "ดีเยี่ยม"}
+              {index + 1}. {label} {competencies[key] || ASSESSMENT_LEVEL_LABELS[3]}
             </p>
           ))}
           <p className="font-semibold">
-            สรุปผลการประเมินสมรรถนะสำคัญของผู้เรียน ดีเยี่ยม
+            สรุปผลการประเมินสมรรถนะสำคัญของผู้เรียน {competencySummary}
           </p>
           <p>
             สรุปผลการประเมินการอ่าน คิดวิเคราะห์และเขียน{" "}
-            {assessment.readingThinkingWriting || "ดีเยี่ยม"}
+            {assessment.readingThinkingWriting || ASSESSMENT_LEVEL_LABELS[3]}
           </p>
         </div>
       </div>
@@ -223,11 +307,11 @@ function Por6Page({ report, pageIndex }: { report: any; pageIndex: number }) {
           <p className="font-semibold">ผลการประเมินคุณลักษณะอันพึงประสงค์</p>
           {ATTRIBUTE_LABELS.map(([key, label], index) => (
             <p key={key}>
-              {index + 1}. {label} {attributes[key] || "ดีเยี่ยม"}
+              {index + 1}. {label} {attributes[key] || ASSESSMENT_LEVEL_LABELS[3]}
             </p>
           ))}
           <p className="font-semibold">
-            สรุปผลการประเมินคุณลักษณะอันพึงประสงค์ ดีเยี่ยม
+            สรุปผลการประเมินคุณลักษณะอันพึงประสงค์ {attributeSummary}
           </p>
         </div>
 
@@ -320,7 +404,11 @@ export default function PrintPor6() {
 
   useEffect(() => {
     setForm(selectedReport ? buildAssessmentForm(selectedReport) : null);
-  }, [selectedReport?.student?.id, selectedReport?.assessment?.updatedAt]);
+  }, [
+    selectedReport?.student?.id,
+    selectedReport?.assessment?.updatedAt,
+    selectedReport?.summary?.percentage,
+  ]);
 
   const updateFormMap = (
     group: "competencies" | "attributes" | "activities" | "activityLabels",
