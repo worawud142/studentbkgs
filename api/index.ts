@@ -5,7 +5,7 @@ let app: Express | null = null;
 export default async function handler(req: Request, res: Response) {
   try {
     if (!app) {
-      const { createApp } = await import("../server/_core/index");
+      const { createApp } = await import("../dist/index.js");
       app = createApp();
     }
 
