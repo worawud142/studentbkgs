@@ -75,6 +75,17 @@ export type ExportResult = {
   cleanup: () => Promise<void>;
 };
 
+const importNodeExcel = new Function(
+  "specifier",
+  "return import(specifier)"
+) as (specifier: string) => Promise<{
+  buildNodeExportFile: (options: {
+    payload: Record<string, any>;
+    templateFileName: string;
+    outputPath: string;
+  }) => Promise<{ contentType: string }>;
+}>;
+
 function templatePath(fileName: string) {
   if (path.isAbsolute(fileName)) return fileName;
   return path.resolve(process.cwd(), fileName);
@@ -214,7 +225,7 @@ async function runNodeExporter(
   templateFileName: string,
   outputPath: string
 ) {
-  const { buildNodeExportFile } = await import("./nodeExcel");
+  const { buildNodeExportFile } = await importNodeExcel("./nodeExcel");
   return buildNodeExportFile({
     payload: payload as Record<string, any>,
     templateFileName,

@@ -70,7 +70,12 @@ function studentImportTemplateScriptPath() {
 
 async function createStudentImportTemplate(outputPath: string) {
   if (isNodeExcelRuntime()) {
-    const { createStudentImportTemplateNode } = await import("./nodeExcel");
+    const { createStudentImportTemplateNode } = (await new Function(
+      "specifier",
+      "return import(specifier)"
+    )("./nodeExcel")) as {
+      createStudentImportTemplateNode: (outputPath: string) => Promise<void>;
+    };
     await createStudentImportTemplateNode(outputPath);
     return;
   }

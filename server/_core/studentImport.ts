@@ -26,6 +26,13 @@ type ParsedWorkbook = {
   errors: { rowNumber: number; message: string }[];
 };
 
+const importNodeExcel = new Function(
+  "specifier",
+  "return import(specifier)"
+) as (specifier: string) => Promise<{
+  parseStudentsWorkbookNode: (buffer: Buffer) => Promise<ParsedWorkbook>;
+}>;
+
 function helperScriptPath() {
   const candidates = [
     path.resolve(import.meta.dirname, "excel_importer.py"),
@@ -79,7 +86,7 @@ async function parseStudentsWorkbookLocal(input: {
   fileContentBase64: string;
 }): Promise<ParsedWorkbook> {
   return isNodeExcelRuntime()
-    ? await import("./nodeExcel").then(({ parseStudentsWorkbookNode }) =>
+    ? await importNodeExcel("./nodeExcel").then(({ parseStudentsWorkbookNode }) =>
         parseStudentsWorkbookNode(
           Buffer.from(input.fileContentBase64, "base64")
         )
