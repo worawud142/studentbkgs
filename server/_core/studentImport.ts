@@ -7,6 +7,9 @@ import { upsertStudentByCode } from "../db";
 import { isNodeExcelRuntime, isRemoteExcelRuntime } from "./excelRuntime";
 import { parseStudentsWorkbookRemote } from "./remoteExcel";
 
+const moduleDir =
+  typeof __dirname === "string" ? __dirname : path.resolve(process.cwd());
+
 type ParsedStudentRow = {
   rowNumber: number;
   studentCode: string;
@@ -35,7 +38,7 @@ const importNodeExcel = new Function(
 
 function helperScriptPath() {
   const candidates = [
-    path.resolve(import.meta.dirname, "excel_importer.py"),
+    path.resolve(moduleDir, "excel_importer.py"),
     path.resolve(process.cwd(), "server", "_core", "excel_importer.py"),
   ];
   return candidates.find(candidate => existsSync(candidate)) ?? candidates[0];

@@ -21,6 +21,9 @@ import {
 } from "./academicPrintTemplates";
 import { isNodeExcelRuntime } from "./excelRuntime";
 
+const moduleDir =
+  typeof __dirname === "string" ? __dirname : path.resolve(process.cwd());
+
 export type ExportTemplateId =
   | "secondary-demo"
   | "primary-score"
@@ -93,7 +96,7 @@ function templatePath(fileName: string) {
 
 function helperScriptPath() {
   const candidates = [
-    path.resolve(import.meta.dirname, "excel_exporter.py"),
+    path.resolve(moduleDir, "excel_exporter.py"),
     path.resolve(process.cwd(), "server", "_core", "excel_exporter.py"),
   ];
   return candidates.find(candidate => existsSync(candidate)) ?? candidates[0];

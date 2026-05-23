@@ -5,7 +5,7 @@
   "outputDirectory": "dist/public",
   "functions": {
     "api/index.ts": {
-      "includeFiles": "{dist/index.js,server/**,templates/**,*.xlsx,*.xlsm}",
+      "includeFiles": "{dist/index.cjs,server/**,templates/**,*.xlsx,*.xlsm}",
       "maxDuration": 60
     }
   },

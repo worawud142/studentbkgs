@@ -24,7 +24,7 @@ let app: ExpressLikeHandler | null = null;
 export default async function handler(req: unknown, res: VercelResponse) {
   try {
     if (!app) {
-      const { createApp } = await importBuiltServer("../dist/index.js");
+      const { createApp } = await importBuiltServer("../dist/index.cjs");
       app = createApp();
     }
 

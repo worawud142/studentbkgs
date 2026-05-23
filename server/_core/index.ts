@@ -22,6 +22,9 @@ import {
 } from "./remoteExcel";
 import { parseStudentsWorkbookForExcelService } from "./studentImport";
 
+const moduleDir =
+  typeof __dirname === "string" ? __dirname : path.resolve(process.cwd());
+
 if (process.env.NODE_ENV !== "production") {
   void (new Function("specifier", "return import(specifier)") as (
     specifier: string
@@ -62,7 +65,7 @@ function getTemplatePath(fileName: string) {
 
 function studentImportTemplateScriptPath() {
   const candidates = [
-    path.resolve(import.meta.dirname, "student_import_template.py"),
+    path.resolve(moduleDir, "student_import_template.py"),
     path.resolve(
       process.cwd(),
       "server",
