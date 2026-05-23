@@ -1910,11 +1910,173 @@ export async function getPor6StudentReport(studentId: number) {
 }
 
 export async function getPor6ClassroomReports(classroomId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  const classroom = await getClassroomById(classroomId);
+  if (!classroom) return [];
   const students = await getStudentsByClassroom(classroomId);
-  const reports = await Promise.all(
-    students.map(student => getPor6StudentReport(student.id))
+  if (students.length === 0) return [];
+
+  await ensurePor6Tables();
+  const academicYear = await getAcademicYearById(classroom.academicYearId);
+  const school = await getSchoolSettings();
+  const homeroomTeachers = await getClassroomHomeroomTeachers(classroom.id);
+  const homeroomTeacherNames = homeroomTeachers
+    .map(row =>
+      `${row.profile?.prefix ?? ""}${row.profile?.firstName ?? ""} ${row.profile?.lastName ?? ""}`.trim() ||
+      row.user?.name ||
+      row.user?.email ||
+      ""
+    )
+    .filter(Boolean);
+  const studentIds = students.map(student => student.id);
+  const assessmentRows = await db
+    .select()
+    .from(studentPor6Assessments)
+    .where(
+      and(
+        eq(studentPor6Assessments.academicYearId, classroom.academicYearId),
+        inArray(studentPor6Assessments.studentId, studentIds)
+      )
+    );
+  const assessmentsByStudentId = new Map(
+    assessmentRows.map(row => [row.studentId, row])
   );
-  return reports.filter(Boolean);
+
+  const assignmentRows = await db
+    .select({
+      assignment: teachingAssignments,
+      subject: subjects,
+    })
+    .from(teachingAssignments)
+    .leftJoin(subjects, eq(teachingAssignments.subjectId, subjects.id))
+    .where(
+      and(
+        eq(teachingAssignments.classroomId, classroom.id),
+        eq(teachingAssignments.academicYearId, classroom.academicYearId)
+      )
+    )
+    .orderBy(subjects.subjectCode, subjects.name);
+
+  const assignmentIds = assignmentRows.map(row => row.assignment.id);
+  const allResults =
+    assignmentIds.length === 0
+      ? []
+      : await db
+          .select()
+          .from(gradeResults)
+          .where(inArray(gradeResults.assignmentId, assignmentIds));
+  const resultsByAssignmentStudent = new Map(
+    allResults.map(result => [
+      `${result.assignmentId}-${result.studentId}`,
+      result,
+    ])
+  );
+
+  const classAverageByAssignment = new Map<number, number>();
+  const totalsByAssignment = new Map<number, { sum: number; count: number }>();
+  allResults.forEach(result => {
+    const score = toNumber(result.totalScore);
+    if (score === null) return;
+    const current = totalsByAssignment.get(result.assignmentId) ?? {
+      sum: 0,
+      count: 0,
+    };
+    current.sum += score;
+    current.count += 1;
+    totalsByAssignment.set(result.assignmentId, current);
+  });
+  totalsByAssignment.forEach((value, assignmentId) => {
+    classAverageByAssignment.set(
+      assignmentId,
+      Math.round((value.sum / value.count) * 100) / 100
+    );
+  });
+
+  const rankRows = students.map(student => {
+    const totals = assignmentIds
+      .map(id =>
+        toNumber(resultsByAssignmentStudent.get(`${id}-${student.id}`)?.totalScore)
+      )
+      .filter((value): value is number => value !== null);
+    const percent =
+      totals.length > 0
+        ? totals.reduce((sum, value) => sum + value, 0) / totals.length
+        : null;
+    return { studentId: student.id, percent };
+  });
+  const ranked = rankRows
+    .filter(row => row.percent !== null)
+    .sort((a, b) => (b.percent ?? 0) - (a.percent ?? 0));
+  const rankByStudentId = new Map(
+    ranked.map((row, index) => [row.studentId, index + 1])
+  );
+
+  return students.map(student => {
+    const subjectsReport = assignmentRows.map(row => {
+      const result = resultsByAssignmentStudent.get(
+        `${row.assignment.id}-${student.id}`
+      );
+      return {
+        assignmentId: row.assignment.id,
+        subjectType: subjectType(row.subject),
+        subjectCode: row.subject?.subjectCode ?? "",
+        subjectName: row.subject?.name ?? "รายวิชา",
+        hours: Number(row.assignment.hoursPerWeek ?? 1) * 40,
+        maxScore: 100,
+        classAverage: classAverageByAssignment.get(row.assignment.id) ?? null,
+        score: toNumber(result?.totalScore),
+        grade: result?.grade ?? null,
+        result: result?.result ?? null,
+        note: "",
+      };
+    });
+    const scoredSubjects = subjectsReport.filter(
+      subject => subject.score !== null
+    );
+    const totalScore = scoredSubjects.reduce(
+      (sum, subject) => sum + (subject.score ?? 0),
+      0
+    );
+    const totalMaxScore = subjectsReport.length * 100;
+    const percentage =
+      scoredSubjects.length > 0
+        ? Math.round((totalScore / (scoredSubjects.length * 100)) * 10000) / 100
+        : null;
+    const grades = subjectsReport
+      .map(subject => numericGrade(subject.grade))
+      .filter((value): value is number => value !== null);
+    const gpa =
+      grades.length > 0
+        ? Math.round((grades.reduce((sum, grade) => sum + grade, 0) / grades.length) * 100) /
+          100
+        : null;
+
+    return {
+      student,
+      classroom,
+      academicYear,
+      school,
+      homeroomTeacherNames,
+      assessment:
+        assessmentsByStudentId.get(student.id) ??
+        defaultPor6Assessment(student.id, classroom.academicYearId),
+      subjects: subjectsReport,
+      summary: {
+        totalHours: subjectsReport.reduce(
+          (sum, subject) => sum + subject.hours,
+          0
+        ),
+        totalMaxScore,
+        totalScore:
+          scoredSubjects.length > 0 ? Math.round(totalScore * 100) / 100 : null,
+        percentage,
+        gpa,
+        rank: rankByStudentId.get(student.id) ?? null,
+        rankedCount: ranked.length,
+      },
+    };
+  });
 }
 
 // ─── Exported Documents ────────────────────────────────────────────────────────

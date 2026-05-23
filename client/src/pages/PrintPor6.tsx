@@ -358,6 +358,27 @@ export default function PrintPor6() {
     );
   }
 
+  const error = studentReport.error ?? classroomReports.error;
+  if (error) {
+    return (
+      <div className="min-h-screen bg-slate-100 p-8">
+        <div className="mx-auto max-w-xl rounded-xl border border-red-200 bg-white p-6 text-center shadow-sm">
+          <p className="font-semibold text-red-700">โหลดข้อมูล ปพ.6 ไม่สำเร็จ</p>
+          <p className="mt-2 text-sm text-slate-600">{error.message}</p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => navigate(-1 as any)}
+            className="mt-4"
+          >
+            <ArrowLeft className="w-4 h-4 mr-1" />
+            กลับ
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-slate-100">
       <div className="no-print sticky top-0 z-10 border-b border-slate-200 bg-white px-6 py-3">
