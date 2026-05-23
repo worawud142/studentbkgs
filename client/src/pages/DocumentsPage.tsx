@@ -1,6 +1,7 @@
 import { trpc } from "@/lib/trpc";
 import TeacherLayout from "@/components/TeacherLayout";
-import { FileText, Download, Calendar, FileDown } from "lucide-react";
+import { FileText, Download, Calendar, FileDown, BookOpen } from "lucide-react";
+import { toast } from "sonner";
 
 type ListedDocument = {
   documentType?: string;
@@ -52,6 +53,24 @@ const templateDownloads = [
 
 export default function DocumentsPage() {
   const { data: documents = [], isLoading } = trpc.document.list.useQuery({});
+  const { data: assignments = [], isLoading: assignmentsLoading } =
+    trpc.assignment.myList.useQuery({});
+  const recordExport = trpc.document.recordExport.useMutation({
+    onError: (e) => toast.error(e.message),
+  });
+
+  const handleExportAcademicPrint = async (assignment: any) => {
+    const href = `/api/templates/academic-print?export=1&assignmentId=${assignment.assignment.id}`;
+    try {
+      await recordExport.mutateAsync({
+        assignmentId: assignment.assignment.id,
+        documentType: "por5",
+        fileUrl: href,
+      });
+    } finally {
+      window.location.href = href;
+    }
+  };
 
   return (
     <TeacherLayout title="เอกสาร ปพ.">
@@ -95,6 +114,59 @@ export default function DocumentsPage() {
               </a>
             ))}
           </div>
+        </div>
+
+        <div className="bg-white border border-slate-200 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <BookOpen className="w-5 h-5 text-blue-600" />
+            <div>
+              <p className="font-semibold text-slate-900">ส่งออก ปพ.5 ตามรายวิชาที่สอน</p>
+              <p className="text-sm text-slate-500">
+                เลือกรายวิชาเพื่อสร้างไฟล์ ปพ.5 ที่เติมคะแนนและข้อมูลห้องเรียนล่าสุด
+              </p>
+            </div>
+          </div>
+
+          {assignmentsLoading ? (
+            <div className="text-center py-8 text-slate-400">กำลังโหลดรายวิชา...</div>
+          ) : assignments.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-slate-200 py-8 text-center text-sm text-slate-400">
+              ยังไม่มีรายวิชาที่สอน
+            </div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {assignments.map((assignment) => (
+                <div
+                  key={assignment.assignment.id}
+                  className="rounded-xl border border-slate-200 bg-slate-50 p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-slate-900 truncate">
+                        {assignment.subject?.name || "รายวิชา"}
+                      </p>
+                      <p className="mt-1 text-sm text-slate-500">
+                        ห้อง {assignment.classroom?.name || "-"}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-400">
+                        {assignment.subject?.subjectCode || "-"} ·{" "}
+                        {assignment.classroom?.level === "primary" ? "ประถม" : "มัธยม"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleExportAcademicPrint(assignment)}
+                      disabled={recordExport.isPending}
+                      className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      <Download className="w-3 h-3" />
+                      ปพ.5
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {isLoading ? (
