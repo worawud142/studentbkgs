@@ -70,7 +70,6 @@ export default function ScorePage() {
   );
   const { data: categories = [], isLoading: catsLoading } = trpc.score.getCategories.useQuery({ assignmentId: aId });
   const { data: scores = [] } = trpc.score.getByAssignment.useQuery({ assignmentId: aId });
-  const { data: gradeResults = [] } = trpc.score.getGradeResults.useQuery({ assignmentId: aId });
   const isSecondary = assignment?.classroom?.level === "secondary";
   const isPrimary = assignment?.classroom?.level === "primary";
   const displayCategories = isPrimary
@@ -221,9 +220,6 @@ export default function ScorePage() {
     });
     toast.success("ยืนยันผลการเรียนเรียบร้อย");
   };
-
-  const gradeMap: Record<number, string> = {};
-  gradeResults.forEach((g) => { gradeMap[g.studentId] = g.grade || "-"; });
 
   const termLabel = (term?: string) => TERM_OPTIONS.find((option) => option.value === term)?.label ?? "กลางปี";
 
@@ -503,7 +499,6 @@ export default function ScorePage() {
                   {students.map((s) => {
                     const calc = calcTotal(s.id);
                     const grade = calc ? scoreToGrade(calc.total, calc.max) : "-";
-                    const savedGrade = gradeMap[s.id];
                     return (
                       <tr key={s.id} className="hover:bg-slate-50 transition-colors">
                         <td className="px-4 py-2 sticky left-0 bg-white">
@@ -542,7 +537,7 @@ export default function ScorePage() {
                             parseFloat(grade) >= 2 ? "text-green-600" :
                             parseFloat(grade) >= 1 ? "text-yellow-600" : "text-red-600"
                           }`}>
-                            {savedGrade || grade}
+                            {grade}
                           </span>
                         </td>
                       </tr>
