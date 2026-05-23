@@ -297,7 +297,7 @@ export default function ClassroomDetail() {
             </div>
           </div>
           <div className="flex gap-2">
-            {classroom?.level === "primary" && (
+            {classroom && (
               <Link href={`/print/por6/classroom/${classroomId}`}>
                 <Button variant="outline" size="sm">
                   <FileText className="w-4 h-4 mr-1" />

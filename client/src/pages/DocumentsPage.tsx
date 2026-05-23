@@ -61,7 +61,7 @@ export default function DocumentsPage() {
     assignments.forEach((assignment: any) => {
       const classroom = assignment.classroom;
       const classroomId = assignment.assignment?.classroomId;
-      if (!classroomId || classroom?.level !== "primary") return;
+      if (!classroomId || !classroom) return;
       if (!map.has(classroomId)) map.set(classroomId, classroom);
     });
     return Array.from(map.entries()).map(([id, classroom]) => ({
@@ -102,7 +102,7 @@ export default function DocumentsPage() {
             <div>
               <p className="font-semibold text-slate-900">พิมพ์ ปพ.6 รวมทั้งห้องเรียน</p>
               <p className="text-sm text-slate-500">
-                เปิดหน้าพิมพ์ ปพ.6 รายบุคคลแบบรวมทั้งห้อง จากห้องประถมที่คุณสอน
+                เปิดหน้าพิมพ์ ปพ.6 รายบุคคลแบบรวมทั้งห้อง จากห้องเรียนที่คุณสอน
               </p>
             </div>
           </div>
@@ -111,7 +111,7 @@ export default function DocumentsPage() {
             <div className="text-center py-8 text-slate-400">กำลังโหลดห้องเรียน...</div>
           ) : por6Classrooms.length === 0 ? (
             <div className="rounded-lg border border-dashed border-slate-200 py-8 text-center text-sm text-slate-400">
-              ยังไม่มีห้องประถมที่สอน
+              ยังไม่มีห้องเรียนที่สอน
             </div>
           ) : (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -124,7 +124,7 @@ export default function DocumentsPage() {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
-                        ปพ.6 ทั้งห้อง
+                        ปพ.6 ทั้งห้อง · {classroom?.level === "primary" ? "ประถม" : "มัธยม"}
                       </span>
                       <p className="mt-2 font-semibold text-slate-900">
                         ห้อง {classroom?.name || "-"}
