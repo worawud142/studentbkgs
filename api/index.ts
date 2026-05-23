@@ -1,7 +1,17 @@
-import type { Request, RequestHandler, Response } from "express";
+type ExpressLikeHandler = (
+  req: unknown,
+  res: unknown,
+  next?: (error?: unknown) => void
+) => unknown;
+
+type VercelResponse = {
+  status: (code: number) => {
+    json: (body: unknown) => unknown;
+  };
+};
 
 type BuiltServerModule = {
-  createApp: () => RequestHandler;
+  createApp: () => ExpressLikeHandler;
 };
 
 const importBuiltServer = new Function(
@@ -9,9 +19,9 @@ const importBuiltServer = new Function(
   "return import(specifier)"
 ) as (specifier: string) => Promise<BuiltServerModule>;
 
-let app: RequestHandler | null = null;
+let app: ExpressLikeHandler | null = null;
 
-export default async function handler(req: Request, res: Response) {
+export default async function handler(req: unknown, res: VercelResponse) {
   try {
     if (!app) {
       const { createApp } = await importBuiltServer("../dist/index.js");
