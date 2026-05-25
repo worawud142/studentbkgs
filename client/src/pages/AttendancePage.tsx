@@ -133,6 +133,7 @@ export default function AttendancePage() {
   const streamRef = useRef<MediaStream | null>(null);
   const scanLoopRef = useRef<number | null>(null);
   const lastScanRef = useRef("");
+  const savingScanRef = useRef<Set<number>>(new Set());
 
   const utils = trpc.useUtils();
   const { data: assignment } = trpc.assignment.get.useQuery(
@@ -190,6 +191,18 @@ export default function AttendancePage() {
         date: selectedDate,
       });
       utils.attendance.getByAssignment.invalidate({ assignmentId: aId });
+      utils.attendance.getDates.invalidate({ assignmentId: aId });
+    },
+    onError: e => toast.error(e.message),
+  });
+  const saveOneAttendance = trpc.attendance.saveOne.useMutation({
+    onSuccess: () => {
+      utils.attendance.getByDate.invalidate({
+        assignmentId: aId,
+        date: selectedDate,
+      });
+      utils.attendance.getByAssignment.invalidate({ assignmentId: aId });
+      utils.attendance.getDates.invalidate({ assignmentId: aId });
     },
     onError: e => toast.error(e.message),
   });
@@ -272,7 +285,7 @@ export default function AttendancePage() {
     );
   };
 
-  const markPresentFromQr = (rawValue: string) => {
+  const markPresentFromQr = async (rawValue: string) => {
     const student = findStudentFromQr(rawValue);
     if (!student) {
       toast.error("ไม่พบนักเรียนจาก QR นี้");
@@ -280,9 +293,23 @@ export default function AttendancePage() {
     }
 
     setAttendanceMap(current => ({ ...current, [student.id]: "present" }));
-    toast.success(
-      `เช็คชื่อแล้ว: ${student.prefix || ""}${student.firstName} ${student.lastName}`
-    );
+    if (savingScanRef.current.has(student.id)) return;
+    savingScanRef.current.add(student.id);
+    try {
+      await saveOneAttendance.mutateAsync({
+        assignmentId: aId,
+        studentId: student.id,
+        date: selectedDate,
+        status: "present",
+      });
+      toast.success(
+        `บันทึกแล้ว: ${student.prefix || ""}${student.firstName} ${student.lastName}`
+      );
+    } finally {
+      window.setTimeout(() => {
+        savingScanRef.current.delete(student.id);
+      }, 1500);
+    }
   };
 
   const stopScanner = () => {

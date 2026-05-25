@@ -75,6 +75,7 @@ import {
   updateUserRole,
   resolveLoginUser,
   updateTeacherPassword,
+  upsertAttendance,
   upsertScoresBatch,
   updateSchoolSettings,
   upsertPor6Assessment,
@@ -825,6 +826,26 @@ export const appRouter = router({
             updatedAt: new Date(),
           }))
         );
+        return { success: true };
+      }),
+    saveOne: editorProcedure
+      .input(
+        z.object({
+          assignmentId: z.number(),
+          studentId: z.number(),
+          date: z.string(),
+          status: z.enum(["present", "absent", "late", "excused"]),
+          note: z.string().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        await upsertAttendance({
+          ...input,
+          date: new Date(`${input.date}T00:00:00.000Z`) as any,
+          recordedBy: ctx.user.id,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
         return { success: true };
       }),
     summary: protectedProcedure
