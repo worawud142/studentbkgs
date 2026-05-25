@@ -90,15 +90,30 @@ const THAI_MONTHS = [
 ];
 
 function formatThaiFullDate(value: string | Date) {
-  const date =
-    value instanceof Date
-      ? value
-      : new Date(`${String(value).slice(0, 10)}T00:00:00`);
+  const date = parseDateOnly(value);
   if (Number.isNaN(date.getTime())) return String(value);
 
   return `${THAI_WEEKDAYS[date.getDay()]} ที่ ${date.getDate()} ${
     THAI_MONTHS[date.getMonth()]
   } ${date.getFullYear() + 543}`;
+}
+
+function formatDateKey(value: string | Date) {
+  if (value instanceof Date) {
+    const year = value.getFullYear();
+    const month = String(value.getMonth() + 1).padStart(2, "0");
+    const day = String(value.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+  const text = String(value);
+  const match = text.match(/^\d{4}-\d{2}-\d{2}/);
+  if (match) return match[0];
+  return text.slice(0, 10);
+}
+
+function parseDateOnly(value: string | Date) {
+  const key = formatDateKey(value);
+  return new Date(`${key}T00:00:00`);
 }
 
 declare global {
@@ -116,7 +131,7 @@ export default function AttendancePage() {
     new URLSearchParams(window.location.search).get("classroomId") || 0
   );
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = formatDateKey(new Date());
   const [selectedDate, setSelectedDate] = useState(today);
   const [attendanceMap, setAttendanceMap] = useState<
     Record<number, AttendanceStatus>
@@ -249,6 +264,13 @@ export default function AttendancePage() {
       map[s.id] = status;
     });
     setAttendanceMap(map);
+  };
+
+  const setStudentStatus = (studentId: number, status: AttendanceStatus) => {
+    setAttendanceMap(current => ({
+      ...current,
+      [studentId]: status,
+    }));
   };
 
   const findStudentFromQr = (rawValue: string) => {
@@ -430,9 +452,9 @@ export default function AttendancePage() {
   }, [scannerActive, scannerOpen]);
 
   const changeDate = (days: number) => {
-    const d = new Date(selectedDate);
+    const d = parseDateOnly(selectedDate);
     d.setDate(d.getDate() + days);
-    setSelectedDate(d.toISOString().split("T")[0]);
+    setSelectedDate(formatDateKey(d));
   };
 
   // Summary
@@ -442,6 +464,8 @@ export default function AttendancePage() {
     students.length - Object.keys(attendanceMap).length,
     0
   );
+  const selectedDateLabel = formatThaiFullDate(selectedDate);
+  const hasSavedAttendanceForDate = existingAttendance.length > 0;
 
   return (
     <TeacherLayout
@@ -526,8 +550,10 @@ export default function AttendancePage() {
           ))}
         </div>
         <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-600">
-          ยังไม่เช็ค {uncheckedCount} คน · ถ้าไม่มีการกดเช็คชื่อหรือสแกน QR
-          ระบบจะไม่สร้างข้อมูลวันนั้น และถือว่าไม่มีคาบเรียน
+          {hasSavedAttendanceForDate
+            ? `กำลังแสดงข้อมูลเช็คชื่อย้อนหลังของ${selectedDateLabel} สถานะเดิมจะถูกติ๊กไว้ที่ปุ่ม มา/ขาด/สาย/ลา ของแต่ละคน`
+            : `ยังไม่มีข้อมูลเช็คชื่อของ${selectedDateLabel}`}{" "}
+          · ยังไม่เช็ค {uncheckedCount} คน
         </div>
 
         {/* Quick Set All */}
@@ -720,12 +746,7 @@ export default function AttendancePage() {
                       ).map(([st, cfg]) => (
                         <button
                           key={st}
-                          onClick={() =>
-                            setAttendanceMap(current => ({
-                              ...current,
-                              [s.id]: st,
-                            }))
-                          }
+                          onClick={() => setStudentStatus(s.id, st)}
                           className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-all ${
                             status === st
                               ? cfg.color + " scale-105 shadow-sm"
@@ -765,19 +786,23 @@ export default function AttendancePage() {
               ประวัติการเช็คชื่อ
             </h3>
             <div className="flex flex-wrap gap-2">
-              {attendanceDates.slice(0, 10).map(item => (
-                <button
-                  key={String(item.date)}
-                  onClick={() => setSelectedDate(String(item.date))}
-                  className={`px-3 py-1 rounded-lg text-xs border transition-colors ${
-                    selectedDate === String(item.date)
-                      ? "bg-blue-600 text-white border-blue-600"
-                      : "bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-300"
-                  }`}
-                >
-                  {String(item.date)}
-                </button>
-              ))}
+              {attendanceDates.slice(0, 10).map(item => {
+                const dateKey = formatDateKey(item.date);
+                return (
+                  <button
+                    key={dateKey}
+                    onClick={() => setSelectedDate(dateKey)}
+                    className={`px-3 py-1 rounded-lg text-xs border transition-colors ${
+                      selectedDate === dateKey
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-300"
+                    }`}
+                    title={formatThaiFullDate(item.date)}
+                  >
+                    {dateKey}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
