@@ -221,6 +221,17 @@ export default function AttendancePage() {
     },
     onError: e => toast.error(e.message),
   });
+  const deleteOneAttendance = trpc.attendance.deleteOne.useMutation({
+    onSuccess: () => {
+      utils.attendance.getByDate.invalidate({
+        assignmentId: aId,
+        date: selectedDate,
+      });
+      utils.attendance.getByAssignment.invalidate({ assignmentId: aId });
+      utils.attendance.getDates.invalidate({ assignmentId: aId });
+    },
+    onError: e => toast.error(e.message),
+  });
 
   // Initialize from loaded attendance only when the class/date data changes,
   // not after every teacher click.
@@ -264,6 +275,14 @@ export default function AttendancePage() {
       map[s.id] = status;
     });
     setAttendanceMap(map);
+    saveAttendance.mutate(
+      students.map(s => ({
+        assignmentId: aId,
+        studentId: s.id,
+        date: selectedDate,
+        status,
+      }))
+    );
   };
 
   const setStudentStatus = (studentId: number, status: AttendanceStatus) => {
@@ -271,6 +290,25 @@ export default function AttendancePage() {
       ...current,
       [studentId]: status,
     }));
+    saveOneAttendance.mutate({
+      assignmentId: aId,
+      studentId,
+      date: selectedDate,
+      status,
+    });
+  };
+
+  const clearStudentStatus = (studentId: number) => {
+    setAttendanceMap(current => {
+      const next = { ...current };
+      delete next[studentId];
+      return next;
+    });
+    deleteOneAttendance.mutate({
+      assignmentId: aId,
+      studentId,
+      date: selectedDate,
+    });
   };
 
   const findStudentFromQr = (rawValue: string) => {
@@ -759,13 +797,7 @@ export default function AttendancePage() {
                       {status && (
                         <button
                           type="button"
-                          onClick={() =>
-                            setAttendanceMap(current => {
-                              const next = { ...current };
-                              delete next[s.id];
-                              return next;
-                            })
-                          }
+                          onClick={() => clearStudentStatus(s.id)}
                           className="px-2.5 py-1 rounded-lg text-xs font-medium border bg-white text-slate-400 border-slate-200 hover:border-slate-300"
                         >
                           ล้าง

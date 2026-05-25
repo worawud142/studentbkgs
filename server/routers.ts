@@ -26,6 +26,7 @@ import {
   createTeacherAccount,
   deleteClassroom,
   deleteAcademicYear,
+  deleteAttendanceForStudentDate,
   deleteScoreCategory,
   deleteStudent,
   deleteSubject,
@@ -846,6 +847,22 @@ export const appRouter = router({
           createdAt: new Date(),
           updatedAt: new Date(),
         });
+        return { success: true };
+      }),
+    deleteOne: editorProcedure
+      .input(
+        z.object({
+          assignmentId: z.number(),
+          studentId: z.number(),
+          date: z.string(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        await deleteAttendanceForStudentDate(
+          input.assignmentId,
+          input.studentId,
+          input.date
+        );
         return { success: true };
       }),
     summary: protectedProcedure

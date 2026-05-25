@@ -1056,6 +1056,23 @@ export async function getAllTeachingAssignments() {
 }
 
 // ─── Attendance ────────────────────────────────────────────────────────────────
+function attendanceDateKey(value: string | Date) {
+  if (value instanceof Date) {
+    const year = value.getUTCFullYear();
+    const month = String(value.getUTCMonth() + 1).padStart(2, "0");
+    const day = String(value.getUTCDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+  const text = String(value);
+  const match = text.match(/^\d{4}-\d{2}-\d{2}/);
+  return match ? match[0] : text.slice(0, 10);
+}
+
+function attendanceDateFilter(value: string | Date) {
+  const key = attendanceDateKey(value);
+  return sql`${attendance.date} = ${key}::date`;
+}
+
 export async function getAttendanceByAssignmentAndDate(
   assignmentId: number,
   date: string
@@ -1068,7 +1085,7 @@ export async function getAttendanceByAssignmentAndDate(
     .where(
       and(
         eq(attendance.assignmentId, assignmentId),
-        eq(attendance.date, date as any)
+        attendanceDateFilter(date)
       )
     );
 }
@@ -1174,7 +1191,7 @@ export async function getAttendanceSession(assignmentId: number, date: string) {
       .where(
         and(
           eq(attendance.assignmentId, assignmentId),
-          eq(attendance.date, date as any)
+          attendanceDateFilter(date)
         )
       ),
     db
@@ -1204,7 +1221,7 @@ export async function upsertAttendance(data: typeof attendance.$inferInsert) {
       and(
         eq(attendance.assignmentId, data.assignmentId),
         eq(attendance.studentId, data.studentId),
-        eq(attendance.date, data.date as any)
+        attendanceDateFilter(data.date as Date)
       )
     )
     .limit(1);
@@ -1216,6 +1233,24 @@ export async function upsertAttendance(data: typeof attendance.$inferInsert) {
   } else {
     await db.insert(attendance).values(data);
   }
+}
+
+export async function deleteAttendanceForStudentDate(
+  assignmentId: number,
+  studentId: number,
+  date: string | Date
+) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db
+    .delete(attendance)
+    .where(
+      and(
+        eq(attendance.assignmentId, assignmentId),
+        eq(attendance.studentId, studentId),
+        attendanceDateFilter(date)
+      )
+    );
 }
 
 export async function replaceAttendanceForDate(
@@ -1232,7 +1267,7 @@ export async function replaceAttendanceForDate(
       .where(
         and(
           eq(attendance.assignmentId, first.assignmentId),
-          eq(attendance.date, first.date as any)
+          attendanceDateFilter(first.date as Date)
         )
       );
     await tx.insert(attendance).values(records);
