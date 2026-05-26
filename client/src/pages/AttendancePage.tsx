@@ -139,6 +139,7 @@ export default function AttendancePage() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerActive, setScannerActive] = useState(false);
   const [scannerError, setScannerError] = useState("");
+  const [scannerMessage, setScannerMessage] = useState("วาง QR ให้อยู่ในกรอบ");
   const [qrInput, setQrInput] = useState("");
   const [historyStudent, setHistoryStudent] = useState<AttendanceStudent | null>(
     null
@@ -349,6 +350,7 @@ export default function AttendancePage() {
     const student = findStudentFromQr(rawValue);
     if (!student) {
       toast.error("ไม่พบนักเรียนจาก QR นี้");
+      setScannerMessage("ไม่พบนักเรียนจาก QR นี้");
       return;
     }
 
@@ -365,6 +367,9 @@ export default function AttendancePage() {
       toast.success(
         `บันทึกแล้ว: ${student.prefix || ""}${student.firstName} ${student.lastName}`
       );
+      setScannerMessage(
+        `เช็คชื่อแล้ว: ${student.prefix || ""}${student.firstName} ${student.lastName}`
+      );
     } finally {
       window.setTimeout(() => {
         savingScanRef.current.delete(student.id);
@@ -380,11 +385,13 @@ export default function AttendancePage() {
     streamRef.current?.getTracks().forEach(track => track.stop());
     streamRef.current = null;
     setScannerActive(false);
+    setScannerMessage("วาง QR ให้อยู่ในกรอบ");
   };
 
   const startScanner = async () => {
     setScannerOpen(true);
     setScannerError("");
+    setScannerMessage("กำลังเปิดกล้อง...");
     if (!navigator.mediaDevices?.getUserMedia) {
       setScannerError(
         "Browser นี้ยังไม่รองรับการเปิดกล้อง หรือยังไม่ได้เปิดผ่าน HTTPS กรุณาใช้ Chrome/Edge เวอร์ชันล่าสุด หรือกรอกรหัสจาก QR ด้านล่างแทนได้ครับ"
@@ -407,6 +414,7 @@ export default function AttendancePage() {
         );
       }
       setScannerActive(true);
+      setScannerMessage("วาง QR ให้อยู่ในกรอบ");
       const scan = async () => {
         if (!videoRef.current || !streamRef.current) return;
         if (videoRef.current.srcObject !== streamRef.current) {
@@ -651,12 +659,12 @@ export default function AttendancePage() {
               </Button>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-[minmax(520px,1.2fr)_minmax(320px,0.8fr)] gap-4">
-              <div className="rounded-xl bg-slate-950 overflow-hidden min-h-[360px] flex items-center justify-center">
-                <div className="relative h-full min-h-[360px] w-full">
+            <div className="grid grid-cols-1 xl:grid-cols-[minmax(420px,0.9fr)_minmax(320px,0.8fr)] gap-4">
+              <div className="rounded-xl bg-slate-950 overflow-hidden min-h-[300px] flex items-center justify-center">
+                <div className="relative h-full min-h-[300px] w-full">
                   <video
                     ref={videoRef}
-                    className={`h-full min-h-[360px] w-full object-cover ${scannerActive ? "block" : "hidden"}`}
+                    className={`h-full min-h-[300px] max-h-[58vh] w-full object-cover ${scannerActive ? "block" : "hidden"}`}
                     muted
                     playsInline
                     autoPlay
@@ -668,9 +676,9 @@ export default function AttendancePage() {
                   />
                   {scannerActive ? (
                     <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                      <div className="h-56 w-56 rounded-3xl border-4 border-white/90 shadow-[0_0_0_999px_rgba(15,23,42,0.18)] md:h-72 md:w-72" />
-                      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-full bg-slate-950/70 px-4 py-2 text-sm font-medium text-white">
-                        วาง QR ให้อยู่ในกรอบ
+                      <div className="h-72 w-72 rounded-[2rem] border-4 border-white/95 shadow-[0_0_0_999px_rgba(15,23,42,0.16)] md:h-80 md:w-80 xl:h-96 xl:w-96" />
+                      <div className="absolute bottom-5 left-1/2 w-[min(90%,30rem)] -translate-x-1/2 rounded-2xl bg-slate-950/80 px-5 py-3 text-center text-base font-semibold text-white shadow-lg backdrop-blur">
+                        {scannerMessage}
                       </div>
                     </div>
                   ) : (
