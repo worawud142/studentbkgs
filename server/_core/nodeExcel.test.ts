@@ -134,4 +134,66 @@ describe("node Excel runtime", () => {
     );
     expect(workbook.getWorksheet("นักเรียน")?.getCell("B2").value).toBe("1001");
   });
+
+  it("fills latest secondary academic print workbook without replacing assessment formulas", async () => {
+    const tmpDir = await makeTmpDir();
+    const outputPath = path.join(tmpDir, "academic-print.xlsx");
+
+    await buildNodeExportFile({
+      outputPath,
+      templateFileName: path.resolve(process.cwd(), "templates/academic/ปพ.5-ม2.xlsx"),
+      payload: {
+        mode: "class",
+        assignment: {
+          subjectCode: "ท22101",
+          subjectName: "ภาษาไทย",
+          subjectCredits: "1.0",
+          hoursPerWeek: 2,
+          teacherName: "ครูผู้สอนตัวอย่าง",
+          homeroomTeacherName: "นางสาวกาญจนา คำดี",
+          classroomName: "ม.2/1",
+          classroomLevel: "secondary",
+          classroomGrade: 2,
+          academicYear: { year: 2569, semester: 1, level: "secondary" },
+        },
+        students: [
+          {
+            id: 1,
+            studentNumber: 1,
+            studentCode: "1001",
+            prefix: "เด็กหญิง",
+            firstName: "สมใจ",
+            lastName: "รักเรียน",
+          },
+        ],
+        categories: Array.from({ length: 8 }, (_, index) => ({
+          id: index + 1,
+          name: `หน่วย ${index + 1}`,
+          maxScore: index === 0 || index === 7 ? 100 : 0,
+          order: index + 1,
+          term: "midyear",
+        })),
+        scores: Array.from({ length: 8 }, (_, index) => ({
+          studentId: 1,
+          categoryId: index + 1,
+          score: index === 0 || index === 7 ? 72 : 0,
+        })),
+        gradeResults: [{ studentId: 1, totalScore: "72", grade: "3" }],
+        attendance: [],
+      },
+    });
+
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.readFile(outputPath);
+    expect(workbook.getWorksheet("ปก (1)")?.getCell("E12").value).toBe(
+      "นางสาวกาญจนา คำดี"
+    );
+    expect(workbook.getWorksheet("สรุปผลรวม (8)")?.getCell("J7").value).toBe(72);
+    const attributeFormula = workbook
+      .getWorksheet("คุณลักษณะ อ่าน สมรรถนะ (9)")
+      ?.getCell("K5").value;
+    expect(attributeFormula).toMatchObject({
+      formula: expect.stringContaining("'สรุปผลรวม (8)'!Q7"),
+    });
+  });
 });

@@ -1,6 +1,10 @@
 export type ExcelRuntime = "node" | "python" | "remote";
 
 export function getExcelRuntime(): ExcelRuntime {
+  if (process.env.VERCEL && process.env.EXCEL_RUNTIME !== "remote") {
+    return "node";
+  }
+
   if (
     process.env.EXCEL_RUNTIME === "remote" ||
     process.env.EXCEL_RUNTIME === "node" ||

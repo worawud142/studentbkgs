@@ -43,6 +43,35 @@ const STUDENT_EXAMPLES = [
   [2, "1235", "เด็กหญิง", "สมหญิง", "ตั้งใจ", "", "2016-08-10", "หญิง", "ปกติ"],
 ];
 
+const LATEST_PRIMARY_TERM_SHEETS = {
+  midyear: "ภาค1(8)",
+  endyear: "ภาค2 (9)",
+} as const;
+const LATEST_PRIMARY_SUMMARY_SHEET = "สรุปผลรวม (10)";
+const LATEST_PRIMARY_UNIT_SCORE_COLUMNS = [3, 8, 13, 18, 23];
+const LATEST_PRIMARY_UNIT_SUMMARY_COLUMNS = {
+  midyear: [3, 4, 5, 6, 7],
+  endyear: [9, 10, 11, 12, 13],
+} as const;
+const LATEST_PRIMARY_FINAL_SUMMARY_COLUMNS = {
+  midyear: 15,
+  endyear: 16,
+} as const;
+const LATEST_SECONDARY_UNIT_SHEETS: Array<[string, number[]]> = [
+  ["หน่วย 1,4 (5)", [3, 10, 17, 24]],
+  ["หน่วย 5,8 (6)", [3, 10, 17, 24]],
+  ["หน่วย 9,12 (7)", [3, 10, 17, 24]],
+];
+const LATEST_SECONDARY_SUMMARY_SHEET = "สรุปผลรวม (8)";
+const LATEST_SECONDARY_UNIT_SUMMARY_COLUMNS = Array.from(
+  { length: 12 },
+  (_, index) => index + 3
+);
+const LATEST_SECONDARY_FINAL_SUMMARY_COLUMNS = {
+  midyear: 15,
+  endyear: 16,
+} as const;
+
 const ALIASES: Record<string, string[]> = {
   studentCode: [
     "studentcode",
@@ -93,6 +122,107 @@ function cleanText(value: unknown) {
   if (typeof value === "object" && "result" in (value as any))
     return cleanText((value as any).result);
   return String(value).trim();
+}
+
+function studentName(student: Record<string, any>) {
+  return `${student.prefix ?? ""}${student.firstName ?? ""} ${student.lastName ?? ""}`.trim();
+}
+
+function visibleStudents(payload: ExportPayload) {
+  return (payload.students ?? []).filter(
+    (student: Record<string, any>) => student.status !== "dropped"
+  );
+}
+
+function classroomGrade(assignment: Record<string, any>) {
+  if (assignment.classroomGrade !== null && assignment.classroomGrade !== undefined) {
+    return assignment.classroomGrade;
+  }
+  const match = String(assignment.classroomName ?? "").match(/(\d+)/);
+  return match ? Number(match[1]) : "";
+}
+
+function assignedTeacherLabel(assignment: Record<string, any>) {
+  return assignment.classroomLevel === "primary" ? "ครูประจำชั้น" : "ครูที่ปรึกษา";
+}
+
+function assignedTeacherName(assignment: Record<string, any>) {
+  return cleanText(assignment.homeroomTeacherName || assignment.teacherName);
+}
+
+function excelNumberValue(value: unknown) {
+  if (value === null || value === undefined || value === "") return "";
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return value;
+  return Number.isInteger(numeric) ? numeric : numeric;
+}
+
+function writeExcelNumber(cell: ExcelJS.Cell, value: unknown) {
+  const normalized = excelNumberValue(value);
+  cell.value = normalized as any;
+  if (normalized === "") return;
+  cell.numFmt = Number.isInteger(normalized) ? "0" : "0.##";
+}
+
+function writeFormula(cell: ExcelJS.Cell, formula: string) {
+  cell.value = { formula: formula.replace(/^=/, "") };
+}
+
+function normalizeTerm(category: Record<string, any>): "midyear" | "endyear" {
+  return category.term === "endyear" ? "endyear" : "midyear";
+}
+
+function isFinalCategory(category: Record<string, any>) {
+  return ["ปลายภาค 1", "ปลายภาค 2", "กลางภาค", "ปลายภาค"].includes(
+    cleanText(category.name)
+  );
+}
+
+function sortCategories(categories: Record<string, any>[]) {
+  return [...categories].sort((a, b) => {
+    const term = (normalizeTerm(a) === "endyear" ? 1 : 0) - (normalizeTerm(b) === "endyear" ? 1 : 0);
+    if (term) return term;
+    const final = (isFinalCategory(a) ? 1 : 0) - (isFinalCategory(b) ? 1 : 0);
+    if (final) return final;
+    const order = Number(a.order ?? 0) - Number(b.order ?? 0);
+    if (order) return order;
+    return cleanText(a.name).localeCompare(cleanText(b.name), "th");
+  });
+}
+
+function termCategories(categories: Record<string, any>[], term: "midyear" | "endyear") {
+  return categories.filter(category => normalizeTerm(category) === term && !isFinalCategory(category));
+}
+
+function primaryFinalCategory(categories: Record<string, any>[], term: "midyear" | "endyear") {
+  const expected = term === "midyear" ? "ปลายภาค 1" : "ปลายภาค 2";
+  return categories.find(category => cleanText(category.name) === expected) ?? null;
+}
+
+function secondaryFinalCategory(categories: Record<string, any>[], term: "midyear" | "endyear") {
+  const expected = term === "midyear" ? new Set(["กลางภาค", "ปลายภาค 1"]) : new Set(["ปลายภาค", "ปลายภาค 2"]);
+  return (
+    categories.find(category => expected.has(cleanText(category.name))) ??
+    categories.find(category => normalizeTerm(category) === term && isFinalCategory(category)) ??
+    null
+  );
+}
+
+function scoreMap(payload: ExportPayload): Map<string, unknown> {
+  return new Map(
+    (payload.scores ?? []).map((score: Record<string, any>) => [
+      `${score.categoryId}:${score.studentId}`,
+      score.score,
+    ])
+  );
+}
+
+function categoryScore(
+  scores: Map<string, unknown>,
+  category: Record<string, any>,
+  student: Record<string, any>
+) {
+  return scores.get(`${category.id}:${student.id}`) ?? "";
 }
 
 function formatDate(value: unknown) {
@@ -386,12 +516,22 @@ function sheetName(name: string) {
   return name.slice(0, 31).replace(/[\\/*?:[\]]/g, " ");
 }
 
+function uniqueSheetName(workbook: ExcelJS.Workbook, preferredName: string) {
+  const baseName = sheetName(preferredName).slice(0, 28) || "Sheet";
+  if (!workbook.getWorksheet(baseName)) return baseName;
+  for (let index = 2; index < 100; index++) {
+    const candidate = `${baseName.slice(0, 28)} (${index})`.slice(0, 31);
+    if (!workbook.getWorksheet(candidate)) return candidate;
+  }
+  return `${baseName.slice(0, 24)} ${Date.now().toString().slice(-6)}`.slice(0, 31);
+}
+
 function addRowsSheet(
   workbook: ExcelJS.Workbook,
   name: string,
   rows: Record<string, unknown>[]
 ) {
-  const worksheet = workbook.addWorksheet(sheetName(name));
+  const worksheet = workbook.addWorksheet(uniqueSheetName(workbook, name));
   if (!rows.length) {
     worksheet.addRow(["ไม่มีข้อมูล"]);
     return worksheet;
@@ -450,6 +590,283 @@ function addCommonDataSheets(
   }
 }
 
+function hasSheets(workbook: ExcelJS.Workbook, sheetNames: string[]) {
+  return sheetNames.every(name => workbook.getWorksheet(name));
+}
+
+function clearColumns(
+  worksheet: ExcelJS.Worksheet,
+  startRow: number,
+  columns: number[]
+) {
+  for (let row = startRow; row <= worksheet.rowCount; row++) {
+    for (const column of columns) {
+      worksheet.getCell(row, column).value = null;
+    }
+  }
+}
+
+function clearScoreEntryColumns(
+  worksheet: ExcelJS.Worksheet,
+  columns: number[],
+  startRow: number,
+  detailWidth: number
+) {
+  const clearCols = columns.flatMap(column =>
+    Array.from({ length: detailWidth }, (_, index) => column + index)
+  );
+  clearColumns(worksheet, startRow, clearCols);
+}
+
+function writeStudentLists(
+  workbook: ExcelJS.Workbook,
+  students: Record<string, any>[]
+) {
+  for (const worksheet of workbook.worksheets) {
+    if (!worksheet.name.startsWith("เวลาเรียน")) continue;
+    for (let row = 6; row <= worksheet.rowCount; row++) {
+      for (const column of [1, 2, 3]) worksheet.getCell(row, column).value = null;
+    }
+    students.forEach((student, index) => {
+      const row = 6 + index;
+      worksheet.getCell(row, 1).value = student.studentNumber || index + 1;
+      worksheet.getCell(row, 2).value = student.studentCode || "";
+      worksheet.getCell(row, 3).value = studentName(student);
+    });
+  }
+}
+
+function writeScoreStudentNames(
+  workbook: ExcelJS.Workbook,
+  students: Record<string, any>[]
+) {
+  const rows: Array<[string, number]> = [];
+  if (
+    hasSheets(workbook, [
+      "ปก (1)",
+      "เวลาเรียน (2)",
+      LATEST_PRIMARY_TERM_SHEETS.midyear,
+      LATEST_PRIMARY_TERM_SHEETS.endyear,
+      LATEST_PRIMARY_SUMMARY_SHEET,
+    ])
+  ) {
+    rows.push(
+      [LATEST_PRIMARY_TERM_SHEETS.midyear, 7],
+      [LATEST_PRIMARY_TERM_SHEETS.endyear, 7],
+      [LATEST_PRIMARY_SUMMARY_SHEET, 8]
+    );
+  }
+  if (hasSheets(workbook, ["ปก (1)", "เวลาเรียน (2)", LATEST_SECONDARY_SUMMARY_SHEET])) {
+    rows.push(
+      ...LATEST_SECONDARY_UNIT_SHEETS.map(([sheetName]) => [sheetName, 6] as [string, number]),
+      [LATEST_SECONDARY_SUMMARY_SHEET, 7]
+    );
+  }
+
+  for (const [sheetName, startRow] of rows) {
+    const worksheet = workbook.getWorksheet(sheetName);
+    if (!worksheet) continue;
+    for (let row = startRow; row <= worksheet.rowCount; row++) {
+      worksheet.getCell(row, 1).value = null;
+      worksheet.getCell(row, 2).value = null;
+    }
+    students.forEach((student, index) => {
+      const row = startRow + index;
+      worksheet.getCell(row, 1).value = student.studentNumber || index + 1;
+      worksheet.getCell(row, 2).value = studentName(student);
+    });
+  }
+}
+
+function writeCover(workbook: ExcelJS.Workbook, assignment: Record<string, any>) {
+  const worksheet = workbook.getWorksheet("ปก (1)");
+  if (!worksheet) return;
+  worksheet.getCell(9, 7).value = classroomGrade(assignment);
+  worksheet.getCell(9, 15).value = assignment.academicYear?.year ?? "";
+  worksheet.getCell(10, 5).value = assignment.subjectName ?? "";
+  worksheet.getCell(10, 12).value = assignment.subjectCode ?? "";
+  worksheet.getCell(11, 5).value = assignment.hoursPerWeek ?? "";
+  worksheet.getCell(11, 14).value = assignment.subjectCredits ?? "";
+  worksheet.getCell(12, 3).value = assignedTeacherLabel(assignment);
+  worksheet.getCell(12, 5).value = assignedTeacherName(assignment);
+}
+
+function writeCategoryToColumn(
+  worksheet: ExcelJS.Worksheet,
+  category: Record<string, any>,
+  students: Record<string, any>[],
+  scores: Map<string, unknown>,
+  column: number,
+  headerRow: number,
+  firstStudentRow: number
+) {
+  writeExcelNumber(worksheet.getCell(headerRow, column), category.maxScore);
+  students.forEach((student, index) => {
+    writeExcelNumber(
+      worksheet.getCell(firstStudentRow + index, column),
+      categoryScore(scores, category, student)
+    );
+  });
+}
+
+function writePrimaryScores(
+  workbook: ExcelJS.Workbook,
+  categories: Record<string, any>[],
+  students: Record<string, any>[],
+  scores: Map<string, unknown>
+) {
+  const summary = workbook.getWorksheet(LATEST_PRIMARY_SUMMARY_SHEET);
+  if (!summary) return;
+  clearColumns(summary, 7, [
+    ...LATEST_PRIMARY_UNIT_SUMMARY_COLUMNS.midyear,
+    ...LATEST_PRIMARY_UNIT_SUMMARY_COLUMNS.endyear,
+  ]);
+  clearColumns(summary, 8, Object.values(LATEST_PRIMARY_FINAL_SUMMARY_COLUMNS));
+
+  for (const term of ["midyear", "endyear"] as const) {
+    const worksheet = workbook.getWorksheet(LATEST_PRIMARY_TERM_SHEETS[term]);
+    if (!worksheet) continue;
+    clearScoreEntryColumns(worksheet, LATEST_PRIMARY_UNIT_SCORE_COLUMNS, 6, 3);
+    termCategories(categories, term)
+      .slice(0, LATEST_PRIMARY_UNIT_SCORE_COLUMNS.length)
+      .forEach((category, index) => {
+        writeCategoryToColumn(
+          worksheet,
+          category,
+          students,
+          scores,
+          LATEST_PRIMARY_UNIT_SCORE_COLUMNS[index],
+          6,
+          7
+        );
+        writeCategoryToColumn(
+          summary,
+          category,
+          students,
+          scores,
+          LATEST_PRIMARY_UNIT_SUMMARY_COLUMNS[term][index],
+          7,
+          8
+        );
+      });
+
+    const finalCategory = primaryFinalCategory(categories, term);
+    if (finalCategory) {
+      const column = LATEST_PRIMARY_FINAL_SUMMARY_COLUMNS[term];
+      writeExcelNumber(summary.getCell(7, column), finalCategory.maxScore);
+      students.forEach((student, index) => {
+        writeExcelNumber(
+          summary.getCell(8 + index, column),
+          categoryScore(scores, finalCategory, student)
+        );
+      });
+    }
+  }
+}
+
+function writeSecondaryScores(
+  workbook: ExcelJS.Workbook,
+  categories: Record<string, any>[],
+  students: Record<string, any>[],
+  scores: Map<string, unknown>
+) {
+  const summary = workbook.getWorksheet(LATEST_SECONDARY_SUMMARY_SHEET);
+  if (!summary) return;
+  const unitSlots: Array<[ExcelJS.Worksheet, number]> = [];
+
+  for (const [sheetName, columns] of LATEST_SECONDARY_UNIT_SHEETS) {
+    const worksheet = workbook.getWorksheet(sheetName);
+    if (!worksheet) continue;
+    clearScoreEntryColumns(worksheet, columns, 5, 5);
+    columns.forEach(column => unitSlots.push([worksheet, column]));
+  }
+
+  clearColumns(summary, 6, LATEST_SECONDARY_UNIT_SUMMARY_COLUMNS);
+  clearColumns(summary, 7, Object.values(LATEST_SECONDARY_FINAL_SUMMARY_COLUMNS));
+
+  categories
+    .filter(category => !isFinalCategory(category))
+    .slice(0, unitSlots.length)
+    .forEach((category, index) => {
+      const [worksheet, scoreColumn] = unitSlots[index];
+      writeCategoryToColumn(worksheet, category, students, scores, scoreColumn, 5, 6);
+      writeCategoryToColumn(
+        summary,
+        category,
+        students,
+        scores,
+        LATEST_SECONDARY_UNIT_SUMMARY_COLUMNS[index],
+        6,
+        7
+      );
+    });
+
+  for (const term of ["midyear", "endyear"] as const) {
+    const finalCategory = secondaryFinalCategory(categories, term);
+    if (!finalCategory) continue;
+    const column = LATEST_SECONDARY_FINAL_SUMMARY_COLUMNS[term];
+    writeExcelNumber(summary.getCell(6, column), finalCategory.maxScore);
+    students.forEach((student, index) => {
+      writeExcelNumber(
+        summary.getCell(7 + index, column),
+        categoryScore(scores, finalCategory, student)
+      );
+    });
+  }
+}
+
+function repairSecondaryAssessmentFormulas(
+  workbook: ExcelJS.Workbook,
+  students: Record<string, any>[]
+) {
+  const worksheet = workbook.getWorksheet("คุณลักษณะ อ่าน สมรรถนะ (9)");
+  if (!worksheet) return;
+  students.forEach((_student, index) => {
+    const assessmentRow = 5 + index;
+    const summaryRow = 7 + index;
+    writeFormula(
+      worksheet.getCell(assessmentRow, 11),
+      `IF('${LATEST_SECONDARY_SUMMARY_SHEET}'!Q${summaryRow}>70,3,IF('${LATEST_SECONDARY_SUMMARY_SHEET}'!Q${summaryRow}>59,2,IF('${LATEST_SECONDARY_SUMMARY_SHEET}'!Q${summaryRow}>49,1,IF('${LATEST_SECONDARY_SUMMARY_SHEET}'!Q${summaryRow}<50,0))))`
+    );
+  });
+}
+
+function fillLatestAcademicPrintWorkbook(
+  workbook: ExcelJS.Workbook,
+  payload: ExportPayload
+) {
+  if (payload.mode !== "class") return false;
+  const assignment = payload.assignment ?? {};
+  const students = visibleStudents(payload);
+  const categories = sortCategories(payload.categories ?? []);
+  const scores = scoreMap(payload);
+
+  writeCover(workbook, assignment);
+  writeStudentLists(workbook, students);
+  writeScoreStudentNames(workbook, students);
+  repairSecondaryAssessmentFormulas(workbook, students);
+
+  if (
+    hasSheets(workbook, [
+      "ปก (1)",
+      "เวลาเรียน (2)",
+      LATEST_PRIMARY_TERM_SHEETS.midyear,
+      LATEST_PRIMARY_TERM_SHEETS.endyear,
+      LATEST_PRIMARY_SUMMARY_SHEET,
+    ])
+  ) {
+    writePrimaryScores(workbook, categories, students, scores);
+    return true;
+  }
+
+  if (hasSheets(workbook, ["ปก (1)", "เวลาเรียน (2)", LATEST_SECONDARY_SUMMARY_SHEET])) {
+    writeSecondaryScores(workbook, categories, students, scores);
+    return true;
+  }
+
+  return false;
+}
+
 async function loadTemplateWorkbook(templateFileName: string) {
   const templatePath = path.isAbsolute(templateFileName)
     ? templateFileName
@@ -474,7 +891,9 @@ export async function buildNodeExportFile(options: {
   outputPath: string;
 }) {
   const workbook = await loadTemplateWorkbook(options.templateFileName);
+  fillLatestAcademicPrintWorkbook(workbook, options.payload);
   addCommonDataSheets(workbook, options.payload);
+  workbook.calcProperties.fullCalcOnLoad = true;
   await workbook.xlsx.writeFile(options.outputPath);
   return {
     contentType: workbookContentType,
