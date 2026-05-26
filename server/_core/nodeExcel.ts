@@ -146,8 +146,25 @@ function assignedTeacherLabel(assignment: Record<string, any>) {
   return assignment.classroomLevel === "primary" ? "ครูประจำชั้น" : "ครูที่ปรึกษา";
 }
 
-function assignedTeacherName(assignment: Record<string, any>) {
-  return cleanText(assignment.homeroomTeacherName || assignment.teacherName);
+function teacherName(assignment: Record<string, any>) {
+  return cleanText(assignment.teacherName);
+}
+
+function homeroomTeacherNames(assignment: Record<string, any>) {
+  if (Array.isArray(assignment.homeroomTeacherNames)) {
+    return assignment.homeroomTeacherNames.map(cleanText).filter(Boolean);
+  }
+  return cleanText(assignment.homeroomTeacherName)
+    .split("/")
+    .map(name => name.trim())
+    .filter(Boolean);
+}
+
+function setBlackFont(cell: ExcelJS.Cell) {
+  cell.font = {
+    ...(cell.font ?? {}),
+    color: { argb: "FF000000" },
+  };
 }
 
 function excelNumberValue(value: unknown) {
@@ -687,8 +704,27 @@ function writeCover(workbook: ExcelJS.Workbook, assignment: Record<string, any>)
   worksheet.getCell(10, 12).value = assignment.subjectCode ?? "";
   worksheet.getCell(11, 5).value = assignment.hoursPerWeek ?? "";
   worksheet.getCell(11, 14).value = assignment.subjectCredits ?? "";
-  worksheet.getCell(12, 3).value = assignedTeacherLabel(assignment);
-  worksheet.getCell(12, 5).value = assignedTeacherName(assignment);
+  worksheet.getCell(12, 3).value = "ครูผู้สอน";
+  worksheet.getCell(12, 5).value = teacherName(assignment);
+  setBlackFont(worksheet.getCell(12, 3));
+  setBlackFont(worksheet.getCell(12, 5));
+
+  const label = assignedTeacherLabel(assignment);
+  const positions: Array<[number, number, number]> = [
+    [13, 3, 5],
+    [14, 3, 5],
+    [13, 10, 12],
+    [14, 10, 12],
+  ];
+  homeroomTeacherNames(assignment)
+    .slice(0, positions.length)
+    .forEach((name, index) => {
+      const [row, labelColumn, nameColumn] = positions[index];
+      worksheet.getCell(row, labelColumn).value = label;
+      worksheet.getCell(row, nameColumn).value = name;
+      setBlackFont(worksheet.getCell(row, labelColumn));
+      setBlackFont(worksheet.getCell(row, nameColumn));
+    });
 }
 
 function writeCategoryToColumn(

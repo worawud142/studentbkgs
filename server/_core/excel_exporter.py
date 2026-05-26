@@ -301,18 +301,30 @@ def write_if_not_merged(ws, row, column, value):
     cell.value = value
 
 
-def assigned_teacher_name(assignment):
-    return str(
-        assignment.get("homeroomTeacherName") or assignment.get("teacherName") or ""
-    ).strip()
-
-
 def assigned_teacher_label(assignment):
     return (
         "ครูประจำชั้น"
         if str(assignment.get("classroomLevel", "") or "").strip() == "primary"
         else "ครูที่ปรึกษา"
     )
+
+
+def teacher_name(assignment):
+    return str(assignment.get("teacherName") or "").strip()
+
+
+def homeroom_teacher_names(assignment):
+    names = assignment.get("homeroomTeacherNames")
+    if isinstance(names, list):
+        return [str(name).strip() for name in names if str(name).strip()]
+    name = str(assignment.get("homeroomTeacherName") or "").strip()
+    return [part.strip() for part in name.split("/") if part.strip()]
+
+
+def set_black_font(cell):
+    font = copy(cell.font)
+    font.color = "FF000000"
+    cell.font = font
 
 
 def write_latest_cover(wb, assignment):
@@ -326,8 +338,19 @@ def write_latest_cover(wb, assignment):
     write_if_not_merged(ws, 10, 12, assignment.get("subjectCode", ""))
     write_if_not_merged(ws, 11, 5, assignment.get("hoursPerWeek", ""))
     write_if_not_merged(ws, 11, 14, assignment.get("subjectCredits", ""))
-    write_if_not_merged(ws, 12, 3, assigned_teacher_label(assignment))
-    write_if_not_merged(ws, 12, 5, assigned_teacher_name(assignment))
+    write_if_not_merged(ws, 12, 3, "ครูผู้สอน")
+    write_if_not_merged(ws, 12, 5, teacher_name(assignment))
+    for cell_ref in ["C12", "E12"]:
+        set_black_font(ws[cell_ref])
+
+    label = assigned_teacher_label(assignment)
+    positions = [(13, 3, 5), (14, 3, 5), (13, 10, 12), (14, 10, 12)]
+    for index, name in enumerate(homeroom_teacher_names(assignment)[: len(positions)]):
+        row, label_col, name_col = positions[index]
+        write_if_not_merged(ws, row, label_col, label)
+        write_if_not_merged(ws, row, name_col, name)
+        set_black_font(ws.cell(row=row, column=label_col))
+        set_black_font(ws.cell(row=row, column=name_col))
 
 
 def secondary_attribute_formula(summary_row):
@@ -708,7 +731,7 @@ def fill_class_workbook(wb, payload, template_name):
             f"รายวิชา {assignment.get('subjectName', '')} "
             f"รหัสวิชา {assignment.get('subjectCode', '')} "
             f"หน่วยกิต {assignment.get('subjectCredits', '')} "
-            f"{assigned_teacher_label(assignment)} {assigned_teacher_name(assignment)}"
+            f"{assigned_teacher_label(assignment)} {' / '.join(homeroom_teacher_names(assignment))}"
         ).strip()
 
     if is_primary_template(template_name, assignment):

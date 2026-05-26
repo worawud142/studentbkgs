@@ -134,6 +134,12 @@ function formatHomeroomTeacherNames(classroom: any) {
   return names.join(" / ");
 }
 
+function homeroomTeacherNames(classroom: any) {
+  return Array.isArray(classroom?.homeroomTeachers)
+    ? classroom.homeroomTeachers.map(formatHomeroomTeacherName).filter(Boolean)
+    : [];
+}
+
 function buildClassExportName(
   payload: Awaited<ReturnType<typeof buildClassPayload>>
 ) {
@@ -265,6 +271,7 @@ async function buildClassPayload(assignmentId: number) {
     : (assignment.teacher?.name ?? "");
   const homeroomTeacherName =
     formatHomeroomTeacherNames(classroom) || teacherName;
+  const homeroomTeacherNameList = homeroomTeacherNames(classroom);
   const academicYear = await getAcademicYearById(
     assignment.assignment.academicYearId
   );
@@ -327,6 +334,7 @@ async function buildClassPayload(assignmentId: number) {
       hoursPerWeek: assignment.assignment.hoursPerWeek ?? "",
       teacherName,
       homeroomTeacherName,
+      homeroomTeacherNames: homeroomTeacherNameList,
       classroomName: classroom?.name ?? assignment.classroom?.name ?? "",
       classroomLevel: classroom?.level ?? assignment.classroom?.level ?? "",
       classroomGrade: classroom?.grade ?? assignment.classroom?.grade ?? null,

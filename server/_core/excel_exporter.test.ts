@@ -98,6 +98,7 @@ describe("excel exporter", () => {
       hoursPerWeek: 2,
       teacherName: "ครูผู้สอนตัวอย่าง",
       homeroomTeacherName: "นางสมหญิง ใจดี",
+      homeroomTeacherNames: ["นางสมหญิง ใจดี"],
       classroomName: "ป.5/1",
       classroomLevel: "primary",
       classroomGrade: 5,
@@ -152,7 +153,12 @@ describe("excel exporter", () => {
         basePayload
       );
 
-      const cover = await readCells(outputPath, "ปก (1)", ["E12"]);
+      const cover = await readCells(outputPath, "ปก (1)", [
+        "C12",
+        "E12",
+        "C13",
+        "E13",
+      ]);
       const summary = await readCells(outputPath, "สรุปผลรวม (10)", ["C8", "Q8"]);
       const sheet = await readCells(outputPath, "คุณลักษณะ -อ่าน -สมรรถนะ(11)", [
         "C5",
@@ -163,7 +169,10 @@ describe("excel exporter", () => {
         "Y5",
       ]);
 
-      expect(cover.E12).toBe("นางสมหญิง ใจดี");
+      expect(cover.C12).toBe("ครูผู้สอน");
+      expect(cover.E12).toBe("ครูผู้สอนตัวอย่าง");
+      expect(cover.C13).toBe("ครูประจำชั้น");
+      expect(cover.E13).toBe("นางสมหญิง ใจดี");
       expect(summary.C8).toBe(72);
       expect(summary.Q8).toBe("=SUM(C8:P8)");
       expect(sheet.C5).toBe("=K5");
@@ -189,6 +198,11 @@ describe("excel exporter", () => {
           subjectCode: "ท22101",
           subjectName: "ภาษาไทย",
           homeroomTeacherName: "นางสาวกาญจนา คำดี",
+          homeroomTeacherNames: [
+            "นางสาวกาญจนา คำดี",
+            "นายปรีชา ใจดี",
+            "นางสาวมาลี สอนดี",
+          ],
         },
       };
 
@@ -197,7 +211,16 @@ describe("excel exporter", () => {
         payload
       );
 
-      const cover = await readCells(outputPath, "ปก (1)", ["E12"]);
+      const cover = await readCells(outputPath, "ปก (1)", [
+        "C12",
+        "E12",
+        "C13",
+        "E13",
+        "C14",
+        "E14",
+        "J13",
+        "L13",
+      ]);
       const summary = await readCells(outputPath, "สรุปผลรวม (8)", ["J7", "Q7"]);
       const sheet = await readCells(outputPath, "คุณลักษณะ อ่าน สมรรถนะ (9)", [
         "C5",
@@ -208,7 +231,14 @@ describe("excel exporter", () => {
         "Y5",
       ]);
 
-      expect(cover.E12).toBe("นางสาวกาญจนา คำดี");
+      expect(cover.C12).toBe("ครูผู้สอน");
+      expect(cover.E12).toBe("ครูผู้สอนตัวอย่าง");
+      expect(cover.C13).toBe("ครูที่ปรึกษา");
+      expect(cover.E13).toBe("นางสาวกาญจนา คำดี");
+      expect(cover.C14).toBe("ครูที่ปรึกษา");
+      expect(cover.E14).toBe("นายปรีชา ใจดี");
+      expect(cover.J13).toBe("ครูที่ปรึกษา");
+      expect(cover.L13).toBe("นางสาวมาลี สอนดี");
       expect(summary.J7).toBe(72);
       expect(summary.Q7).toBe("=SUM(C7:P7)");
       expect(sheet.C5).toBe("=K5");

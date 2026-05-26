@@ -151,6 +151,11 @@ describe("node Excel runtime", () => {
           hoursPerWeek: 2,
           teacherName: "ครูผู้สอนตัวอย่าง",
           homeroomTeacherName: "นางสาวกาญจนา คำดี",
+          homeroomTeacherNames: [
+            "นางสาวกาญจนา คำดี",
+            "นายปรีชา ใจดี",
+            "นางสาวมาลี สอนดี",
+          ],
           classroomName: "ม.2/1",
           classroomLevel: "secondary",
           classroomGrade: 2,
@@ -186,8 +191,20 @@ describe("node Excel runtime", () => {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.readFile(outputPath);
     expect(workbook.getWorksheet("ปก (1)")?.getCell("E12").value).toBe(
+      "ครูผู้สอนตัวอย่าง"
+    );
+    expect(workbook.getWorksheet("ปก (1)")?.getCell("E13").value).toBe(
       "นางสาวกาญจนา คำดี"
     );
+    expect(workbook.getWorksheet("ปก (1)")?.getCell("E14").value).toBe(
+      "นายปรีชา ใจดี"
+    );
+    expect(workbook.getWorksheet("ปก (1)")?.getCell("L13").value).toBe(
+      "นางสาวมาลี สอนดี"
+    );
+    expect(
+      workbook.getWorksheet("ปก (1)")?.getCell("E12").font.color
+    ).toMatchObject({ argb: "FF000000" });
     expect(workbook.getWorksheet("สรุปผลรวม (8)")?.getCell("J7").value).toBe(72);
     const attributeFormula = workbook
       .getWorksheet("คุณลักษณะ อ่าน สมรรถนะ (9)")
