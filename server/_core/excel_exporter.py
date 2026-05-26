@@ -92,25 +92,6 @@ def write_excel_number(cell, value):
         cell.number_format = "0.##"
 
 
-def score_band(value, upper_threshold):
-    numeric = excel_number_value(value)
-    if numeric in ("", None):
-        return 0
-
-    try:
-        numeric_value = float(numeric)
-    except (TypeError, ValueError):
-        return 0
-
-    if numeric_value > upper_threshold:
-        return 3
-    if numeric_value > 59:
-        return 2
-    if numeric_value > 49:
-        return 1
-    return 0
-
-
 def sheet_search_text(ws):
     values = []
     cell = ws["A3"]
@@ -347,60 +328,6 @@ def write_latest_cover(wb, assignment):
     write_if_not_merged(ws, 11, 14, assignment.get("subjectCredits", ""))
     write_if_not_merged(ws, 12, 3, assigned_teacher_label(assignment))
     write_if_not_merged(ws, 12, 5, assigned_teacher_name(assignment))
-
-
-def fill_assessment_summary_sheet(wb, payload):
-    sheet = None
-    for candidate in wb.sheetnames:
-        if candidate.startswith("คุณลักษณะ"):
-            sheet = wb[candidate]
-            break
-
-    if sheet is None:
-        return
-
-    visible_students = [
-        student for student in payload.get("students", []) if is_visible_student(student)
-    ]
-    if not visible_students:
-        return
-
-    categories = sort_primary_categories(payload.get("categories", []))
-    score_map = {
-        (score.get("categoryId"), score.get("studentId")): score.get("score")
-        for score in payload.get("scores", [])
-    }
-    total_score_map = {
-        result.get("studentId"): result.get("totalScore")
-        for result in payload.get("gradeResults", [])
-    }
-    is_primary_layout = "11" in sheet.title
-
-    clear_rect(sheet, 5, min(20, sheet.max_row), 1, min(26, sheet.max_column))
-
-    for row_index, student in enumerate(visible_students, start=5):
-        student_id = student.get("id")
-        total_score = total_score_map.get(student_id)
-        if is_primary_layout:
-            attribute_band = score_band(total_score, 70)
-            reading_band = score_band(total_score, 74)
-            competency_band = score_band(total_score, 74)
-        else:
-            attribute_band = score_band(total_score, 70)
-            reading_band = score_band(total_score, 74)
-            competency_band = reading_band
-
-        sheet.cell(row=row_index, column=1, value=student.get("studentNumber") or row_index - 4)
-        sheet.cell(row=row_index, column=2, value=student_visible_name(student))
-
-        for col in range(3, 12):
-            sheet.cell(row=row_index, column=col, value=attribute_band)
-
-        for col in range(13, 19):
-            sheet.cell(row=row_index, column=col, value=reading_band)
-
-        for col in range(20, 26):
-            sheet.cell(row=row_index, column=col, value=competency_band)
 
 
 def write_latest_student_lists(wb, visible_students):
@@ -656,8 +583,6 @@ def fill_latest_academic_print_workbook(wb, payload):
     write_latest_student_lists(wb, visible_students)
     write_latest_score_student_names(wb, visible_students)
     write_latest_attendance(wb, payload, visible_students)
-    fill_assessment_summary_sheet(wb, payload)
-
     if has_latest_primary_layout(wb):
         write_latest_primary_scores(wb, categories, visible_students, score_map)
         wb.active = wb.sheetnames.index(LATEST_PRIMARY_SUMMARY_SHEET)
@@ -763,8 +688,6 @@ def fill_class_workbook(wb, payload, template_name):
             f"หน่วยกิต {assignment.get('subjectCredits', '')} "
             f"{assigned_teacher_label(assignment)} {assigned_teacher_name(assignment)}"
         ).strip()
-
-    fill_assessment_summary_sheet(wb, payload)
 
     if is_primary_template(template_name, assignment):
         subject_ws = find_subject_sheet(wb, assignment)

@@ -118,8 +118,18 @@ describe("excel exporter", () => {
         lastName: "รักเรียน",
       },
     ],
-    categories: [],
-    scores: [],
+    categories: Array.from({ length: 8 }, (_, index) => ({
+      id: index + 1,
+      name: `หน่วย ${index + 1}`,
+      maxScore: index === 0 || index === 7 ? 100 : 0,
+      order: index + 1,
+      term: "midyear",
+    })),
+    scores: Array.from({ length: 8 }, (_, index) => ({
+      studentId: 1,
+      categoryId: index + 1,
+      score: index === 0 || index === 7 ? 72 : 0,
+    })),
     gradeResults: [
       {
         studentId: 1,
@@ -135,60 +145,78 @@ describe("excel exporter", () => {
   };
 
   it(
-    "writes homeroom teacher and assessment bands for the primary template",
+    "writes homeroom teacher and preserves assessment formulas for the primary template",
     async () => {
-    const { outputPath } = await runPythonExporter(
-      path.resolve(process.cwd(), "templates/academic/ปพ.5-ป.1.xlsx"),
-      basePayload
-    );
+      const { outputPath } = await runPythonExporter(
+        path.resolve(process.cwd(), "templates/academic/ปพ.5-ป.1.xlsx"),
+        basePayload
+      );
 
-    const cover = await readCells(outputPath, "ปก (1)", ["E12"]);
-    const sheet = await readCells(outputPath, "คุณลักษณะ -อ่าน -สมรรถนะ(11)", [
-      "C5",
-      "M5",
-      "T5",
-    ]);
+      const cover = await readCells(outputPath, "ปก (1)", ["E12"]);
+      const summary = await readCells(outputPath, "สรุปผลรวม (10)", ["C8", "Q8"]);
+      const sheet = await readCells(outputPath, "คุณลักษณะ -อ่าน -สมรรถนะ(11)", [
+        "C5",
+        "K5",
+        "M5",
+        "R5",
+        "T5",
+        "Y5",
+      ]);
 
-    expect(cover.E12).toBe("นางสมหญิง ใจดี");
-    expect(sheet.C5).toBe(3);
-    expect(sheet.M5).toBe(2);
-    expect(sheet.T5).toBe(2);
+      expect(cover.E12).toBe("นางสมหญิง ใจดี");
+      expect(summary.C8).toBe(72);
+      expect(summary.Q8).toBe("=SUM(C8:P8)");
+      expect(sheet.C5).toBe("=K5");
+      expect(sheet.K5).toContain("'สรุปผลรวม (10)'!Q8");
+      expect(sheet.M5).toBe("=R5");
+      expect(sheet.R5).toContain("'สรุปผลรวม (10)'!Q8");
+      expect(sheet.T5).toBe("=Y5");
+      expect(sheet.Y5).toContain("'สรุปผลรวม (10)'!Q8");
     },
     20000
   );
 
   it(
-    "writes homeroom teacher and assessment bands for the secondary template",
+    "writes homeroom teacher and preserves assessment formulas for the secondary template",
     async () => {
-    const payload = {
-      ...basePayload,
-      assignment: {
-        ...basePayload.assignment,
-        classroomLevel: "secondary",
-        classroomName: "ม.2/1",
-        classroomGrade: 2,
-        subjectCode: "ท22101",
-        subjectName: "ภาษาไทย",
-        homeroomTeacherName: "นางสาวกาญจนา คำดี",
-      },
-    };
+      const payload = {
+        ...basePayload,
+        assignment: {
+          ...basePayload.assignment,
+          classroomLevel: "secondary",
+          classroomName: "ม.2/1",
+          classroomGrade: 2,
+          subjectCode: "ท22101",
+          subjectName: "ภาษาไทย",
+          homeroomTeacherName: "นางสาวกาญจนา คำดี",
+        },
+      };
 
-    const { outputPath } = await runPythonExporter(
-      path.resolve(process.cwd(), "templates/academic/ปพ.5-ม2.xlsx"),
-      payload
-    );
+      const { outputPath } = await runPythonExporter(
+        path.resolve(process.cwd(), "templates/academic/ปพ.5-ม2.xlsx"),
+        payload
+      );
 
-    const cover = await readCells(outputPath, "ปก (1)", ["E12"]);
-    const sheet = await readCells(outputPath, "คุณลักษณะ อ่าน สมรรถนะ (9)", [
-      "C5",
-      "M5",
-      "T5",
-    ]);
+      const cover = await readCells(outputPath, "ปก (1)", ["E12"]);
+      const summary = await readCells(outputPath, "สรุปผลรวม (8)", ["J7", "Q7"]);
+      const sheet = await readCells(outputPath, "คุณลักษณะ อ่าน สมรรถนะ (9)", [
+        "C5",
+        "K5",
+        "M5",
+        "R5",
+        "T5",
+        "Y5",
+      ]);
 
-    expect(cover.E12).toBe("นางสาวกาญจนา คำดี");
-    expect(sheet.C5).toBe(3);
-    expect(sheet.M5).toBe(2);
-    expect(sheet.T5).toBe(2);
+      expect(cover.E12).toBe("นางสาวกาญจนา คำดี");
+      expect(summary.J7).toBe(72);
+      expect(summary.Q7).toBe("=SUM(C7:P7)");
+      expect(sheet.C5).toBe("=K5");
+      expect(sheet.K5).toContain("'สรุปผลรวม (8)'!J7");
+      expect(sheet.M5).toBe("=R5");
+      expect(sheet.R5).toContain("'สรุปผลรวม (8)'!Q7");
+      expect(sheet.T5).toBe("=R5");
+      expect(sheet.Y5).toBe("=_xlfn.MODE.MULT(T5:X5)");
     },
     20000
   );
