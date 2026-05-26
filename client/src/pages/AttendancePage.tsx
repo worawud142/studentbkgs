@@ -64,6 +64,7 @@ const EMPTY_HISTORY: {
   status: AttendanceStatus;
   note: string | null;
 }[] = [];
+const SCANNER_MESSAGE_RESET_MS = 1800;
 
 const THAI_WEEKDAYS = [
   "วันอาทิตย์",
@@ -152,6 +153,7 @@ export default function AttendancePage() {
   const streamRef = useRef<MediaStream | null>(null);
   const scanLoopRef = useRef<number | null>(null);
   const lastScanRef = useRef("");
+  const scannerMessageTimeoutRef = useRef<number | null>(null);
   const savingScanRef = useRef<Set<number>>(new Set());
 
   const utils = trpc.useUtils();
@@ -225,6 +227,21 @@ export default function AttendancePage() {
     },
     onError: e => toast.error(e.message),
   });
+
+  const clearScannerMessageTimeout = () => {
+    if (scannerMessageTimeoutRef.current) {
+      window.clearTimeout(scannerMessageTimeoutRef.current);
+      scannerMessageTimeoutRef.current = null;
+    }
+  };
+
+  const resetScannerMessageSoon = () => {
+    clearScannerMessageTimeout();
+    scannerMessageTimeoutRef.current = window.setTimeout(() => {
+      setScannerMessage({ text: "วาง QR ให้อยู่ในกรอบ", tone: "idle" });
+      scannerMessageTimeoutRef.current = null;
+    }, SCANNER_MESSAGE_RESET_MS);
+  };
   const deleteOneAttendance = trpc.attendance.deleteOne.useMutation({
     onSuccess: () => {
       utils.attendance.getByDate.invalidate({
@@ -354,6 +371,7 @@ export default function AttendancePage() {
     if (!student) {
       toast.error("ไม่พบนักเรียนจาก QR นี้");
       setScannerMessage({ text: "ไม่พบนักเรียนจาก QR นี้", tone: "error" });
+      resetScannerMessageSoon();
       return;
     }
 
@@ -374,6 +392,7 @@ export default function AttendancePage() {
         text: `เช็คชื่อแล้ว: ${student.prefix || ""}${student.firstName} ${student.lastName}`,
         tone: "success",
       });
+      resetScannerMessageSoon();
     } finally {
       window.setTimeout(() => {
         savingScanRef.current.delete(student.id);
@@ -382,6 +401,7 @@ export default function AttendancePage() {
   };
 
   const stopScanner = () => {
+    clearScannerMessageTimeout();
     if (scanLoopRef.current) {
       cancelAnimationFrame(scanLoopRef.current);
       scanLoopRef.current = null;
@@ -395,6 +415,7 @@ export default function AttendancePage() {
   const startScanner = async () => {
     setScannerOpen(true);
     setScannerError("");
+    clearScannerMessageTimeout();
     setScannerMessage({ text: "กำลังเปิดกล้อง...", tone: "idle" });
     if (!navigator.mediaDevices?.getUserMedia) {
       setScannerError(
