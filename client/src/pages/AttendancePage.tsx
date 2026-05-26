@@ -139,7 +139,10 @@ export default function AttendancePage() {
   const [scannerOpen, setScannerOpen] = useState(false);
   const [scannerActive, setScannerActive] = useState(false);
   const [scannerError, setScannerError] = useState("");
-  const [scannerMessage, setScannerMessage] = useState("วาง QR ให้อยู่ในกรอบ");
+  const [scannerMessage, setScannerMessage] = useState({
+    text: "วาง QR ให้อยู่ในกรอบ",
+    tone: "idle" as "idle" | "success" | "error",
+  });
   const [qrInput, setQrInput] = useState("");
   const [historyStudent, setHistoryStudent] = useState<AttendanceStudent | null>(
     null
@@ -350,7 +353,7 @@ export default function AttendancePage() {
     const student = findStudentFromQr(rawValue);
     if (!student) {
       toast.error("ไม่พบนักเรียนจาก QR นี้");
-      setScannerMessage("ไม่พบนักเรียนจาก QR นี้");
+      setScannerMessage({ text: "ไม่พบนักเรียนจาก QR นี้", tone: "error" });
       return;
     }
 
@@ -367,9 +370,10 @@ export default function AttendancePage() {
       toast.success(
         `บันทึกแล้ว: ${student.prefix || ""}${student.firstName} ${student.lastName}`
       );
-      setScannerMessage(
-        `เช็คชื่อแล้ว: ${student.prefix || ""}${student.firstName} ${student.lastName}`
-      );
+      setScannerMessage({
+        text: `เช็คชื่อแล้ว: ${student.prefix || ""}${student.firstName} ${student.lastName}`,
+        tone: "success",
+      });
     } finally {
       window.setTimeout(() => {
         savingScanRef.current.delete(student.id);
@@ -385,13 +389,13 @@ export default function AttendancePage() {
     streamRef.current?.getTracks().forEach(track => track.stop());
     streamRef.current = null;
     setScannerActive(false);
-    setScannerMessage("วาง QR ให้อยู่ในกรอบ");
+    setScannerMessage({ text: "วาง QR ให้อยู่ในกรอบ", tone: "idle" });
   };
 
   const startScanner = async () => {
     setScannerOpen(true);
     setScannerError("");
-    setScannerMessage("กำลังเปิดกล้อง...");
+    setScannerMessage({ text: "กำลังเปิดกล้อง...", tone: "idle" });
     if (!navigator.mediaDevices?.getUserMedia) {
       setScannerError(
         "Browser นี้ยังไม่รองรับการเปิดกล้อง หรือยังไม่ได้เปิดผ่าน HTTPS กรุณาใช้ Chrome/Edge เวอร์ชันล่าสุด หรือกรอกรหัสจาก QR ด้านล่างแทนได้ครับ"
@@ -414,7 +418,7 @@ export default function AttendancePage() {
         );
       }
       setScannerActive(true);
-      setScannerMessage("วาง QR ให้อยู่ในกรอบ");
+      setScannerMessage({ text: "วาง QR ให้อยู่ในกรอบ", tone: "idle" });
       const scan = async () => {
         if (!videoRef.current || !streamRef.current) return;
         if (videoRef.current.srcObject !== streamRef.current) {
@@ -677,8 +681,16 @@ export default function AttendancePage() {
                   {scannerActive ? (
                     <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                       <div className="h-72 w-72 rounded-[2rem] border-4 border-white/95 shadow-[0_0_0_999px_rgba(15,23,42,0.16)] md:h-80 md:w-80 xl:h-96 xl:w-96" />
-                      <div className="absolute bottom-5 left-1/2 w-[min(90%,30rem)] -translate-x-1/2 rounded-2xl bg-slate-950/80 px-5 py-3 text-center text-base font-semibold text-white shadow-lg backdrop-blur">
-                        {scannerMessage}
+                      <div
+                        className={`absolute bottom-5 left-1/2 w-[min(90%,32rem)] -translate-x-1/2 rounded-xl border px-5 py-3 text-center text-base font-semibold shadow-lg backdrop-blur ${
+                          scannerMessage.tone === "success"
+                            ? "border-green-200 bg-green-50/95 text-green-800"
+                            : scannerMessage.tone === "error"
+                              ? "border-red-200 bg-red-50/95 text-red-800"
+                              : "border-slate-700 bg-slate-950/80 text-white"
+                        }`}
+                      >
+                        {scannerMessage.text}
                       </div>
                     </div>
                   ) : (
