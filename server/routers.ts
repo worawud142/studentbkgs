@@ -63,6 +63,7 @@ import {
   getSchoolSettings,
   setActiveAcademicYear,
   setClassroomHomeroomTeachers,
+  setTeacherHomeroomClassrooms,
   updateAcademicYear,
   updateClassroom,
   updateScoreCategory,
@@ -372,20 +373,25 @@ export const appRouter = router({
           phone: z.string().optional(),
           teachingLevel: z.enum(["primary", "secondary", "both"]),
           isHomeroom: z.boolean().default(false),
+          homeroomClassroomIds: z.array(z.number()).optional(),
         })
       )
       .mutation(async ({ input }) => {
+        const { homeroomClassroomIds, ...teacherInput } = input;
         const result = await createTeacherAccount({
-          teacherCode: input.teacherCode,
-          password: input.password,
-          email: input.email || undefined,
-          prefix: input.prefix,
-          firstName: input.firstName,
-          lastName: input.lastName,
-          phone: input.phone,
-          teachingLevel: input.teachingLevel,
-          isHomeroom: input.isHomeroom,
+          teacherCode: teacherInput.teacherCode,
+          password: teacherInput.password,
+          email: teacherInput.email || undefined,
+          prefix: teacherInput.prefix,
+          firstName: teacherInput.firstName,
+          lastName: teacherInput.lastName,
+          phone: teacherInput.phone,
+          teachingLevel: teacherInput.teachingLevel,
+          isHomeroom: teacherInput.isHomeroom || Boolean(homeroomClassroomIds?.length),
         });
+        if (homeroomClassroomIds !== undefined) {
+          await setTeacherHomeroomClassrooms(result.userId, homeroomClassroomIds);
+        }
         return result;
       }),
     updateAccount: adminProcedure
@@ -400,19 +406,24 @@ export const appRouter = router({
           phone: z.string().optional(),
           teachingLevel: z.enum(["primary", "secondary", "both"]),
           isHomeroom: z.boolean().default(false),
+          homeroomClassroomIds: z.array(z.number()).optional(),
         })
       )
       .mutation(async ({ input }) => {
-        await updateTeacherAccount(input.userId, {
-          teacherCode: input.teacherCode,
-          email: input.email || undefined,
-          prefix: input.prefix,
-          firstName: input.firstName,
-          lastName: input.lastName,
-          phone: input.phone,
-          teachingLevel: input.teachingLevel,
-          isHomeroom: input.isHomeroom,
+        const { homeroomClassroomIds, ...teacherInput } = input;
+        await updateTeacherAccount(teacherInput.userId, {
+          teacherCode: teacherInput.teacherCode,
+          email: teacherInput.email || undefined,
+          prefix: teacherInput.prefix,
+          firstName: teacherInput.firstName,
+          lastName: teacherInput.lastName,
+          phone: teacherInput.phone,
+          teachingLevel: teacherInput.teachingLevel,
+          isHomeroom: teacherInput.isHomeroom || Boolean(homeroomClassroomIds?.length),
         });
+        if (homeroomClassroomIds !== undefined) {
+          await setTeacherHomeroomClassrooms(teacherInput.userId, homeroomClassroomIds);
+        }
         return { success: true };
       }),
     deleteAccount: adminProcedure

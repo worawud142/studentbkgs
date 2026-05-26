@@ -55,6 +55,93 @@ function classroomAdvisorLabel(level?: "primary" | "secondary" | string) {
   return level === "primary" ? "ครูประจำชั้น" : "ครูที่ปรึกษา";
 }
 
+function classroomDisplayName(classroom: any) {
+  return `${classroom.name} (${classroomAdvisorLabel(classroom.level)})`;
+}
+
+function homeroomClassroomIdsForTeacher(classrooms: any[], userId: number) {
+  return classrooms
+    .filter(classroom => classroom.homeroomTeacherIds?.includes(userId))
+    .map(classroom => String(classroom.id));
+}
+
+function homeroomClassroomNamesForTeacher(classrooms: any[], userId: number) {
+  const names = classrooms
+    .filter(classroom => classroom.homeroomTeacherIds?.includes(userId))
+    .map(classroomDisplayName);
+  return names.length > 0 ? names.join(" / ") : "-";
+}
+
+function filterClassroomIdsByTeachingLevel(
+  classroomIds: string[],
+  teachingLevel: "primary" | "secondary" | "both",
+  classrooms: any[]
+) {
+  if (teachingLevel === "both") return classroomIds;
+  const allowedIds = new Set(
+    classrooms
+      .filter(classroom => classroom.level === teachingLevel)
+      .map(classroom => String(classroom.id))
+  );
+  return classroomIds.filter(id => allowedIds.has(id));
+}
+
+function HomeroomClassroomPicker({
+  classrooms,
+  idPrefix,
+  selectedIds,
+  teachingLevel,
+  onChange,
+}: {
+  classrooms: any[];
+  idPrefix: string;
+  selectedIds: string[];
+  teachingLevel: "primary" | "secondary" | "both";
+  onChange: (ids: string[]) => void;
+}) {
+  const visibleClassrooms = classrooms.filter(
+    classroom => teachingLevel === "both" || classroom.level === teachingLevel
+  );
+
+  return (
+    <div className="space-y-2">
+      <Label className="text-xs">ห้องประจำชั้น/ที่ปรึกษา</Label>
+      <div className="max-h-40 overflow-y-auto rounded-md border border-slate-200 p-2 space-y-1">
+        {visibleClassrooms.map(classroom => {
+          const classroomId = String(classroom.id);
+          const inputId = `${idPrefix}-${classroomId}`;
+          const checked = selectedIds.includes(classroomId);
+          return (
+            <label
+              key={classroom.id}
+              htmlFor={inputId}
+              className="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-slate-50 cursor-pointer"
+            >
+              <input
+                id={inputId}
+                type="checkbox"
+                checked={checked}
+                onChange={event => {
+                  const nextIds = event.target.checked
+                    ? [...selectedIds, classroomId]
+                    : selectedIds.filter(id => id !== classroomId);
+                  onChange(Array.from(new Set(nextIds)));
+                }}
+              />
+              <span>{classroomDisplayName(classroom)}</span>
+            </label>
+          );
+        })}
+        {visibleClassrooms.length === 0 && (
+          <p className="px-2 py-3 text-center text-xs text-slate-400">
+            ยังไม่มีห้องเรียนในระดับนี้
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
@@ -124,6 +211,7 @@ function SystemDataTab() {
   const utils = trpc.useUtils();
   const { data: teacherRows = [] } = trpc.teacher.allProfiles.useQuery();
   const { data: userRows = [] } = trpc.teacher.allUsers.useQuery();
+  const { data: classrooms = [] } = trpc.classroom.list.useQuery({});
   const [showAddTeacher, setShowAddTeacher] = useState(false);
   const [editTeacher, setEditTeacher] = useState<any>(null);
   const [resetTeacher, setResetTeacher] = useState<{
@@ -149,6 +237,7 @@ function SystemDataTab() {
     phone: "",
     teachingLevel: "secondary" as "primary" | "secondary" | "both",
     isHomeroom: false,
+    homeroomClassroomIds: [] as string[],
   });
   useEffect(() => {
     if (!schoolSettings) return;
@@ -179,6 +268,7 @@ function SystemDataTab() {
       toast.success("เพิ่มครูเรียบร้อย");
       utils.teacher.allProfiles.invalidate();
       utils.teacher.allUsers.invalidate();
+      utils.classroom.list.invalidate({});
       setShowAddTeacher(false);
       setTeacherForm({
         email: "",
@@ -190,6 +280,7 @@ function SystemDataTab() {
         phone: "",
         teachingLevel: "secondary",
         isHomeroom: false,
+        homeroomClassroomIds: [],
       });
     },
     onError: error => toast.error(error.message),
@@ -199,6 +290,7 @@ function SystemDataTab() {
       toast.success("อัปเดตข้อมูลครูเรียบร้อย");
       utils.teacher.allProfiles.invalidate();
       utils.teacher.allUsers.invalidate();
+      utils.classroom.list.invalidate({});
       setEditTeacher(null);
     },
     onError: error => toast.error(error.message),
@@ -331,7 +423,11 @@ function SystemDataTab() {
                   <form
                     onSubmit={e => {
                       e.preventDefault();
-                      createTeacher.mutate(teacherForm);
+                      createTeacher.mutate({
+                        ...teacherForm,
+                        homeroomClassroomIds:
+                          teacherForm.homeroomClassroomIds.map(Number),
+                      });
                     }}
                     className="space-y-3"
                   >
@@ -448,6 +544,11 @@ function SystemDataTab() {
                             setTeacherForm({
                               ...teacherForm,
                               teachingLevel: v as any,
+                              homeroomClassroomIds: filterClassroomIdsByTeachingLevel(
+                                teacherForm.homeroomClassroomIds,
+                                v as any,
+                                classrooms
+                              ),
                             })
                           }
                         >
@@ -481,6 +582,19 @@ function SystemDataTab() {
                         เป็นครูประจำชั้น/ที่ปรึกษา
                       </Label>
                     </div>
+                    <HomeroomClassroomPicker
+                      classrooms={classrooms}
+                      idPrefix="teacher-homeroom-classroom"
+                      selectedIds={teacherForm.homeroomClassroomIds}
+                      teachingLevel={teacherForm.teachingLevel}
+                      onChange={ids =>
+                        setTeacherForm({
+                          ...teacherForm,
+                          isHomeroom: teacherForm.isHomeroom || ids.length > 0,
+                          homeroomClassroomIds: ids,
+                        })
+                      }
+                    />
                     <Button
                       type="submit"
                       className="w-full bg-blue-600 hover:bg-blue-700"
@@ -505,6 +619,9 @@ function SystemDataTab() {
                   </th>
                   <th className="text-left px-4 py-3 text-slate-600 font-medium">
                     ระดับสอน
+                  </th>
+                  <th className="text-left px-4 py-3 text-slate-600 font-medium">
+                    ห้องประจำชั้น/ที่ปรึกษา
                   </th>
                   <th className="text-center px-4 py-3 text-slate-600 font-medium">
                     จัดการ
@@ -538,6 +655,12 @@ function SystemDataTab() {
                             : "มัธยม"}
                       </span>
                     </td>
+                    <td className="px-4 py-3 text-slate-600">
+                      {homeroomClassroomNamesForTeacher(
+                        classrooms,
+                        row.profile.userId
+                      )}
+                    </td>
                     <td className="px-4 py-3 text-center">
                       <div className="flex items-center justify-center gap-2">
                         <button
@@ -552,6 +675,10 @@ function SystemDataTab() {
                               phone: row.profile.phone || "",
                               teachingLevel: row.profile.teachingLevel,
                               isHomeroom: row.profile.isHomeroom,
+                              homeroomClassroomIds: homeroomClassroomIdsForTeacher(
+                                classrooms,
+                                row.profile.userId
+                              ),
                             })
                           }
                           className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
@@ -595,7 +722,7 @@ function SystemDataTab() {
                 {teacherRows.length === 0 && (
                   <tr>
                     <td
-                      colSpan={4}
+                      colSpan={5}
                       className="px-4 py-8 text-center text-slate-400"
                     >
                       ยังไม่มีข้อมูลครู
@@ -705,7 +832,11 @@ function SystemDataTab() {
             <form
               onSubmit={e => {
                 e.preventDefault();
-                updateTeacher.mutate(editTeacher);
+                updateTeacher.mutate({
+                  ...editTeacher,
+                  homeroomClassroomIds:
+                    editTeacher.homeroomClassroomIds.map(Number),
+                });
               }}
               className="space-y-3"
             >
@@ -793,7 +924,15 @@ function SystemDataTab() {
                   <Select
                     value={editTeacher.teachingLevel}
                     onValueChange={v =>
-                      setEditTeacher({ ...editTeacher, teachingLevel: v })
+                      setEditTeacher({
+                        ...editTeacher,
+                        teachingLevel: v as "primary" | "secondary" | "both",
+                        homeroomClassroomIds: filterClassroomIdsByTeachingLevel(
+                          editTeacher.homeroomClassroomIds,
+                          v as "primary" | "secondary" | "both",
+                          classrooms
+                        ),
+                      })
                     }
                   >
                     <SelectTrigger className="mt-1">
@@ -826,6 +965,19 @@ function SystemDataTab() {
                   เป็นครูประจำชั้น/ที่ปรึกษา
                 </Label>
               </div>
+              <HomeroomClassroomPicker
+                classrooms={classrooms}
+                idPrefix="edit-teacher-homeroom-classroom"
+                selectedIds={editTeacher.homeroomClassroomIds}
+                teachingLevel={editTeacher.teachingLevel}
+                onChange={ids =>
+                  setEditTeacher({
+                    ...editTeacher,
+                    isHomeroom: editTeacher.isHomeroom || ids.length > 0,
+                    homeroomClassroomIds: ids,
+                  })
+                }
+              />
               <Button
                 type="submit"
                 className="w-full bg-blue-600 hover:bg-blue-700"

@@ -757,6 +757,36 @@ export async function setClassroomHomeroomTeachers(
     .where(eq(classrooms.id, classroomId));
 }
 
+export async function setTeacherHomeroomClassrooms(
+  teacherUserId: number,
+  classroomIds: number[]
+) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await ensureClassroomHomeroomTable();
+
+  const selectedIds = new Set(classroomIds.filter(Boolean));
+  const currentLinks = await db
+    .select()
+    .from(classroomHomeroomTeachers)
+    .where(eq(classroomHomeroomTeachers.teacherUserId, teacherUserId));
+  const affectedIds = new Set([
+    ...Array.from(selectedIds),
+    ...currentLinks.map(link => link.classroomId),
+  ]);
+
+  for (const classroomId of Array.from(affectedIds)) {
+    const currentTeachers = await getClassroomHomeroomTeachers(classroomId);
+    const teacherIds = currentTeachers
+      .map(row => row.link.teacherUserId)
+      .filter(id => id !== teacherUserId);
+    if (selectedIds.has(classroomId)) {
+      teacherIds.push(teacherUserId);
+    }
+    await setClassroomHomeroomTeachers(classroomId, teacherIds);
+  }
+}
+
 export async function createClassroom(data: typeof classrooms.$inferInsert) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
