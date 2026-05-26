@@ -330,6 +330,27 @@ def write_latest_cover(wb, assignment):
     write_if_not_merged(ws, 12, 5, assigned_teacher_name(assignment))
 
 
+def secondary_attribute_formula(summary_row):
+    return (
+        f"=IF('{LATEST_SECONDARY_SUMMARY_SHEET}'!Q{summary_row}>70,3,"
+        f"IF('{LATEST_SECONDARY_SUMMARY_SHEET}'!Q{summary_row}>59,2,"
+        f"IF('{LATEST_SECONDARY_SUMMARY_SHEET}'!Q{summary_row}>49,1,"
+        f"IF('{LATEST_SECONDARY_SUMMARY_SHEET}'!Q{summary_row}<50,0))))"
+    )
+
+
+def repair_latest_assessment_formulas(wb, visible_students):
+    sheet_name = "คุณลักษณะ อ่าน สมรรถนะ (9)"
+    if sheet_name not in wb.sheetnames or LATEST_SECONDARY_SUMMARY_SHEET not in wb.sheetnames:
+        return
+
+    ws = wb[sheet_name]
+    for row_offset, _student in enumerate(visible_students):
+        assessment_row = 5 + row_offset
+        summary_row = 7 + row_offset
+        write_if_not_merged(ws, assessment_row, 11, secondary_attribute_formula(summary_row))
+
+
 def write_latest_student_lists(wb, visible_students):
     for ws in wb.worksheets:
         if not ws.title.startswith("เวลาเรียน"):
@@ -583,6 +604,7 @@ def fill_latest_academic_print_workbook(wb, payload):
     write_latest_student_lists(wb, visible_students)
     write_latest_score_student_names(wb, visible_students)
     write_latest_attendance(wb, payload, visible_students)
+    repair_latest_assessment_formulas(wb, visible_students)
     if has_latest_primary_layout(wb):
         write_latest_primary_scores(wb, categories, visible_students, score_map)
         wb.active = wb.sheetnames.index(LATEST_PRIMARY_SUMMARY_SHEET)

@@ -212,7 +212,8 @@ describe("excel exporter", () => {
       expect(summary.J7).toBe(72);
       expect(summary.Q7).toBe("=SUM(C7:P7)");
       expect(sheet.C5).toBe("=K5");
-      expect(sheet.K5).toContain("'สรุปผลรวม (8)'!J7");
+      expect(sheet.K5).toContain("'สรุปผลรวม (8)'!Q7");
+      expect(sheet.K5).not.toContain("'สรุปผลรวม (8)'!J7");
       expect(sheet.M5).toBe("=R5");
       expect(sheet.R5).toContain("'สรุปผลรวม (8)'!Q7");
       expect(sheet.T5).toBe("=R5");
