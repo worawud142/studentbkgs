@@ -33,6 +33,7 @@ const TERM_OPTIONS = [
 ] as const;
 
 const FIXED_FINAL_CATEGORY_NAMES = ["ปลายภาค 1", "ปลายภาค 2", "กลางภาค", "ปลายภาค"];
+const NORMALIZED_TOTAL_SCORE = 100;
 
 function isFixedFinalCategory(category: { name?: string }) {
   return FIXED_FINAL_CATEGORY_NAMES.includes(category.name || "");
@@ -189,7 +190,14 @@ export default function ScorePage() {
       total += val;
       maxTotal += max;
     });
-    return { total: Math.round(total * 100) / 100, max: Math.round(maxTotal * 100) / 100 };
+    const normalizedTotal =
+      maxTotal > 0 ? (total / maxTotal) * NORMALIZED_TOTAL_SCORE : 0;
+    return {
+      rawTotal: Math.round(total * 100) / 100,
+      rawMax: Math.round(maxTotal * 100) / 100,
+      total: Math.round(normalizedTotal * 100) / 100,
+      max: NORMALIZED_TOTAL_SCORE,
+    };
   };
 
   const scoreToGrade = (score: number, max: number): string => {
