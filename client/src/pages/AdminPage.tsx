@@ -35,6 +35,26 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import { isAdminRole, roleLabel } from "@shared/roles";
 import { useLocation } from "wouter";
 
+function formatTeacherName(row: any) {
+  return (
+    `${row?.profile?.prefix ?? ""}${row?.profile?.firstName ?? ""} ${row?.profile?.lastName ?? ""}`.trim() ||
+    row?.user?.name ||
+    row?.user?.email ||
+    ""
+  );
+}
+
+function formatHomeroomTeacherNames(classroom: any) {
+  const names = Array.isArray(classroom?.homeroomTeachers)
+    ? classroom.homeroomTeachers.map(formatTeacherName).filter(Boolean)
+    : [];
+  return names.length > 0 ? names.join(" / ") : "-";
+}
+
+function classroomAdvisorLabel(level?: "primary" | "secondary" | string) {
+  return level === "primary" ? "ครูประจำชั้น" : "ครูที่ปรึกษา";
+}
+
 export default function AdminPage() {
   const { user } = useAuth();
   const [, navigate] = useLocation();
@@ -241,7 +261,7 @@ function SystemDataTab() {
           </div>
           <div className="grid gap-3 md:grid-cols-3">
             <div>
-              <Label className="text-xs">ครูประจำชั้น</Label>
+              <Label className="text-xs">ครูที่ปรึกษา</Label>
               <Input
                 value={schoolForm.homeroomTeacherName}
                 onChange={e =>
@@ -458,7 +478,7 @@ function SystemDataTab() {
                         htmlFor="teacher-is-homeroom"
                         className="text-sm cursor-pointer"
                       >
-                        เป็นครูประจำชั้น
+                        เป็นครูประจำชั้น/ที่ปรึกษา
                       </Label>
                     </div>
                     <Button
@@ -803,7 +823,7 @@ function SystemDataTab() {
                   htmlFor="edit-teacher-is-homeroom"
                   className="text-sm cursor-pointer"
                 >
-                  เป็นครูประจำชั้น
+                  เป็นครูประจำชั้น/ที่ปรึกษา
                 </Label>
               </div>
               <Button
@@ -1421,7 +1441,9 @@ function ClassroomsTab() {
                 </Select>
               </div>
               <div>
-                <Label className="text-xs">ครูประจำชั้น (เลือกได้หลายคน)</Label>
+                <Label className="text-xs">
+                  {classroomAdvisorLabel(form.level)} (เลือกได้หลายคน)
+                </Label>
                 <div className="mt-1 max-h-40 space-y-2 overflow-y-auto rounded-lg border border-slate-200 p-3">
                   {teachers.map(t => {
                     const userId = String(t.user?.id ?? t.profile.userId);
@@ -1471,6 +1493,9 @@ function ClassroomsTab() {
               <th className="text-left px-4 py-3 text-slate-600 font-medium">
                 ระดับ
               </th>
+              <th className="text-left px-4 py-3 text-slate-600 font-medium hidden lg:table-cell">
+                ครูที่ปรึกษา / ครูประจำชั้น
+              </th>
               <th className="text-left px-4 py-3 text-slate-600 font-medium hidden md:table-cell">
                 ปีการศึกษา
               </th>
@@ -1490,9 +1515,15 @@ function ClassroomsTab() {
                         ? "badge-primary-level"
                         : "badge-secondary-level"
                     }
-                  >
-                    {c.level === "primary" ? "ประถม" : "มัธยม"}
-                  </span>
+                    >
+                      {c.level === "primary" ? "ประถม" : "มัธยม"}
+                    </span>
+                </td>
+                <td className="px-4 py-3 text-slate-600 hidden lg:table-cell">
+                  <div className="text-[11px] text-slate-400">
+                    {classroomAdvisorLabel(c.level)}
+                  </div>
+                  <div>{formatHomeroomTeacherNames(c)}</div>
                 </td>
                 <td className="px-4 py-3 text-slate-600 hidden md:table-cell">
                   {c.academicYearId}
@@ -1647,7 +1678,9 @@ function ClassroomsTab() {
                             </Select>
                           </div>
                           <div>
-                            <Label className="text-xs">ครูประจำชั้น (เลือกได้หลายคน)</Label>
+                            <Label className="text-xs">
+                              {classroomAdvisorLabel(editForm.level)} (เลือกได้หลายคน)
+                            </Label>
                             <div className="mt-1 max-h-40 space-y-2 overflow-y-auto rounded-lg border border-slate-200 p-3">
                               {teachers.map(t => {
                                 const userId = String(t.user?.id ?? t.profile.userId);

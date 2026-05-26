@@ -118,6 +118,22 @@ function safeFilePart(value: string) {
     .replace(/^_+|_+$/g, "");
 }
 
+function formatHomeroomTeacherName(row: any) {
+  return (
+    `${row?.profile?.prefix ?? ""}${row?.profile?.firstName ?? ""} ${row?.profile?.lastName ?? ""}`.trim() ||
+    row?.user?.name ||
+    row?.user?.email ||
+    ""
+  );
+}
+
+function formatHomeroomTeacherNames(classroom: any) {
+  const names = Array.isArray(classroom?.homeroomTeachers)
+    ? classroom.homeroomTeachers.map(formatHomeroomTeacherName).filter(Boolean)
+    : [];
+  return names.join(" / ");
+}
+
 function buildClassExportName(
   payload: Awaited<ReturnType<typeof buildClassPayload>>
 ) {
@@ -240,11 +256,15 @@ async function buildClassPayload(assignmentId: number) {
   const assignment = await getAssignmentById(assignmentId);
   if (!assignment) throw new Error("Assignment not found");
 
-  const classroom = assignment.classroom;
+  const classroom = assignment.classroom
+    ? await getClassroomById(assignment.assignment.classroomId)
+    : null;
   const subject = assignment.subject;
   const teacherName = assignment.teacherProfile
     ? `${assignment.teacherProfile.prefix ?? ""}${assignment.teacherProfile.firstName} ${assignment.teacherProfile.lastName}`.trim()
     : (assignment.teacher?.name ?? "");
+  const homeroomTeacherName =
+    formatHomeroomTeacherNames(classroom) || teacherName;
   const academicYear = await getAcademicYearById(
     assignment.assignment.academicYearId
   );
@@ -306,10 +326,11 @@ async function buildClassPayload(assignmentId: number) {
       subjectCredits: normalizeCellValue(subject?.credits),
       hoursPerWeek: assignment.assignment.hoursPerWeek ?? "",
       teacherName,
-      classroomName: classroom?.name ?? "",
-      classroomLevel: classroom?.level ?? "",
-      classroomGrade: classroom?.grade ?? null,
-      classroomRoom: classroom?.room ?? null,
+      homeroomTeacherName,
+      classroomName: classroom?.name ?? assignment.classroom?.name ?? "",
+      classroomLevel: classroom?.level ?? assignment.classroom?.level ?? "",
+      classroomGrade: classroom?.grade ?? assignment.classroom?.grade ?? null,
+      classroomRoom: classroom?.room ?? assignment.classroom?.room ?? null,
       academicYear: academicYear
         ? {
             year: academicYear.year,
