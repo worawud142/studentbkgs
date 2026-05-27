@@ -684,12 +684,12 @@ export default function AttendancePage() {
               </Button>
             </div>
 
-            <div className="grid grid-cols-1 xl:grid-cols-[minmax(420px,0.9fr)_minmax(320px,0.8fr)] gap-4">
-              <div className="rounded-xl bg-slate-950 overflow-hidden min-h-[300px] flex items-center justify-center">
-                <div className="relative h-full min-h-[300px] w-full">
+            <div className="grid max-w-[1180px] grid-cols-1 gap-4 xl:grid-cols-[minmax(560px,760px)_360px]">
+              <div className="rounded-xl bg-slate-950 overflow-hidden flex items-center justify-center">
+                <div className="relative aspect-[4/3] max-h-[56vh] min-h-[280px] w-full">
                   <video
                     ref={videoRef}
-                    className={`h-full min-h-[300px] max-h-[58vh] w-full object-cover ${scannerActive ? "block" : "hidden"}`}
+                    className={`h-full w-full object-cover ${scannerActive ? "block" : "hidden"}`}
                     muted
                     playsInline
                     autoPlay
@@ -701,7 +701,7 @@ export default function AttendancePage() {
                   />
                   {scannerActive ? (
                     <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                      <div className="h-72 w-72 rounded-[2rem] border-4 border-white/95 shadow-[0_0_0_999px_rgba(15,23,42,0.16)] md:h-80 md:w-80 xl:h-96 xl:w-96" />
+                      <div className="h-64 w-64 rounded-[2rem] border-4 border-white/95 shadow-[0_0_0_999px_rgba(15,23,42,0.16)] md:h-80 md:w-80 xl:h-[22rem] xl:w-[22rem]" />
                       <div
                         className={`absolute bottom-5 left-1/2 w-[min(90%,32rem)] -translate-x-1/2 rounded-xl border px-5 py-3 text-center text-base font-semibold shadow-lg backdrop-blur ${
                           scannerMessage.tone === "success"
@@ -723,7 +723,7 @@ export default function AttendancePage() {
                 </div>
               </div>
 
-              <div className="space-y-3">
+              <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/70 p-4 xl:w-[360px]">
                 {scannerError && (
                   <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
                     {scannerError}
@@ -733,7 +733,7 @@ export default function AttendancePage() {
                   <label className="text-xs font-medium text-slate-600">
                     กรอกรหัสจาก QR เอง
                   </label>
-                  <div className="mt-1 flex gap-2">
+                  <div className="mt-1 flex flex-col gap-2 sm:flex-row xl:flex-col">
                     <input
                       value={qrInput}
                       onChange={event => setQrInput(event.target.value)}
@@ -749,6 +749,7 @@ export default function AttendancePage() {
                     />
                     <Button
                       type="button"
+                      className="shrink-0"
                       onClick={() => {
                         markPresentFromQr(qrInput);
                         setQrInput("");
