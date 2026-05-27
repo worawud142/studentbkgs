@@ -154,6 +154,7 @@ export default function AttendancePage() {
   const scanLoopRef = useRef<number | null>(null);
   const lastScanRef = useRef("");
   const scannerMessageTimeoutRef = useRef<number | null>(null);
+  const scannerAudioContextRef = useRef<AudioContext | null>(null);
   const savingScanRef = useRef<Set<number>>(new Set());
 
   const utils = trpc.useUtils();
@@ -241,6 +242,34 @@ export default function AttendancePage() {
       setScannerMessage({ text: "วาง QR ให้อยู่ในกรอบ", tone: "idle" });
       scannerMessageTimeoutRef.current = null;
     }, SCANNER_MESSAGE_RESET_MS);
+  };
+
+  const playScannerSuccessSound = () => {
+    try {
+      const AudioContextClass =
+        window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioContextClass) return;
+      const context =
+        scannerAudioContextRef.current ?? new AudioContextClass();
+      scannerAudioContextRef.current = context;
+      const oscillator = context.createOscillator();
+      const gain = context.createGain();
+      oscillator.type = "sine";
+      oscillator.frequency.setValueAtTime(880, context.currentTime);
+      oscillator.frequency.exponentialRampToValueAtTime(
+        1320,
+        context.currentTime + 0.08
+      );
+      gain.gain.setValueAtTime(0.001, context.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.2, context.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.16);
+      oscillator.connect(gain);
+      gain.connect(context.destination);
+      oscillator.start();
+      oscillator.stop(context.currentTime + 0.18);
+    } catch {
+      // Browsers can block audio in some contexts; scanning should still succeed.
+    }
   };
   const deleteOneAttendance = trpc.attendance.deleteOne.useMutation({
     onSuccess: () => {
@@ -392,6 +421,7 @@ export default function AttendancePage() {
         text: `เช็คชื่อแล้ว: ${student.prefix || ""}${student.firstName} ${student.lastName}`,
         tone: "success",
       });
+      playScannerSuccessSound();
       resetScannerMessageSoon();
     } finally {
       window.setTimeout(() => {
@@ -684,7 +714,7 @@ export default function AttendancePage() {
               </Button>
             </div>
 
-            <div className="grid max-w-[1180px] grid-cols-1 gap-4 xl:grid-cols-[minmax(560px,760px)_360px]">
+            <div className="mx-auto grid max-w-[1180px] grid-cols-1 gap-4 xl:grid-cols-[minmax(560px,760px)_360px]">
               <div className="rounded-xl bg-slate-950 overflow-hidden flex items-center justify-center">
                 <div className="relative aspect-[4/3] max-h-[56vh] min-h-[280px] w-full">
                   <video
@@ -703,15 +733,18 @@ export default function AttendancePage() {
                     <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
                       <div className="h-64 w-64 rounded-[2rem] border-4 border-white/95 shadow-[0_0_0_999px_rgba(15,23,42,0.16)] md:h-80 md:w-80 xl:h-[22rem] xl:w-[22rem]" />
                       <div
-                        className={`absolute bottom-5 left-1/2 w-[min(90%,32rem)] -translate-x-1/2 rounded-xl border px-5 py-3 text-center text-base font-semibold shadow-lg backdrop-blur ${
+                        className={`absolute bottom-5 left-1/2 flex w-[min(90%,32rem)] -translate-x-1/2 items-center justify-center gap-2 rounded-xl border px-5 py-3 text-center text-base font-semibold shadow-lg backdrop-blur ${
                           scannerMessage.tone === "success"
                             ? "border-green-200 bg-green-50/95 text-green-800"
                             : scannerMessage.tone === "error"
                               ? "border-red-200 bg-red-50/95 text-red-800"
                               : "border-slate-700 bg-slate-950/80 text-white"
-                        }`}
+                          }`}
                       >
-                        {scannerMessage.text}
+                        {scannerMessage.tone === "success" && (
+                          <CheckCircle2 className="h-5 w-5 shrink-0" />
+                        )}
+                        <span>{scannerMessage.text}</span>
                       </div>
                     </div>
                   ) : (
