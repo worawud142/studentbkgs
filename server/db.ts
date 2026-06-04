@@ -1230,9 +1230,11 @@ export async function createQrScanDevice(data: {
   if (!db) throw new Error("DB not available");
   await ensureQrScanTables();
   const token = generateQrBoxToken();
+  const id = await getNextNumericId(qrScanDevices, qrScanDevices.id);
   const [result] = await db
     .insert(qrScanDevices)
     .values({
+      id,
       name: data.name,
       assignmentId: data.assignmentId,
       deviceTokenHash: hashQrBoxToken(token),
@@ -1373,8 +1375,10 @@ export async function recordQrScanLog(data: {
   if (!db) throw new Error("DB not available");
   await ensureQrScanTables();
   const scannedAt = data.scannedAt ?? new Date();
+  const id = await getNextNumericId(qrScanLogs, qrScanLogs.id);
   await db.transaction(async tx => {
     await tx.insert(qrScanLogs).values({
+      id,
       deviceId: data.deviceId,
       assignmentId: data.assignmentId,
       studentId: data.studentId ?? null,
