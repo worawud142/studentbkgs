@@ -28,6 +28,8 @@ import {
   GraduationCap,
   CheckCircle2,
   Edit2,
+  QrCode,
+  Wifi,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -212,6 +214,9 @@ function SystemDataTab() {
   const { data: teacherRows = [] } = trpc.teacher.allProfiles.useQuery();
   const { data: userRows = [] } = trpc.teacher.allUsers.useQuery();
   const { data: classrooms = [] } = trpc.classroom.list.useQuery({});
+  const { data: qrBoxes = [] } = trpc.qrBox.list.useQuery(undefined, {
+    refetchOnWindowFocus: false,
+  });
   const [showAddTeacher, setShowAddTeacher] = useState(false);
   const [editTeacher, setEditTeacher] = useState<any>(null);
   const [resetTeacher, setResetTeacher] = useState<{
@@ -314,6 +319,29 @@ function SystemDataTab() {
 
   return (
     <div className="space-y-4">
+      <div className="bg-gradient-to-r from-slate-900 to-indigo-900 rounded-xl border border-slate-800 overflow-hidden text-white">
+        <div className="p-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2">
+              <QrCode className="w-5 h-5 text-indigo-200" />
+              <h3 className="font-semibold text-lg">กล่องสแกน QR</h3>
+            </div>
+            <p className="text-sm text-slate-300 max-w-2xl">
+              จัดการ ESP32-S3 + GM65, ดูสถานะออนไลน์, หมุน token และดู log การสแกนจากหน้าคอนโซลได้ที่นี่
+            </p>
+            <p className="text-xs text-slate-400">
+              มีทั้งหมด {qrBoxes.length} กล่อง · ออนไลน์ {qrBoxes.filter((box: any) => box.lastSeenAt && Date.now() - new Date(box.lastSeenAt).getTime() < 5 * 60 * 1000).length} กล่อง
+            </p>
+          </div>
+          <Button asChild className="bg-white text-slate-950 hover:bg-slate-100">
+            <a href="/admin/qr-boxes">
+              <Wifi className="w-4 h-4 mr-2" />
+              เปิดหน้าคอนโซลกล่อง
+            </a>
+          </Button>
+        </div>
+      </div>
+
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-200">
           <h3 className="font-semibold text-slate-900">ตั้งค่าโรงเรียนสำหรับ ปพ.6</h3>
