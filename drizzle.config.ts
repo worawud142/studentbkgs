@@ -24,6 +24,8 @@ export default defineConfig({
     "subjects",
     "teaching_assignments",
     "attendance",
+    "qr_scan_devices",
+    "qr_scan_logs",
     "score_categories",
     "scores",
     "grade_results",

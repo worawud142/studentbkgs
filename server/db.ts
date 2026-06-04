@@ -160,6 +160,40 @@ async function ensureClassroomHomeroomTable() {
   `));
 }
 
+async function ensureQrScanTables() {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const schemaName = quotedSchemaName();
+  await db.execute(sql.raw(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`));
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS ${schemaName}."qr_scan_devices" (
+      "id" serial PRIMARY KEY,
+      "name" varchar(120) NOT NULL,
+      "assignmentId" integer NOT NULL,
+      "deviceTokenHash" varchar(128) NOT NULL UNIQUE,
+      "isActive" boolean NOT NULL DEFAULT true,
+      "lastSeenAt" timestamptz,
+      "lastScanAt" timestamptz,
+      "createdBy" integer NOT NULL,
+      "createdAt" timestamptz NOT NULL DEFAULT now(),
+      "updatedAt" timestamptz NOT NULL DEFAULT now()
+    )
+  `));
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS ${schemaName}."qr_scan_logs" (
+      "id" serial PRIMARY KEY,
+      "deviceId" integer NOT NULL,
+      "assignmentId" integer NOT NULL,
+      "studentId" integer,
+      "rawValue" text NOT NULL,
+      "status" varchar(32) NOT NULL,
+      "message" text,
+      "scannedAt" timestamptz NOT NULL DEFAULT now(),
+      "createdAt" timestamptz NOT NULL DEFAULT now()
+    )
+  `));
+}
+
 // ─── Users ────────────────────────────────────────────────────────────────────
 export async function upsertUser(user: InsertUser): Promise<void> {
   if (!user.openId) throw new Error("User openId is required for upsert");
@@ -1131,6 +1165,7 @@ function sanitizeUserRow(user: typeof users.$inferSelect | null | undefined) {
 export async function getQrScanDevices() {
   const db = await getDb();
   if (!db) return [];
+  await ensureQrScanTables();
   const rows = await db
     .select({
       device: qrScanDevices,
@@ -1161,6 +1196,7 @@ export async function getQrScanDevices() {
 export async function getQrScanDeviceById(id: number) {
   const db = await getDb();
   if (!db) return null;
+  await ensureQrScanTables();
   const result = await db
     .select({
       device: qrScanDevices,
@@ -1192,6 +1228,7 @@ export async function createQrScanDevice(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
+  await ensureQrScanTables();
   const token = generateQrBoxToken();
   const [result] = await db
     .insert(qrScanDevices)
@@ -1218,6 +1255,7 @@ export async function updateQrScanDevice(
 ) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
+  await ensureQrScanTables();
   await db
     .update(qrScanDevices)
     .set({
@@ -1230,6 +1268,7 @@ export async function updateQrScanDevice(
 export async function rotateQrScanDeviceToken(id: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
+  await ensureQrScanTables();
   const token = generateQrBoxToken();
   await db
     .update(qrScanDevices)
@@ -1244,6 +1283,7 @@ export async function rotateQrScanDeviceToken(id: number) {
 export async function deleteQrScanDevice(id: number) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
+  await ensureQrScanTables();
   await db.delete(qrScanDevices).where(eq(qrScanDevices.id, id));
 }
 
@@ -1253,6 +1293,7 @@ export async function touchQrScanDevice(
 ) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
+  await ensureQrScanTables();
   await db
     .update(qrScanDevices)
     .set({
@@ -1268,6 +1309,7 @@ export async function verifyQrScanDeviceToken(
 ): Promise<boolean> {
   const db = await getDb();
   if (!db) return false;
+  await ensureQrScanTables();
   const result = await db
     .select({
       deviceTokenHash: qrScanDevices.deviceTokenHash,
@@ -1285,6 +1327,7 @@ export async function getQrScanLogs(options?: {
 }) {
   const db = await getDb();
   if (!db) return [];
+  await ensureQrScanTables();
   const limit = Math.max(1, Math.min(options?.limit ?? 50, 200));
   const conditions = [] as any[];
   if (options?.deviceId) {
@@ -1328,6 +1371,7 @@ export async function recordQrScanLog(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
+  await ensureQrScanTables();
   const scannedAt = data.scannedAt ?? new Date();
   await db.transaction(async tx => {
     await tx.insert(qrScanLogs).values({
