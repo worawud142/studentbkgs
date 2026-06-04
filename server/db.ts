@@ -1388,6 +1388,47 @@ export async function getCurrentTeachingScheduleSlotForClassroom(
   };
 }
 
+export async function getCurrentTeachingScheduleSlot(at = new Date()) {
+  const db = await getDb();
+  if (!db) return null;
+  await ensureTeachingScheduleTables();
+  const nowParts = currentBangkokDateTimeParts(at);
+  const rows = await db
+    .select({
+      slot: teachingScheduleSlots,
+      assignment: teachingAssignments,
+      subject: subjects,
+      classroom: classrooms,
+      teacher: users,
+      teacherProfile: teacherProfiles,
+    })
+    .from(teachingScheduleSlots)
+    .leftJoin(
+      teachingAssignments,
+      eq(teachingScheduleSlots.assignmentId, teachingAssignments.id)
+    )
+    .leftJoin(subjects, eq(teachingAssignments.subjectId, subjects.id))
+    .leftJoin(classrooms, eq(teachingAssignments.classroomId, classrooms.id))
+    .leftJoin(users, eq(teachingAssignments.teacherId, users.id))
+    .leftJoin(
+      teacherProfiles,
+      eq(teachingAssignments.teacherId, teacherProfiles.userId)
+    )
+    .where(eq(teachingScheduleSlots.isActive, true))
+    .orderBy(
+      teachingScheduleSlots.dayOfWeek,
+      teachingScheduleSlots.startTime,
+      teachingScheduleSlots.id
+    );
+
+  const matched = rows.find(row => slotMatchesNow(row.slot, nowParts));
+  if (!matched) return null;
+  return {
+    ...matched,
+    teacher: sanitizeUserRow(matched.teacher),
+  };
+}
+
 export async function getCurrentTeachingScheduleSlotForAssignment(
   assignmentId: number,
   at = new Date()

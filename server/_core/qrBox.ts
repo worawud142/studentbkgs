@@ -6,7 +6,7 @@ import {
 } from "../../shared/qr";
 import {
   closeActiveQrScanSession,
-  getCurrentTeachingScheduleAssignmentForClassroom,
+  getCurrentTeachingScheduleSlot,
   getActiveQrScanSessionByDeviceId,
   getQrScanDeviceById,
   getUserByTeacherCode,
@@ -68,11 +68,7 @@ export function registerQrBoxRoutes(app: Express) {
         lastScanAt: device.lastScanAt,
       },
       assignment: device.assignment,
-      activeTimetableAssignment: device.assignment?.assignment?.classroomId
-        ? await getCurrentTeachingScheduleAssignmentForClassroom(
-            device.assignment.assignment.classroomId
-          )
-        : null,
+      activeTimetableAssignment: await getCurrentTeachingScheduleSlot(),
       activeSession: await getActiveQrScanSessionByDeviceId(deviceId),
       serverDate: await scanDateKeyFromNow(),
       scanEndpoint: `/api/qr-boxes/${deviceId}/scan`,
@@ -196,10 +192,7 @@ export function registerQrBoxRoutes(app: Express) {
       }
     }
 
-    const deviceClassroomId = device.assignment?.assignment?.classroomId ?? null;
-    const timetableAssignment = deviceClassroomId
-      ? await getCurrentTeachingScheduleAssignmentForClassroom(deviceClassroomId)
-      : null;
+    const timetableAssignment = await getCurrentTeachingScheduleSlot();
     const activeSession = await getActiveQrScanSessionByDeviceId(deviceId);
     const activeAssignment =
       timetableAssignment?.assignment ??
@@ -207,7 +200,7 @@ export function registerQrBoxRoutes(app: Express) {
       device.assignment ??
       null;
     const activeAssignmentId =
-      timetableAssignment?.assignment?.assignment?.id ??
+      timetableAssignment?.assignment?.id ??
       activeSession?.assignmentId ??
       device.assignmentId ??
       null;
@@ -216,7 +209,7 @@ export function registerQrBoxRoutes(app: Express) {
       const session = await openTeacherQrSession({
         deviceId,
         teacherUserId: teacherUser.id,
-        assignmentId: timetableAssignment?.assignment?.assignment?.id,
+        assignmentId: timetableAssignment?.assignment?.id,
       });
 
       if (!session?.assignment?.assignment?.classroomId && !timetableAssignment) {
@@ -262,10 +255,10 @@ export function registerQrBoxRoutes(app: Express) {
         deviceId,
         assignmentId: device.assignmentId,
         rawValue,
-        status: "missing_assignment",
-        message: "device has no classroom assignment",
+        status: "missing_timetable",
+        message: "no active timetable slot",
       });
-      res.status(409).json({ error: "Device has no assignment" });
+      res.status(409).json({ error: "ไม่มีคาบสอนที่ active อยู่ตอนนี้" });
       return;
     }
 
@@ -275,10 +268,10 @@ export function registerQrBoxRoutes(app: Express) {
         deviceId,
         assignmentId: effectiveAssignmentId,
         rawValue,
-        status: "missing_assignment",
-        message: "assignment has no classroom",
+        status: "missing_timetable",
+        message: "active timetable has no classroom",
       });
-      res.status(409).json({ error: "Device has no classroom assignment" });
+      res.status(409).json({ error: "ไม่มีคาบสอนที่ active อยู่ตอนนี้" });
       return;
     }
 
