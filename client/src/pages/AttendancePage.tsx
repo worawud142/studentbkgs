@@ -159,6 +159,7 @@ export default function AttendancePage() {
   const savingScanRef = useRef<Set<number>>(new Set());
 
   const utils = trpc.useUtils();
+  const shouldPollLiveAttendance = selectedDate === today;
   const { data: assignment } = trpc.assignment.get.useQuery(
     { id: aId },
     {
@@ -183,8 +184,9 @@ export default function AttendancePage() {
       { assignmentId: aId, date: selectedDate },
       {
         enabled: Number.isFinite(aId),
-        staleTime: 30_000,
-        refetchOnWindowFocus: false,
+        staleTime: shouldPollLiveAttendance ? 0 : 30_000,
+        refetchOnWindowFocus: shouldPollLiveAttendance,
+        refetchInterval: shouldPollLiveAttendance ? 2000 : false,
       }
     );
   const { data: attendanceDates = EMPTY_DATES } =
@@ -192,8 +194,9 @@ export default function AttendancePage() {
       { assignmentId: aId },
       {
         enabled: Number.isFinite(aId),
-        staleTime: 60_000,
-        refetchOnWindowFocus: false,
+        staleTime: shouldPollLiveAttendance ? 0 : 60_000,
+        refetchOnWindowFocus: shouldPollLiveAttendance,
+        refetchInterval: shouldPollLiveAttendance ? 5000 : false,
       }
     );
   const { data: studentHistory = EMPTY_HISTORY } =
