@@ -23,6 +23,7 @@ export default defineConfig({
     "students",
     "subjects",
     "teaching_assignments",
+    "teaching_schedule_slots",
     "attendance",
     "qr_scan_devices",
     "qr_scan_logs",

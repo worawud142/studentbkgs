@@ -256,9 +256,9 @@ export default function Dashboard() {
                   <Badge variant="outline" className="border-indigo-300 bg-indigo-100 text-indigo-900">
                     QR ครู
                   </Badge>
-                  <CardTitle className="mt-3 text-slate-900">สแกน QR นี้เพื่อเปิดคาบอัตโนมัติ</CardTitle>
+                  <CardTitle className="mt-3 text-slate-900">QR สำรองสำหรับเปิดคาบด้วยครู</CardTitle>
                   <CardDescription className="mt-2 text-slate-600">
-                    เครื่องสแกนจะใช้ห้องล่าสุดที่คุณเคยเช็คชื่อไว้ แล้วลงนักเรียนต่อได้เลย
+                    ระบบจะใช้ตารางสอนเป็นหลัก และ QR นี้เป็นทางเลือกสำรองเมื่ออยากเปิดคาบเอง
                   </CardDescription>
                 </div>
                 <div className="rounded-xl border border-indigo-200 bg-white px-4 py-2 text-sm font-semibold text-indigo-900">
@@ -286,11 +286,11 @@ export default function Dashboard() {
                     ใช้งานอย่างไร
                   </p>
                   <p>1. เปิดเครื่อง ESP32 + GM65</p>
-                  <p>2. สแกน QR ครูของคุณ 1 ครั้ง</p>
-                  <p>3. เครื่องจะเปิดห้องล่าสุดที่คุณใช้โดยอัตโนมัติ</p>
+                  <p>2. โดยปกติระบบจะอิงตารางสอนอัตโนมัติ</p>
+                  <p>3. หากต้องการสำรอง สามารถสแกน QR ครู 1 ครั้ง</p>
                   <p>4. จากนั้นให้นักเรียนสแกน QR ได้เลย</p>
                   <p className="text-xs text-slate-400">
-                    ถ้าต้องการเปลี่ยนห้อง ระบบจะใช้ห้องล่าสุดที่คุณเคยเช็คชื่อไว้เป็นค่าหลัก
+                    ถ้าตั้งตารางสอนครบ เครื่องจะใช้คาบที่ตรงกับวันและเวลาโดยอัตโนมัติ
                   </p>
                 </div>
               </div>

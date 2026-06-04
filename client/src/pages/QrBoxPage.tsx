@@ -54,6 +54,18 @@ function assignmentLabel(row: any) {
   return `${subject} · ${classroom}${academicYear ? ` · ${academicYear}${semester}` : ""}`;
 }
 
+function dayOfWeekLongLabel(dayOfWeek: number) {
+  return [
+    "อาทิตย์",
+    "จันทร์",
+    "อังคาร",
+    "พุธ",
+    "พฤหัสบดี",
+    "ศุกร์",
+    "เสาร์",
+  ][dayOfWeek] || "-";
+}
+
 export default function QrBoxPage() {
   const { user } = useAuth();
   const utils = trpc.useUtils();
@@ -367,6 +379,12 @@ export default function QrBoxPage() {
                             </Badge>
                           </div>
                           <p className="text-sm text-slate-600">{assignmentLabel(device.assignment)}</p>
+                          {device.activeTimetableAssignment?.assignment && (
+                            <p className="text-xs text-indigo-600">
+                              คาบปัจจุบัน: {device.activeTimetableAssignment.slot?.label || "คาบ"} ·{" "}
+                              {assignmentLabel(device.activeTimetableAssignment.assignment)}
+                            </p>
+                          )}
                           <p className="text-xs text-slate-400">
                             last seen {formatDateTime(device.lastSeenAt)} · last scan {formatDateTime(device.lastScanAt)}
                           </p>
@@ -497,6 +515,21 @@ export default function QrBoxPage() {
               <CardDescription>ลิงก์และการตั้งค่าที่ ESP32-S3 ใช้ได้ทันที</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm text-slate-600">
+              {selectedDevice.activeTimetableAssignment?.assignment && (
+                <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-indigo-900">
+                  <p className="text-xs font-medium uppercase tracking-wide text-indigo-700">คาบตามตารางสอนตอนนี้</p>
+                  <p className="mt-1 font-semibold">
+                    {selectedDevice.activeTimetableAssignment.slot?.label || "คาบ"}
+                  </p>
+                  <p className="text-sm text-indigo-700">
+                    {assignmentLabel(selectedDevice.activeTimetableAssignment.assignment)}
+                  </p>
+                  <p className="text-xs text-indigo-600">
+                    {dayOfWeekLongLabel(selectedDevice.activeTimetableAssignment.slot?.dayOfWeek ?? 0)} ·{" "}
+                    {selectedDevice.activeTimetableAssignment.slot?.startTime} - {selectedDevice.activeTimetableAssignment.slot?.endTime}
+                  </p>
+                </div>
+              )}
               {selectedDevice.activeSession ? (
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
                   <div className="flex flex-wrap items-center justify-between gap-3">

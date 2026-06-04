@@ -28,10 +28,11 @@ import {
   GraduationCap,
   CheckCircle2,
   Edit2,
+  Clock3,
   QrCode,
   Wifi,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
 import { isAdminRole, roleLabel } from "@shared/roles";
@@ -59,6 +60,22 @@ function classroomAdvisorLabel(level?: "primary" | "secondary" | string) {
 
 function classroomDisplayName(classroom: any) {
   return `${classroom.name} (${classroomAdvisorLabel(classroom.level)})`;
+}
+
+function dayOfWeekLabel(dayOfWeek: number) {
+  return ["อา.", "จ.", "อ.", "พ.", "พฤ.", "ศ.", "ส."][dayOfWeek] || "-";
+}
+
+function dayOfWeekLongLabel(dayOfWeek: number) {
+  return [
+    "อาทิตย์",
+    "จันทร์",
+    "อังคาร",
+    "พุธ",
+    "พฤหัสบดี",
+    "ศุกร์",
+    "เสาร์",
+  ][dayOfWeek] || "-";
 }
 
 function homeroomClassroomIdsForTeacher(classrooms: any[], userId: number) {
@@ -164,7 +181,7 @@ export default function AdminPage() {
     <TeacherLayout title="ผู้ดูแลระบบ">
       <div className="space-y-5 animate-fade-in">
         <Tabs defaultValue="academic">
-          <TabsList className="grid grid-cols-5 w-full max-w-4xl">
+          <TabsList className="grid grid-cols-6 w-full max-w-5xl">
             <TabsTrigger value="academic">
               <Calendar className="w-3 h-3 mr-1" />
               ปีการศึกษา
@@ -180,6 +197,10 @@ export default function AdminPage() {
             <TabsTrigger value="assignments">
               <GraduationCap className="w-3 h-3 mr-1" />
               มอบหมายวิชา
+            </TabsTrigger>
+            <TabsTrigger value="timetable">
+              <Clock3 className="w-3 h-3 mr-1" />
+              ตารางสอน
             </TabsTrigger>
             <TabsTrigger value="data">
               <Settings className="w-3 h-3 mr-1" />
@@ -198,6 +219,9 @@ export default function AdminPage() {
           </TabsContent>
           <TabsContent value="assignments" className="mt-4">
             <AssignmentsTab />
+          </TabsContent>
+          <TabsContent value="timetable" className="mt-4">
+            <TimetableTab />
           </TabsContent>
           <TabsContent value="data" className="mt-4">
             <SystemDataTab />
@@ -2731,6 +2755,398 @@ function AssignmentsTab() {
                           onClick={() => {
                             if (confirm("ลบการมอบหมายนี้?"))
                               del.mutate({ id: a.assignment.id });
+                          }}
+                          className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+// ─── Timetable Tab ───────────────────────────────────────────────────────────
+function TimetableTab() {
+  const utils = trpc.useUtils();
+  const { data: assignments = [] } = trpc.assignment.listAll.useQuery();
+  const { data: slots = [] } = trpc.timetable.list.useQuery(
+    { activeOnly: false },
+    { refetchOnWindowFocus: false }
+  );
+  const [showAdd, setShowAdd] = useState(false);
+  const [editSlot, setEditSlot] = useState<any>(null);
+  const [form, setForm] = useState({
+    assignmentId: "",
+    dayOfWeek: "1",
+    startTime: "08:30",
+    endTime: "09:20",
+    label: "",
+    isActive: true,
+  });
+  const [editForm, setEditForm] = useState({
+    assignmentId: "",
+    dayOfWeek: "1",
+    startTime: "08:30",
+    endTime: "09:20",
+    label: "",
+    isActive: true,
+  });
+
+  const assignmentOptions = useMemo(
+    () =>
+      assignments.map((row: any) => ({
+        id: row.assignment.id,
+        label: `${row.subject?.subjectCode || "-"} ${row.subject?.name || ""} · ${row.classroom?.name || "-"}`.trim(),
+      })),
+    [assignments]
+  );
+
+  const create = trpc.timetable.create.useMutation({
+    onSuccess: () => {
+      toast.success("เพิ่มตารางสอนเรียบร้อย");
+      utils.timetable.list.invalidate({ activeOnly: false });
+      setShowAdd(false);
+      setForm({
+        assignmentId: "",
+        dayOfWeek: "1",
+        startTime: "08:30",
+        endTime: "09:20",
+        label: "",
+        isActive: true,
+      });
+    },
+    onError: e => toast.error(e.message),
+  });
+  const update = trpc.timetable.update.useMutation({
+    onSuccess: () => {
+      toast.success("แก้ไขตารางสอนเรียบร้อย");
+      utils.timetable.list.invalidate({ activeOnly: false });
+      setEditSlot(null);
+    },
+    onError: e => toast.error(e.message),
+  });
+  const del = trpc.timetable.delete.useMutation({
+    onSuccess: () => {
+      toast.success("ลบตารางสอนเรียบร้อย");
+      utils.timetable.list.invalidate({ activeOnly: false });
+    },
+    onError: e => toast.error(e.message),
+  });
+
+  const handleSubmit = () => {
+    if (!form.assignmentId) return toast.error("กรุณาเลือกวิชา/ห้อง");
+    if (!form.startTime || !form.endTime) return toast.error("กรุณากำหนดเวลา");
+    create.mutate({
+      assignmentId: Number(form.assignmentId),
+      dayOfWeek: Number(form.dayOfWeek),
+      startTime: form.startTime,
+      endTime: form.endTime,
+      label: form.label.trim() || undefined,
+      isActive: form.isActive,
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="font-semibold text-slate-900">ตารางสอนรายสัปดาห์</h3>
+          <p className="text-xs text-slate-500 mt-1">
+            คาบที่ตรงกับวันและเวลาปัจจุบันจะถูกใช้เช็คชื่ออัตโนมัติ
+          </p>
+        </div>
+        <Dialog open={showAdd} onOpenChange={setShowAdd}>
+          <DialogTrigger asChild>
+            <Button size="sm" className="bg-blue-600 hover:bg-blue-700">
+              <Plus className="w-4 h-4 mr-1" />
+              เพิ่มคาบ
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>เพิ่มคาบสอน</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs">วิชา / ห้องเรียน *</Label>
+                <Select
+                  value={form.assignmentId}
+                  onValueChange={v => setForm({ ...form, assignmentId: v })}
+                >
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="เลือก assignment" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {assignmentOptions.map(option => (
+                      <SelectItem key={option.id} value={String(option.id)}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-3 gap-3">
+                <div>
+                  <Label className="text-xs">วัน *</Label>
+                  <Select
+                    value={form.dayOfWeek}
+                    onValueChange={v => setForm({ ...form, dayOfWeek: v })}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Array.from({ length: 7 }, (_, index) => (
+                        <SelectItem key={index} value={String(index)}>
+                          {dayOfWeekLongLabel(index)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">เริ่ม *</Label>
+                  <Input
+                    type="time"
+                    value={form.startTime}
+                    onChange={e => setForm({ ...form, startTime: e.target.value })}
+                    className="mt-1"
+                  />
+                </div>
+                <div>
+                  <Label className="text-xs">สิ้นสุด *</Label>
+                  <Input
+                    type="time"
+                    value={form.endTime}
+                    onChange={e => setForm({ ...form, endTime: e.target.value })}
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label className="text-xs">ชื่อคาบ (ไม่บังคับ)</Label>
+                <Input
+                  value={form.label}
+                  onChange={e => setForm({ ...form, label: e.target.value })}
+                  className="mt-1"
+                  placeholder="เช่น คาบ 1"
+                />
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="slot-active"
+                  checked={form.isActive}
+                  onChange={e => setForm({ ...form, isActive: e.target.checked })}
+                />
+                <Label htmlFor="slot-active" className="text-sm cursor-pointer">
+                  เปิดใช้งานคาบนี้
+                </Label>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setShowAdd(false)}>
+                  ยกเลิก
+                </Button>
+                <Button onClick={handleSubmit} disabled={create.isPending}>
+                  บันทึก
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-50 border-b border-slate-200">
+            <tr>
+              <th className="text-left px-4 py-3 text-slate-600 font-medium">คาบ</th>
+              <th className="text-left px-4 py-3 text-slate-600 font-medium">วัน</th>
+              <th className="text-left px-4 py-3 text-slate-600 font-medium">เวลา</th>
+              <th className="text-left px-4 py-3 text-slate-600 font-medium">assignment</th>
+              <th className="text-center px-4 py-3 text-slate-600 font-medium">สถานะ</th>
+              <th className="text-center px-4 py-3 text-slate-600 font-medium">จัดการ</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {slots.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="text-center py-10 text-slate-400">
+                  ยังไม่มีคาบสอน
+                </td>
+              </tr>
+            ) : (
+              slots.map((slot: any) => {
+                const assignmentLabel = `${slot.subject?.subjectCode || "-"} ${slot.subject?.name || ""} · ${slot.classroom?.name || "-"}`.trim();
+                return (
+                  <tr key={slot.slot.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-3 font-medium">
+                      {slot.slot.label || `คาบ ${slot.slot.id}`}
+                    </td>
+                    <td className="px-4 py-3">{dayOfWeekLongLabel(slot.slot.dayOfWeek)}</td>
+                    <td className="px-4 py-3">
+                      {slot.slot.startTime} - {slot.slot.endTime}
+                    </td>
+                    <td className="px-4 py-3">{assignmentLabel}</td>
+                    <td className="px-4 py-3 text-center">
+                      {slot.slot.isActive ? (
+                        <span className="text-xs font-semibold text-green-600">ใช้งาน</span>
+                      ) : (
+                        <span className="text-xs text-slate-400">ปิด</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex justify-center gap-2">
+                        <Dialog
+                          open={editSlot?.slot?.id === slot.slot.id}
+                          onOpenChange={open => !open && setEditSlot(null)}
+                        >
+                          <DialogTrigger asChild>
+                            <button
+                              onClick={() => {
+                                setEditForm({
+                                  assignmentId: String(slot.slot.assignmentId),
+                                  dayOfWeek: String(slot.slot.dayOfWeek),
+                                  startTime: slot.slot.startTime,
+                                  endTime: slot.slot.endTime,
+                                  label: slot.slot.label || "",
+                                  isActive: slot.slot.isActive,
+                                });
+                                setEditSlot(slot);
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                            </button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>แก้ไขคาบสอน</DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-3">
+                              <div>
+                                <Label className="text-xs">วิชา / ห้องเรียน *</Label>
+                                <Select
+                                  value={editForm.assignmentId}
+                                  onValueChange={v => setEditForm({ ...editForm, assignmentId: v })}
+                                >
+                                  <SelectTrigger className="mt-1">
+                                    <SelectValue placeholder="เลือก assignment" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {assignmentOptions.map(option => (
+                                      <SelectItem key={option.id} value={String(option.id)}>
+                                        {option.label}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                              <div className="grid grid-cols-3 gap-3">
+                                <div>
+                                  <Label className="text-xs">วัน *</Label>
+                                  <Select
+                                    value={editForm.dayOfWeek}
+                                    onValueChange={v => setEditForm({ ...editForm, dayOfWeek: v })}
+                                  >
+                                    <SelectTrigger className="mt-1">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {Array.from({ length: 7 }, (_, index) => (
+                                        <SelectItem key={index} value={String(index)}>
+                                          {dayOfWeekLongLabel(index)}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div>
+                                  <Label className="text-xs">เริ่ม *</Label>
+                                  <Input
+                                    type="time"
+                                    value={editForm.startTime}
+                                    onChange={e =>
+                                      setEditForm({ ...editForm, startTime: e.target.value })
+                                    }
+                                    className="mt-1"
+                                  />
+                                </div>
+                                <div>
+                                  <Label className="text-xs">สิ้นสุด *</Label>
+                                  <Input
+                                    type="time"
+                                    value={editForm.endTime}
+                                    onChange={e =>
+                                      setEditForm({ ...editForm, endTime: e.target.value })
+                                    }
+                                    className="mt-1"
+                                  />
+                                </div>
+                              </div>
+                              <div>
+                                <Label className="text-xs">ชื่อคาบ</Label>
+                                <Input
+                                  value={editForm.label}
+                                  onChange={e =>
+                                    setEditForm({ ...editForm, label: e.target.value })
+                                  }
+                                  className="mt-1"
+                                />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  id={`slot-active-${slot.slot.id}`}
+                                  checked={editForm.isActive}
+                                  onChange={e =>
+                                    setEditForm({ ...editForm, isActive: e.target.checked })
+                                  }
+                                />
+                                <Label
+                                  htmlFor={`slot-active-${slot.slot.id}`}
+                                  className="text-sm cursor-pointer"
+                                >
+                                  เปิดใช้งานคาบนี้
+                                </Label>
+                              </div>
+                              <div className="flex justify-end gap-2">
+                                <Button variant="outline" onClick={() => setEditSlot(null)}>
+                                  ยกเลิก
+                                </Button>
+                                <Button
+                                  onClick={() =>
+                                    update.mutate({
+                                      id: slot.slot.id,
+                                      assignmentId: editForm.assignmentId
+                                        ? Number(editForm.assignmentId)
+                                        : undefined,
+                                      dayOfWeek: Number(editForm.dayOfWeek),
+                                      startTime: editForm.startTime,
+                                      endTime: editForm.endTime,
+                                      label: editForm.label.trim() || undefined,
+                                      isActive: editForm.isActive,
+                                    })
+                                  }
+                                  disabled={update.isPending}
+                                >
+                                  บันทึก
+                                </Button>
+                              </div>
+                            </div>
+                          </DialogContent>
+                        </Dialog>
+                        <button
+                          onClick={() => {
+                            if (confirm("ลบคาบนี้?")) del.mutate({ id: slot.slot.id });
                           }}
                           className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                         >

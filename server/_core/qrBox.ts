@@ -6,6 +6,7 @@ import {
 } from "../../shared/qr";
 import {
   closeActiveQrScanSession,
+  getCurrentTeachingScheduleAssignmentForClassroom,
   getActiveQrScanSessionByDeviceId,
   getQrScanDeviceById,
   getUserByTeacherCode,
@@ -67,6 +68,11 @@ export function registerQrBoxRoutes(app: Express) {
         lastScanAt: device.lastScanAt,
       },
       assignment: device.assignment,
+      activeTimetableAssignment: device.assignment?.assignment?.classroomId
+        ? await getCurrentTeachingScheduleAssignmentForClassroom(
+            device.assignment.assignment.classroomId
+          )
+        : null,
       activeSession: await getActiveQrScanSessionByDeviceId(deviceId),
       serverDate: await scanDateKeyFromNow(),
       scanEndpoint: `/api/qr-boxes/${deviceId}/scan`,
@@ -190,13 +196,30 @@ export function registerQrBoxRoutes(app: Express) {
       }
     }
 
+    const deviceClassroomId = device.assignment?.assignment?.classroomId ?? null;
+    const timetableAssignment = deviceClassroomId
+      ? await getCurrentTeachingScheduleAssignmentForClassroom(deviceClassroomId)
+      : null;
+    const activeSession = await getActiveQrScanSessionByDeviceId(deviceId);
+    const activeAssignment =
+      timetableAssignment?.assignment ??
+      activeSession?.assignment ??
+      device.assignment ??
+      null;
+    const activeAssignmentId =
+      timetableAssignment?.assignment?.assignment?.id ??
+      activeSession?.assignmentId ??
+      device.assignmentId ??
+      null;
+
     if (teacherUser) {
       const session = await openTeacherQrSession({
         deviceId,
         teacherUserId: teacherUser.id,
+        assignmentId: timetableAssignment?.assignment?.assignment?.id,
       });
 
-      if (!session?.assignment?.assignment?.classroomId) {
+      if (!session?.assignment?.assignment?.classroomId && !timetableAssignment) {
         await recordQrScanLog({
           deviceId,
           assignmentId: device.assignmentId,
@@ -210,30 +233,29 @@ export function registerQrBoxRoutes(app: Express) {
 
       await recordQrScanLog({
         deviceId,
-        assignmentId: session.assignmentId,
+        assignmentId: session?.assignmentId ?? activeAssignmentId ?? device.assignmentId,
         rawValue,
-        status: "teacher_session_opened",
-        message: "teacher session opened",
+        status: timetableAssignment ? "teacher_session_opened_timetable" : "teacher_session_opened",
+        message: timetableAssignment ? "teacher session opened for timetable" : "teacher session opened",
         scannedAt: new Date(),
       });
 
       res.json({
         success: true,
-        status: "teacher_session_opened",
+        status: timetableAssignment ? "teacher_session_opened_timetable" : "teacher_session_opened",
         deviceId,
-        assignmentId: session.assignmentId,
+        assignmentId: session?.assignmentId ?? activeAssignmentId,
         teacher: {
           id: teacherUser.id,
         },
-        assignment: session.assignment,
+        assignment: session?.assignment ?? activeAssignment,
         candidates: collectTeacherQrCandidateValues(rawValue),
       });
       return;
     }
 
-    const session = await getActiveQrScanSessionByDeviceId(deviceId);
-    const effectiveAssignmentId =
-      session?.assignmentId ?? device.assignmentId ?? null;
+    const session = activeSession;
+    const effectiveAssignmentId = activeAssignmentId;
 
     if (!effectiveAssignmentId) {
       await recordQrScanLog({
@@ -247,8 +269,7 @@ export function registerQrBoxRoutes(app: Express) {
       return;
     }
 
-    const currentAssignment =
-      session?.assignment ?? device.assignment ?? null;
+    const currentAssignment = activeAssignment;
     if (!currentAssignment?.assignment?.classroomId) {
       await recordQrScanLog({
         deviceId,
@@ -289,7 +310,10 @@ export function registerQrBoxRoutes(app: Express) {
       studentId: student.id,
       date: new Date(`${date}T00:00:00.000Z`) as any,
       status: "present",
-      recordedBy: session?.teacherUserId ?? device.createdBy,
+      recordedBy:
+        session?.teacherUserId ??
+        currentAssignment?.assignment?.teacherId ??
+        device.createdBy,
       createdAt: new Date(),
       updatedAt: new Date(),
     });

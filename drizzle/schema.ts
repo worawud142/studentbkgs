@@ -310,6 +310,26 @@ export const teachingAssignments = appSchema.table("teaching_assignments", {
 export type TeachingAssignment = typeof teachingAssignments.$inferSelect;
 export type InsertTeachingAssignment = typeof teachingAssignments.$inferInsert;
 
+// ─── Teaching Schedule Slots (ตารางสอนรายสัปดาห์) ───────────────────────────
+export const teachingScheduleSlots = appSchema.table("teaching_schedule_slots", {
+  id: serial("id").primaryKey(),
+  assignmentId: integer("assignmentId").notNull(), // teachingAssignments.id
+  dayOfWeek: integer("dayOfWeek").notNull(), // 0=อาทิตย์ ... 6=เสาร์
+  startTime: varchar("startTime", { length: 5 }).notNull(), // HH:mm
+  endTime: varchar("endTime", { length: 5 }).notNull(), // HH:mm
+  label: varchar("label", { length: 120 }),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdAt: timestamp("createdAt", { mode: "date", withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updatedAt", { mode: "date", withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export type TeachingScheduleSlot = typeof teachingScheduleSlots.$inferSelect;
+export type InsertTeachingScheduleSlot = typeof teachingScheduleSlots.$inferInsert;
+
 // ─── Attendance ────────────────────────────────────────────────────────────────
 export const attendance = appSchema.table("attendance", {
   id: serial("id").primaryKey(),

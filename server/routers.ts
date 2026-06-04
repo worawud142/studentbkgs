@@ -23,6 +23,7 @@ import {
   createStudent,
   createSubject,
   createTeachingAssignment,
+  createTeachingScheduleSlot,
   createTeacherAccount,
   deleteClassroom,
   deleteAcademicYear,
@@ -32,6 +33,7 @@ import {
   deleteSubject,
   deleteTeacherAccount,
   deleteTeachingAssignment,
+  deleteTeachingScheduleSlot,
   getAcademicYears,
   getActiveAcademicYear,
   getAllTeachingAssignments,
@@ -61,6 +63,8 @@ import {
   getTeacherAssignments,
   getTeacherProfile,
   getSchoolSettings,
+  getTeachingScheduleSlotById,
+  getTeachingScheduleSlots,
   getQrScanDevices,
   getQrScanDeviceById,
   getQrScanLogs,
@@ -74,6 +78,7 @@ import {
   updateStudent,
   updateSubject,
   updateTeachingAssignment,
+  updateTeachingScheduleSlot,
   updateTeacherAccount,
   updateQrScanDevice,
   createQrScanDevice,
@@ -793,6 +798,76 @@ export const appRouter = router({
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
         await deleteTeachingAssignment(input.id);
+        return { success: true };
+      }),
+  }),
+
+  // ─── Timetable ────────────────────────────────────────────────────────────
+  timetable: router({
+    list: adminProcedure
+      .input(
+        z.object({
+          assignmentId: z.number().optional(),
+          classroomId: z.number().optional(),
+          activeOnly: z.boolean().optional(),
+        })
+      )
+      .query(async ({ input }) =>
+        getTeachingScheduleSlots({
+          assignmentId: input.assignmentId,
+          classroomId: input.classroomId,
+          activeOnly: input.activeOnly,
+        })
+      ),
+    get: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => getTeachingScheduleSlotById(input.id)),
+    create: adminProcedure
+      .input(
+        z.object({
+          assignmentId: z.number(),
+          dayOfWeek: z.number().int().min(0).max(6),
+          startTime: z.string().regex(/^([01]?\d|2[0-3]):[0-5]\d$/),
+          endTime: z.string().regex(/^([01]?\d|2[0-3]):[0-5]\d$/),
+          label: z.string().optional(),
+          isActive: z.boolean().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const id = await createTeachingScheduleSlot({
+          assignmentId: input.assignmentId,
+          dayOfWeek: input.dayOfWeek,
+          startTime: input.startTime,
+          endTime: input.endTime,
+          label: input.label ?? null,
+          isActive: input.isActive ?? true,
+        });
+        return { id };
+      }),
+    update: adminProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          assignmentId: z.number().optional(),
+          dayOfWeek: z.number().int().min(0).max(6).optional(),
+          startTime: z.string().regex(/^([01]?\d|2[0-3]):[0-5]\d$/).optional(),
+          endTime: z.string().regex(/^([01]?\d|2[0-3]):[0-5]\d$/).optional(),
+          label: z.string().optional(),
+          isActive: z.boolean().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        await updateTeachingScheduleSlot(id, {
+          ...data,
+          label: data.label ?? null,
+        });
+        return { success: true };
+      }),
+    delete: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteTeachingScheduleSlot(input.id);
         return { success: true };
       }),
   }),
