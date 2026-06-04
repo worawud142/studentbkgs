@@ -13,6 +13,7 @@ import {
   getAcademicPrintTemplateCandidates,
 } from "./academicPrintTemplates";
 import { registerOAuthRoutes } from "./oauth";
+import { registerQrBoxRoutes } from "./qrBox";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { isNodeExcelRuntime, isRemoteExcelRuntime } from "./excelRuntime";
@@ -381,6 +382,7 @@ export function createApp() {
   );
   // OAuth callback under /api/oauth/callback
   registerOAuthRoutes(app);
+  registerQrBoxRoutes(app);
   // tRPC API
   app.use(
     "/api/trpc",

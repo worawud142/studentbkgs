@@ -18,6 +18,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
 import { toast } from "sonner";
 import jsQR from "jsqr";
+import { collectQrCandidateValues } from "../../../shared/qr";
 
 type AttendanceStatus = "present" | "absent" | "late" | "excused";
 
@@ -362,35 +363,13 @@ export default function AttendancePage() {
   };
 
   const findStudentFromQr = (rawValue: string) => {
-    const value = rawValue.trim();
-    if (!value) return null;
-
-    const possibleValues = new Set([value]);
-    try {
-      const parsed = JSON.parse(value);
-      for (const key of ["studentId", "id", "studentCode", "code"]) {
-        if (parsed?.[key] !== undefined)
-          possibleValues.add(String(parsed[key]));
-      }
-    } catch {
-      // Plain text and URL QR codes are supported below.
-    }
-
-    try {
-      const url = new URL(value);
-      for (const key of ["studentId", "id", "studentCode", "code"]) {
-        const param = url.searchParams.get(key);
-        if (param) possibleValues.add(param);
-      }
-    } catch {
-      // Not a URL, keep treating it as plain text.
-    }
-
+    const candidates = new Set(collectQrCandidateValues(rawValue));
+    if (candidates.size === 0) return null;
     return (
       students.find(
         student =>
-          possibleValues.has(String(student.id)) ||
-          possibleValues.has(student.studentCode)
+          candidates.has(String(student.id)) ||
+          candidates.has(student.studentCode)
       ) ?? null
     );
   };

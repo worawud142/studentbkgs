@@ -64,6 +64,46 @@ export const documentTypeEnum = appSchema.enum("document_type", [
   "por6",
 ]);
 
+// ─── QR Scan Boxes ────────────────────────────────────────────────────────────
+export const qrScanDevices = appSchema.table("qr_scan_devices", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 120 }).notNull(),
+  assignmentId: integer("assignmentId").notNull(),
+  deviceTokenHash: varchar("deviceTokenHash", { length: 128 }).notNull().unique(),
+  isActive: boolean("isActive").default(true).notNull(),
+  lastSeenAt: timestamp("lastSeenAt", { mode: "date", withTimezone: true }),
+  lastScanAt: timestamp("lastScanAt", { mode: "date", withTimezone: true }),
+  createdBy: integer("createdBy").notNull(),
+  createdAt: timestamp("createdAt", { mode: "date", withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updatedAt", { mode: "date", withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export type QrScanDevice = typeof qrScanDevices.$inferSelect;
+export type InsertQrScanDevice = typeof qrScanDevices.$inferInsert;
+
+export const qrScanLogs = appSchema.table("qr_scan_logs", {
+  id: serial("id").primaryKey(),
+  deviceId: integer("deviceId").notNull(),
+  assignmentId: integer("assignmentId").notNull(),
+  studentId: integer("studentId"),
+  rawValue: text("rawValue").notNull(),
+  status: varchar("status", { length: 32 }).notNull(),
+  message: text("message"),
+  scannedAt: timestamp("scannedAt", { mode: "date", withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  createdAt: timestamp("createdAt", { mode: "date", withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export type QrScanLog = typeof qrScanLogs.$inferSelect;
+export type InsertQrScanLog = typeof qrScanLogs.$inferInsert;
+
 // ─── Users / Teachers ─────────────────────────────────────────────────────────
 export const users = appSchema.table("users", {
   id: serial("id").primaryKey(),

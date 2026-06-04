@@ -61,6 +61,9 @@ import {
   getTeacherAssignments,
   getTeacherProfile,
   getSchoolSettings,
+  getQrScanDevices,
+  getQrScanDeviceById,
+  getQrScanLogs,
   setActiveAcademicYear,
   setClassroomHomeroomTeachers,
   setTeacherHomeroomClassrooms,
@@ -71,6 +74,10 @@ import {
   updateSubject,
   updateTeachingAssignment,
   updateTeacherAccount,
+  updateQrScanDevice,
+  createQrScanDevice,
+  deleteQrScanDevice,
+  rotateQrScanDeviceToken,
   upsertGradeResult,
   upsertUser,
   upsertTeacherProfile,
@@ -881,6 +888,65 @@ export const appRouter = router({
       .query(async ({ input }) =>
         getAttendanceSummary(input.assignmentId, input.studentId)
       ),
+  }),
+
+  // ─── QR Scan Boxes ───────────────────────────────────────────────────────
+  qrBox: router({
+    list: adminProcedure.query(async () => getQrScanDevices()),
+    get: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .query(async ({ input }) => getQrScanDeviceById(input.id)),
+    logs: adminProcedure
+      .input(
+        z.object({
+          deviceId: z.number().optional(),
+          limit: z.number().int().min(1).max(200).default(50),
+        })
+      )
+      .query(async ({ input }) =>
+        getQrScanLogs({ deviceId: input.deviceId, limit: input.limit })
+      ),
+    create: adminProcedure
+      .input(
+        z.object({
+          name: z.string().min(1),
+          assignmentId: z.number(),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const result = await createQrScanDevice({
+          name: input.name,
+          assignmentId: input.assignmentId,
+          createdBy: ctx.user.id,
+        });
+        return result;
+      }),
+    update: adminProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          name: z.string().min(1).optional(),
+          assignmentId: z.number().optional(),
+          isActive: z.boolean().optional(),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const { id, ...data } = input;
+        await updateQrScanDevice(id, data);
+        return { success: true };
+      }),
+    rotateToken: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        const token = await rotateQrScanDeviceToken(input.id);
+        return { token };
+      }),
+    delete: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await deleteQrScanDevice(input.id);
+        return { success: true };
+      }),
   }),
 
   // ─── Scores ────────────────────────────────────────────────────────────────

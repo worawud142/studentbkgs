@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { randomUUID } from "crypto";
+import { createHash, randomUUID } from "crypto";
 import { Pool } from "pg";
 import {
   InsertUser,
@@ -10,6 +10,8 @@ import {
   classrooms,
   exportedDocuments,
   gradeResults,
+  qrScanDevices,
+  qrScanLogs,
   scoreCategories,
   schoolSettings,
   scores,
@@ -291,7 +293,8 @@ export async function resolveLoginUser(identifier: string) {
 export async function getAllUsers() {
   const db = await getDb();
   if (!db) return [];
-  return db.select().from(users).orderBy(desc(users.createdAt));
+  const rows = await db.select().from(users).orderBy(desc(users.createdAt));
+  return rows.map(sanitizeUserRow);
 }
 
 export async function updateUserRole(
@@ -375,11 +378,15 @@ export async function getAllTeacherProfiles() {
   const db = await getDb();
   if (!db) return [];
   try {
-    return db
+    const rows = await db
       .select({ profile: teacherProfiles, user: users })
       .from(teacherProfiles)
       .leftJoin(users, eq(teacherProfiles.userId, users.id))
       .orderBy(teacherProfiles.firstName);
+    return rows.map(row => ({
+      ...row,
+      user: sanitizeUserRow(row.user),
+    }));
   } catch (error) {
     console.warn("[Database] Failed to list teacher profiles:", error);
     return [];
@@ -1014,7 +1021,12 @@ export async function getAssignmentById(id: number) {
     )
     .where(eq(teachingAssignments.id, id))
     .limit(1);
-  return result[0] ?? null;
+  const row = result[0] ?? null;
+  if (!row) return null;
+  return {
+    ...row,
+    teacher: sanitizeUserRow(row.teacher),
+  };
 }
 
 export async function createTeachingAssignment(
@@ -1056,7 +1068,7 @@ export async function deleteTeachingAssignment(id: number) {
 export async function getAllTeachingAssignments() {
   const db = await getDb();
   if (!db) return [];
-  return db
+  const rows = await db
     .select({
       assignment: teachingAssignments,
       teacher: users,
@@ -1083,6 +1095,264 @@ export async function getAllTeachingAssignments() {
       classrooms.room,
       subjects.name
     );
+  return rows.map(row => ({
+    ...row,
+    teacher: sanitizeUserRow(row.teacher),
+  }));
+}
+
+function generateQrBoxToken() {
+  return randomUUID().replace(/-/g, "");
+}
+
+function hashQrBoxToken(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
+function currentBangkokDateKey() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const year = parts.find(part => part.type === "year")?.value ?? "0000";
+  const month = parts.find(part => part.type === "month")?.value ?? "01";
+  const day = parts.find(part => part.type === "day")?.value ?? "01";
+  return `${year}-${month}-${day}`;
+}
+
+function sanitizeUserRow(user: typeof users.$inferSelect | null | undefined) {
+  if (!user) return user;
+  const { passwordHash: _passwordHash, ...safeUser } = user;
+  return safeUser;
+}
+
+export async function getQrScanDevices() {
+  const db = await getDb();
+  if (!db) return [];
+  const rows = await db
+    .select({
+      device: qrScanDevices,
+      teacher: users,
+      teacherProfile: teacherProfiles,
+    })
+    .from(qrScanDevices)
+    .leftJoin(users, eq(qrScanDevices.createdBy, users.id))
+    .leftJoin(
+      teacherProfiles,
+      eq(qrScanDevices.createdBy, teacherProfiles.userId)
+    )
+    .orderBy(desc(qrScanDevices.updatedAt), desc(qrScanDevices.id));
+
+  return Promise.all(
+    rows.map(async row => {
+      const assignment = await getAssignmentById(row.device.assignmentId);
+      return {
+        ...row.device,
+        assignment,
+        createdByUser: sanitizeUserRow(row.teacher),
+        createdByProfile: row.teacherProfile,
+      };
+    })
+  );
+}
+
+export async function getQrScanDeviceById(id: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const result = await db
+    .select({
+      device: qrScanDevices,
+      teacher: users,
+      teacherProfile: teacherProfiles,
+    })
+    .from(qrScanDevices)
+    .leftJoin(users, eq(qrScanDevices.createdBy, users.id))
+    .leftJoin(
+      teacherProfiles,
+      eq(qrScanDevices.createdBy, teacherProfiles.userId)
+    )
+    .where(eq(qrScanDevices.id, id))
+    .limit(1);
+  if (result.length === 0) return null;
+  const row = result[0];
+  return {
+    ...row.device,
+    assignment: await getAssignmentById(row.device.assignmentId),
+    createdByUser: sanitizeUserRow(row.teacher),
+    createdByProfile: row.teacherProfile,
+  };
+}
+
+export async function createQrScanDevice(data: {
+  name: string;
+  assignmentId: number;
+  createdBy: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const token = generateQrBoxToken();
+  const [result] = await db
+    .insert(qrScanDevices)
+    .values({
+      name: data.name,
+      assignmentId: data.assignmentId,
+      deviceTokenHash: hashQrBoxToken(token),
+      createdBy: data.createdBy,
+      isActive: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .returning({ id: qrScanDevices.id });
+  return { id: result.id, token };
+}
+
+export async function updateQrScanDevice(
+  id: number,
+  data: Partial<{
+    name: string;
+    assignmentId: number;
+    isActive: boolean;
+  }>
+) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db
+    .update(qrScanDevices)
+    .set({
+      ...data,
+      updatedAt: new Date(),
+    })
+    .where(eq(qrScanDevices.id, id));
+}
+
+export async function rotateQrScanDeviceToken(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const token = generateQrBoxToken();
+  await db
+    .update(qrScanDevices)
+    .set({
+      deviceTokenHash: hashQrBoxToken(token),
+      updatedAt: new Date(),
+    })
+    .where(eq(qrScanDevices.id, id));
+  return token;
+}
+
+export async function deleteQrScanDevice(id: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db.delete(qrScanDevices).where(eq(qrScanDevices.id, id));
+}
+
+export async function touchQrScanDevice(
+  id: number,
+  data: { lastSeenAt?: Date; lastScanAt?: Date }
+) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db
+    .update(qrScanDevices)
+    .set({
+      ...data,
+      updatedAt: new Date(),
+    })
+    .where(eq(qrScanDevices.id, id));
+}
+
+export async function verifyQrScanDeviceToken(
+  id: number,
+  token: string
+): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const result = await db
+    .select({
+      deviceTokenHash: qrScanDevices.deviceTokenHash,
+    })
+    .from(qrScanDevices)
+    .where(and(eq(qrScanDevices.id, id), eq(qrScanDevices.isActive, true)))
+    .limit(1);
+  if (result.length === 0) return false;
+  return result[0].deviceTokenHash === hashQrBoxToken(token);
+}
+
+export async function getQrScanLogs(options?: {
+  deviceId?: number;
+  limit?: number;
+}) {
+  const db = await getDb();
+  if (!db) return [];
+  const limit = Math.max(1, Math.min(options?.limit ?? 50, 200));
+  const conditions = [] as any[];
+  if (options?.deviceId) {
+    conditions.push(eq(qrScanLogs.deviceId, options.deviceId));
+  }
+  const query = db
+    .select({
+      log: qrScanLogs,
+      device: qrScanDevices,
+      assignment: teachingAssignments,
+      subject: subjects,
+      classroom: classrooms,
+      student: students,
+      teacher: users,
+    })
+    .from(qrScanLogs)
+    .leftJoin(qrScanDevices, eq(qrScanLogs.deviceId, qrScanDevices.id))
+    .leftJoin(teachingAssignments, eq(qrScanLogs.assignmentId, teachingAssignments.id))
+    .leftJoin(subjects, eq(teachingAssignments.subjectId, subjects.id))
+    .leftJoin(classrooms, eq(teachingAssignments.classroomId, classrooms.id))
+    .leftJoin(students, eq(qrScanLogs.studentId, students.id))
+    .leftJoin(users, eq(qrScanDevices.createdBy, users.id));
+  const rows =
+    conditions.length > 0
+      ? await query.where(and(...conditions)).orderBy(desc(qrScanLogs.scannedAt), desc(qrScanLogs.id)).limit(limit)
+      : await query.orderBy(desc(qrScanLogs.scannedAt), desc(qrScanLogs.id)).limit(limit);
+  return rows.map(row => ({
+    ...row,
+    teacher: sanitizeUserRow(row.teacher),
+  }));
+}
+
+export async function recordQrScanLog(data: {
+  deviceId: number;
+  assignmentId: number;
+  studentId?: number | null;
+  rawValue: string;
+  status: string;
+  message?: string | null;
+  scannedAt?: Date;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const scannedAt = data.scannedAt ?? new Date();
+  await db.transaction(async tx => {
+    await tx.insert(qrScanLogs).values({
+      deviceId: data.deviceId,
+      assignmentId: data.assignmentId,
+      studentId: data.studentId ?? null,
+      rawValue: data.rawValue,
+      status: data.status,
+      message: data.message ?? null,
+      scannedAt,
+      createdAt: scannedAt,
+    });
+    await tx
+      .update(qrScanDevices)
+      .set({
+        lastSeenAt: scannedAt,
+        lastScanAt: scannedAt,
+        updatedAt: new Date(),
+      })
+      .where(eq(qrScanDevices.id, data.deviceId));
+  });
+}
+
+export async function resolveBangkokTodayAttendanceDate() {
+  return currentBangkokDateKey();
 }
 
 // ─── Attendance ────────────────────────────────────────────────────────────────

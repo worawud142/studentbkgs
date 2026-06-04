@@ -14,6 +14,7 @@ import ScorePage from "./pages/ScorePage";
 import StudentDetail from "./pages/StudentDetail";
 import DocumentsPage from "./pages/DocumentsPage";
 import AdminPage from "./pages/AdminPage";
+import QrBoxPage from "./pages/QrBoxPage";
 import PrintPor1 from "./pages/PrintPor1";
 import PrintPor6 from "./pages/PrintPor6";
 import PrintQrCards from "./pages/PrintQrCards";
@@ -31,6 +32,7 @@ function Router() {
       <Route path="/student/:id" component={StudentDetail} />
       <Route path="/documents" component={DocumentsPage} />
       <Route path="/admin" component={AdminPage} />
+      <Route path="/admin/qr-boxes" component={QrBoxPage} />
       <Route path="/print/por1/:assignmentId" component={PrintPor1} />
       <Route path="/print/por6/student/:studentId" component={PrintPor6} />
       <Route path="/print/por6/classroom/:classroomId" component={PrintPor6} />

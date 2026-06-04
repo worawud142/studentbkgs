@@ -315,6 +315,12 @@ export default function ClassroomDetail() {
                 พิมพ์ QR
               </Button>
             </Link>
+            <Link href={`/admin/qr-boxes?classroomId=${classroomId}`}>
+              <Button variant="outline" size="sm">
+                <QrCode className="w-4 h-4 mr-1" />
+                กล่องสแกน
+              </Button>
+            </Link>
             <Button asChild variant="outline" size="sm">
               <a href="/api/student-import-template">
                 <Download className="w-4 h-4 mr-1" />
