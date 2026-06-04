@@ -104,6 +104,28 @@ export const qrScanLogs = appSchema.table("qr_scan_logs", {
 export type QrScanLog = typeof qrScanLogs.$inferSelect;
 export type InsertQrScanLog = typeof qrScanLogs.$inferInsert;
 
+export const qrScanSessions = appSchema.table("qr_scan_sessions", {
+  id: serial("id").primaryKey(),
+  deviceId: integer("deviceId").notNull(),
+  teacherUserId: integer("teacherUserId").notNull(),
+  assignmentId: integer("assignmentId").notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
+  openedAt: timestamp("openedAt", { mode: "date", withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  lastScanAt: timestamp("lastScanAt", { mode: "date", withTimezone: true }),
+  closedAt: timestamp("closedAt", { mode: "date", withTimezone: true }),
+  createdAt: timestamp("createdAt", { mode: "date", withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updatedAt", { mode: "date", withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export type QrScanSession = typeof qrScanSessions.$inferSelect;
+export type InsertQrScanSession = typeof qrScanSessions.$inferInsert;
+
 // ─── Users / Teachers ─────────────────────────────────────────────────────────
 export const users = appSchema.table("users", {
   id: serial("id").primaryKey(),

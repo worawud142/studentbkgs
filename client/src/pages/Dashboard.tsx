@@ -17,11 +17,13 @@ import {
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useEffect, useMemo, useState } from "react";
+import QRCode from "qrcode";
 
 export default function Dashboard() {
   const { user, loading, isAuthenticated } = useAuth();
   const [, navigate] = useLocation();
   const [activeLevel, setActiveLevel] = useState<"all" | "primary" | "secondary">("all");
+  const [teacherQrSvg, setTeacherQrSvg] = useState("");
 
   const { data: profile, isLoading: profileLoading } = trpc.teacher.myProfile.useQuery(
     undefined,
@@ -51,6 +53,35 @@ export default function Dashboard() {
 
   const primaryAssignments = assignments.filter((a) => a.classroom?.level === "primary");
   const secondaryAssignments = assignments.filter((a) => a.classroom?.level === "secondary");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function buildTeacherQr() {
+      if (!profile?.teacherCode) {
+        setTeacherQrSvg("");
+        return;
+      }
+      const payload = JSON.stringify({
+        type: "teacher-session",
+        teacherCode: profile.teacherCode,
+      });
+      const svg = await QRCode.toString(payload, {
+        type: "svg",
+        width: 220,
+        margin: 1,
+        errorCorrectionLevel: "M",
+      });
+      if (!cancelled) {
+        setTeacherQrSvg(svg);
+      }
+    }
+
+    buildTeacherQr();
+    return () => {
+      cancelled = true;
+    };
+  }, [profile?.teacherCode]);
 
   useEffect(() => {
     if (!loading && !isAuthenticated) {
@@ -216,6 +247,56 @@ export default function Dashboard() {
             </div>
           )}
         </div>
+
+        {profile.teacherCode && (
+          <Card className="border-indigo-200 bg-gradient-to-r from-indigo-50 via-white to-sky-50">
+            <CardHeader className="pb-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <Badge variant="outline" className="border-indigo-300 bg-indigo-100 text-indigo-900">
+                    QR ครู
+                  </Badge>
+                  <CardTitle className="mt-3 text-slate-900">สแกน QR นี้เพื่อเปิดคาบอัตโนมัติ</CardTitle>
+                  <CardDescription className="mt-2 text-slate-600">
+                    เครื่องสแกนจะใช้ห้องล่าสุดที่คุณเคยเช็คชื่อไว้ แล้วลงนักเรียนต่อได้เลย
+                  </CardDescription>
+                </div>
+                <div className="rounded-xl border border-indigo-200 bg-white px-4 py-2 text-sm font-semibold text-indigo-900">
+                  รหัสครู: {profile.teacherCode}
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pb-6">
+              <div className="flex flex-col gap-4 md:flex-row md:items-center">
+                <div className="flex h-[220px] w-[220px] items-center justify-center rounded-2xl border-2 border-slate-200 bg-white p-3 shadow-sm">
+                  {teacherQrSvg ? (
+                    <div
+                      className="h-full w-full [&_svg]:h-full [&_svg]:w-full"
+                      dangerouslySetInnerHTML={{ __html: teacherQrSvg }}
+                      aria-label={`QR ครู ${profile.prefix ?? ""}${profile.firstName} ${profile.lastName}`}
+                    />
+                  ) : (
+                    <div className="text-center text-slate-400">
+                      กำลังสร้าง QR...
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-2 text-sm text-slate-600">
+                  <p className="font-medium text-slate-900">
+                    ใช้งานอย่างไร
+                  </p>
+                  <p>1. เปิดเครื่อง ESP32 + GM65</p>
+                  <p>2. สแกน QR ครูของคุณ 1 ครั้ง</p>
+                  <p>3. เครื่องจะเปิดห้องล่าสุดที่คุณใช้โดยอัตโนมัติ</p>
+                  <p>4. จากนั้นให้นักเรียนสแกน QR ได้เลย</p>
+                  <p className="text-xs text-slate-400">
+                    ถ้าต้องการเปลี่ยนห้อง ระบบจะใช้ห้องล่าสุดที่คุณเคยเช็คชื่อไว้เป็นค่าหลัก
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Assignments */}
         <div>

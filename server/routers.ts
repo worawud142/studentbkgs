@@ -64,6 +64,7 @@ import {
   getQrScanDevices,
   getQrScanDeviceById,
   getQrScanLogs,
+  closeActiveQrScanSession,
   setActiveAcademicYear,
   setClassroomHomeroomTeachers,
   setTeacherHomeroomClassrooms,
@@ -940,6 +941,12 @@ export const appRouter = router({
       .mutation(async ({ input }) => {
         const token = await rotateQrScanDeviceToken(input.id);
         return { token };
+      }),
+    closeSession: adminProcedure
+      .input(z.object({ deviceId: z.number() }))
+      .mutation(async ({ input }) => {
+        await closeActiveQrScanSession(input.deviceId);
+        return { success: true };
       }),
     delete: adminProcedure
       .input(z.object({ id: z.number() }))

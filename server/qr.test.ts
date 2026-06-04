@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { collectQrCandidateValues, findMatchingQrStudent } from "../shared/qr";
+import {
+  collectQrCandidateValues,
+  collectTeacherQrCandidateValues,
+  findMatchingQrStudent,
+} from "../shared/qr";
 
 describe("qr helper", () => {
   it("collects plain text, json, and url candidates", () => {
@@ -17,6 +21,15 @@ describe("qr helper", () => {
         "B009",
       ])
     );
+  });
+
+  it("collects teacher QR candidates", () => {
+    expect(
+      collectTeacherQrCandidateValues(
+        JSON.stringify({ type: "teacher-session", teacherCode: "T001" })
+      )
+    ).toEqual(expect.arrayContaining(["T001"]));
+    expect(collectTeacherQrCandidateValues("T002")).toEqual(["T002"]);
   });
 
   it("finds student by id or studentCode", () => {

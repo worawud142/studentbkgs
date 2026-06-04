@@ -17,6 +17,7 @@ import {
   Save,
   Shield,
   Trash2,
+  TimerReset,
   Wifi,
   WifiOff,
   QrCode,
@@ -65,6 +66,13 @@ export default function QrBoxPage() {
   const { data: devices = [], isLoading: devicesLoading } = trpc.qrBox.list.useQuery(undefined, {
     refetchOnWindowFocus: false,
   });
+  const { data: selectedDeviceDetails } = trpc.qrBox.get.useQuery(
+    { id: Number(selectedDeviceId) },
+    {
+      enabled: selectedDeviceId !== "all",
+      refetchOnWindowFocus: false,
+    }
+  );
   const { data: assignments = [] } = trpc.assignment.listAll.useQuery(undefined, {
     refetchOnWindowFocus: false,
   });
@@ -122,6 +130,17 @@ export default function QrBoxPage() {
     onError: error => toast.error(error.message),
   });
 
+  const closeSessionMutation = trpc.qrBox.closeSession.useMutation({
+    onSuccess: async () => {
+      toast.success("ปิด session ครูเรียบร้อย");
+      await utils.qrBox.list.invalidate();
+      if (selectedDeviceId !== "all") {
+        await utils.qrBox.get.invalidate({ id: Number(selectedDeviceId) });
+      }
+    },
+    onError: error => toast.error(error.message),
+  });
+
   if (!isAdminRole(user?.role)) {
     return (
       <TeacherLayout title="กล่องสแกน QR" backHref="/dashboard">
@@ -133,9 +152,12 @@ export default function QrBoxPage() {
     );
   }
 
-  const selectedDevice = selectedDeviceId === "all"
-    ? null
-    : devices.find((device: any) => String(device.id) === selectedDeviceId) ?? null;
+  const selectedDevice =
+    selectedDeviceId === "all"
+      ? null
+      : selectedDeviceDetails ??
+        devices.find((device: any) => String(device.id) === selectedDeviceId) ??
+        null;
 
   const handleSubmit = async () => {
     if (!form.name.trim()) {
@@ -475,6 +497,38 @@ export default function QrBoxPage() {
               <CardDescription>ลิงก์และการตั้งค่าที่ ESP32-S3 ใช้ได้ทันที</CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm text-slate-600">
+              {selectedDevice.activeSession ? (
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wide text-emerald-700">Session ครูที่เปิดอยู่</p>
+                      <p className="mt-1 font-semibold">
+                        {selectedDevice.activeSession.teacherProfile
+                          ? `${selectedDevice.activeSession.teacherProfile.prefix ?? ""}${selectedDevice.activeSession.teacherProfile.firstName} ${selectedDevice.activeSession.teacherProfile.lastName}`
+                          : `ครู userId ${selectedDevice.activeSession.teacherUserId}`}
+                      </p>
+                      <p className="text-sm text-emerald-700">
+                        {assignmentLabel(selectedDevice.activeSession.assignment)}
+                      </p>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        await closeSessionMutation.mutateAsync({ deviceId: selectedDevice.id });
+                      }}
+                      disabled={closeSessionMutation.isPending}
+                    >
+                      <TimerReset className="mr-1 h-4 w-4" />
+                      ปิดคาบ
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-4 text-slate-600">
+                  ยังไม่มี session ครูที่เปิดอยู่
+                </div>
+              )}
               <div className="grid gap-3 md:grid-cols-3">
                 <div>
                   <p className="text-xs text-slate-400">Scan Endpoint</p>

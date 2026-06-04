@@ -27,15 +27,13 @@ So the workflow is:
 
 ## Required libraries
 
-Install these from Arduino Library Manager:
-
-- `ArduinoJson`
-
 The ESP32 core already provides:
 
 - `WiFi`
 - `HTTPClient`
 - `WiFiClientSecure`
+
+No extra JSON library is required for this sketch.
 
 ## Wiring
 

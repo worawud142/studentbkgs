@@ -1,7 +1,6 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
-#include <ArduinoJson.h>
 
 // ============================================================
 // ESP32-S3 + GM65 QR Box
@@ -86,6 +85,94 @@ String buildUrl(const String& maybeRelativePath) {
     return maybeRelativePath;
   }
   return String(trimTrailingSlash(SERVER_BASE_URL)) + maybeRelativePath;
+}
+
+bool extractJsonObjectSection(const String& json, const char* key, String* out) {
+  String needle = String("\"") + key + "\"";
+  int keyPos = json.indexOf(needle);
+  if (keyPos < 0) return false;
+
+  int openBrace = json.indexOf('{', keyPos + needle.length());
+  if (openBrace < 0) return false;
+
+  int depth = 0;
+  for (int i = openBrace; i < static_cast<int>(json.length()); i++) {
+    char c = json[i];
+    if (c == '{') {
+      depth++;
+    } else if (c == '}') {
+      depth--;
+      if (depth == 0) {
+        *out = json.substring(openBrace + 1, i);
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool extractJsonStringField(const String& json, const char* key, String* out) {
+  String needle = String("\"") + key + "\"";
+  int keyPos = json.indexOf(needle);
+  if (keyPos < 0) return false;
+
+  int colonPos = json.indexOf(':', keyPos + needle.length());
+  if (colonPos < 0) return false;
+
+  int startQuote = json.indexOf('\"', colonPos);
+  if (startQuote < 0) return false;
+
+  int endQuote = startQuote + 1;
+  while (true) {
+    endQuote = json.indexOf('\"', endQuote);
+    if (endQuote < 0) return false;
+    if (json[endQuote - 1] != '\\') {
+      break;
+    }
+    endQuote++;
+  }
+
+  *out = json.substring(startQuote + 1, endQuote);
+  out->replace("\\/", "/");
+  out->replace("\\\\", "\\");
+  return true;
+}
+
+bool extractJsonBoolField(const String& json, const char* key, bool* out) {
+  String needle = String("\"") + key + "\"";
+  int keyPos = json.indexOf(needle);
+  if (keyPos < 0) return false;
+
+  int colonPos = json.indexOf(':', keyPos + needle.length());
+  if (colonPos < 0) return false;
+
+  String tail = json.substring(colonPos + 1);
+  tail.trim();
+  if (tail.startsWith("true")) {
+    *out = true;
+    return true;
+  }
+  if (tail.startsWith("false")) {
+    *out = false;
+    return true;
+  }
+  return false;
+}
+
+bool extractJsonIntField(const String& json, const char* key, int* out) {
+  String needle = String("\"") + key + "\"";
+  int keyPos = json.indexOf(needle);
+  if (keyPos < 0) return false;
+
+  int colonPos = json.indexOf(':', keyPos + needle.length());
+  if (colonPos < 0) return false;
+
+  String tail = json.substring(colonPos + 1);
+  tail.trim();
+
+  int value = tail.toInt();
+  *out = value;
+  return true;
 }
 
 void printWifiStatus() {
@@ -218,22 +305,33 @@ bool refreshDeviceConfig() {
     return false;
   }
 
-  DynamicJsonDocument doc(4096);
-  DeserializationError err = deserializeJson(doc, response);
-  if (err) {
-    Serial.print("[CFG] JSON parse error: ");
-    Serial.println(err.c_str());
+  String deviceSection;
+  if (!extractJsonObjectSection(response, "device", &deviceSection)) {
+    Serial.println("[CFG] missing device section");
     return false;
   }
 
-  JsonObject device = doc["device"].as<JsonObject>();
+  bool active = true;
+  String name;
+  int assignmentId = 0;
+  String scanEndpoint;
+  String pingEndpoint;
+  String serverDate;
+
+  if (!extractJsonBoolField(deviceSection, "isActive", &active)) active = true;
+  if (!extractJsonStringField(deviceSection, "name", &name)) name = "";
+  if (!extractJsonIntField(deviceSection, "assignmentId", &assignmentId)) assignmentId = 0;
+  if (!extractJsonStringField(response, "scanEndpoint", &scanEndpoint)) scanEndpoint = "";
+  if (!extractJsonStringField(response, "pingEndpoint", &pingEndpoint)) pingEndpoint = "";
+  if (!extractJsonStringField(response, "serverDate", &serverDate)) serverDate = "";
+
   deviceConfig.loaded = true;
-  deviceConfig.active = device["isActive"] | true;
-  deviceConfig.name = device["name"] | "";
-  deviceConfig.assignmentId = device["assignmentId"] | 0;
-  deviceConfig.scanEndpoint = doc["scanEndpoint"] | "";
-  deviceConfig.pingEndpoint = doc["pingEndpoint"] | "";
-  deviceConfig.serverDate = doc["serverDate"] | "";
+  deviceConfig.active = active;
+  deviceConfig.name = name;
+  deviceConfig.assignmentId = assignmentId;
+  deviceConfig.scanEndpoint = scanEndpoint;
+  deviceConfig.pingEndpoint = pingEndpoint;
+  deviceConfig.serverDate = serverDate;
 
   lastConfigRefreshAt = millis();
 

@@ -26,6 +26,7 @@ export default defineConfig({
     "attendance",
     "qr_scan_devices",
     "qr_scan_logs",
+    "qr_scan_sessions",
     "score_categories",
     "scores",
     "grade_results",

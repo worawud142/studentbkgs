@@ -12,6 +12,7 @@ import {
   gradeResults,
   qrScanDevices,
   qrScanLogs,
+  qrScanSessions,
   scoreCategories,
   schoolSettings,
   scores,
@@ -192,6 +193,20 @@ async function ensureQrScanTables() {
       "createdAt" timestamptz NOT NULL DEFAULT now()
     )
   `));
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS ${schemaName}."qr_scan_sessions" (
+      "id" serial PRIMARY KEY,
+      "deviceId" integer NOT NULL,
+      "teacherUserId" integer NOT NULL,
+      "assignmentId" integer NOT NULL,
+      "isActive" boolean NOT NULL DEFAULT true,
+      "openedAt" timestamptz NOT NULL DEFAULT now(),
+      "lastScanAt" timestamptz,
+      "closedAt" timestamptz,
+      "createdAt" timestamptz NOT NULL DEFAULT now(),
+      "updatedAt" timestamptz NOT NULL DEFAULT now()
+    )
+  `));
 }
 
 // ─── Users ────────────────────────────────────────────────────────────────────
@@ -252,6 +267,17 @@ export async function getUserByOpenId(openId: string) {
     .select()
     .from(users)
     .where(eq(users.openId, openId))
+    .limit(1);
+  return result.length > 0 ? result[0] : undefined;
+}
+
+export async function getUserById(id: number) {
+  const db = await getDb();
+  if (!db) return undefined;
+  const result = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, id))
     .limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
@@ -1034,6 +1060,28 @@ export async function getTeacherAssignments(
     .orderBy(classrooms.level, classrooms.grade, classrooms.room);
 }
 
+export async function getTeacherLatestUsedAssignment(teacherId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const recentAttendance = await db
+    .select({ assignmentId: attendance.assignmentId })
+    .from(attendance)
+    .where(eq(attendance.recordedBy, teacherId))
+    .orderBy(desc(attendance.updatedAt), desc(attendance.id))
+    .limit(1);
+  if (recentAttendance.length > 0) {
+    return getAssignmentById(recentAttendance[0].assignmentId);
+  }
+
+  const assignments = await getTeacherAssignments(teacherId);
+  return assignments[0] ?? null;
+}
+
+export async function getTeacherPreferredAssignment(teacherId: number) {
+  const assignment = await getTeacherLatestUsedAssignment(teacherId);
+  return assignment?.assignment?.id ? assignment : null;
+}
+
 export async function getAssignmentById(id: number) {
   const db = await getDb();
   if (!db) return null;
@@ -1218,7 +1266,136 @@ export async function getQrScanDeviceById(id: number) {
     assignment: await getAssignmentById(row.device.assignmentId),
     createdByUser: sanitizeUserRow(row.teacher),
     createdByProfile: row.teacherProfile,
+    activeSession: await getActiveQrScanSessionByDeviceId(row.device.id),
   };
+}
+
+export async function getActiveQrScanSessionByDeviceId(deviceId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  await ensureQrScanTables();
+  const result = await db
+    .select({
+      session: qrScanSessions,
+      teacher: users,
+      teacherProfile: teacherProfiles,
+    })
+    .from(qrScanSessions)
+    .leftJoin(users, eq(qrScanSessions.teacherUserId, users.id))
+    .leftJoin(
+      teacherProfiles,
+      eq(qrScanSessions.teacherUserId, teacherProfiles.userId)
+    )
+    .where(and(eq(qrScanSessions.deviceId, deviceId), eq(qrScanSessions.isActive, true)))
+    .orderBy(desc(qrScanSessions.updatedAt), desc(qrScanSessions.id))
+    .limit(1);
+  if (result.length === 0) return null;
+  const row = result[0];
+  return {
+    ...row.session,
+    teacher: sanitizeUserRow(row.teacher),
+    teacherProfile: row.teacherProfile,
+    assignment: await getAssignmentById(row.session.assignmentId),
+  };
+}
+
+export async function closeActiveQrScanSession(deviceId: number) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await ensureQrScanTables();
+  await db
+    .update(qrScanSessions)
+    .set({
+      isActive: false,
+      closedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(and(eq(qrScanSessions.deviceId, deviceId), eq(qrScanSessions.isActive, true)));
+}
+
+export async function getTeacherQrSessionPayload(teacherUserId: number) {
+  const assignment = await getTeacherPreferredAssignment(teacherUserId);
+  const teacherProfile = await getTeacherProfile(teacherUserId);
+  if (!assignment?.assignment?.id || !teacherProfile) return null;
+  return {
+    teacherProfile,
+    assignment,
+  };
+}
+
+export async function openTeacherQrSession(data: {
+  deviceId: number;
+  teacherUserId: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await ensureQrScanTables();
+
+  const assignment = await getTeacherPreferredAssignment(data.teacherUserId);
+  if (!assignment?.assignment?.id) {
+    return null;
+  }
+
+  const currentSession = await getActiveQrScanSessionByDeviceId(data.deviceId);
+  const now = new Date();
+
+  if (
+    currentSession &&
+    currentSession.teacherUserId === data.teacherUserId &&
+    currentSession.assignmentId === assignment.assignment.id
+  ) {
+    await db
+      .update(qrScanSessions)
+      .set({
+        lastScanAt: now,
+        updatedAt: now,
+      })
+      .where(eq(qrScanSessions.id, currentSession.id));
+    await touchQrScanDevice(data.deviceId, {
+      lastSeenAt: now,
+    });
+    return {
+      ...currentSession,
+      teacher: currentSession.teacher,
+      teacherProfile: currentSession.teacherProfile,
+      assignment,
+      refreshed: true,
+    };
+  }
+
+  if (currentSession) {
+    await db
+      .update(qrScanSessions)
+      .set({
+        isActive: false,
+        closedAt: now,
+        updatedAt: now,
+      })
+      .where(eq(qrScanSessions.id, currentSession.id));
+  }
+
+  const id = await getNextNumericId(qrScanSessions, qrScanSessions.id);
+  const [result] = await db
+    .insert(qrScanSessions)
+    .values({
+      id,
+      deviceId: data.deviceId,
+      teacherUserId: data.teacherUserId,
+      assignmentId: assignment.assignment.id,
+      isActive: true,
+      openedAt: now,
+      lastScanAt: now,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .returning({ id: qrScanSessions.id });
+
+  await touchQrScanDevice(data.deviceId, {
+    lastSeenAt: now,
+  });
+
+  const session = await getActiveQrScanSessionByDeviceId(data.deviceId);
+  return session ?? { id: result.id, assignment, teacherUserId: data.teacherUserId };
 }
 
 export async function createQrScanDevice(data: {

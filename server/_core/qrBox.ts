@@ -1,8 +1,16 @@
 import type { Express } from "express";
-import { collectQrCandidateValues, findMatchingQrStudent } from "../../shared/qr";
 import {
+  collectQrCandidateValues,
+  collectTeacherQrCandidateValues,
+  findMatchingQrStudent,
+} from "../../shared/qr";
+import {
+  closeActiveQrScanSession,
+  getActiveQrScanSessionByDeviceId,
   getQrScanDeviceById,
+  getUserByTeacherCode,
   getStudentsByClassroom,
+  openTeacherQrSession,
   recordQrScanLog,
   resolveBangkokTodayAttendanceDate,
   upsertAttendance,
@@ -59,6 +67,7 @@ export function registerQrBoxRoutes(app: Express) {
         lastScanAt: device.lastScanAt,
       },
       assignment: device.assignment,
+      activeSession: await getActiveQrScanSessionByDeviceId(deviceId),
       serverDate: await scanDateKeyFromNow(),
       scanEndpoint: `/api/qr-boxes/${deviceId}/scan`,
       pingEndpoint: `/api/qr-boxes/${deviceId}/ping`,
@@ -91,6 +100,43 @@ export function registerQrBoxRoutes(app: Express) {
       rawValue: "__ping__",
       status: "ping",
       message: "device heartbeat",
+      scannedAt: new Date(),
+    });
+
+    res.json({
+      success: true,
+      deviceId,
+      serverDate: await scanDateKeyFromNow(),
+    });
+  });
+
+  app.post("/api/qr-boxes/:deviceId/session/close", async (req, res) => {
+    const deviceId = toPositiveInteger(req.params.deviceId);
+    const token = getDeviceToken(req);
+    if (!deviceId || !token) {
+      res.status(400).json({ error: "deviceId and token are required" });
+      return;
+    }
+
+    const device = await getQrScanDeviceById(deviceId);
+    if (!device) {
+      res.status(404).json({ error: "Device not found" });
+      return;
+    }
+
+    const tokenOk = await verifyQrScanDeviceToken(deviceId, token);
+    if (!tokenOk) {
+      res.status(401).json({ error: "Invalid device token" });
+      return;
+    }
+
+    await closeActiveQrScanSession(deviceId);
+    await recordQrScanLog({
+      deviceId,
+      assignmentId: device.assignmentId,
+      rawValue: "__teacher_session_close__",
+      status: "teacher_session_closed",
+      message: "teacher session closed",
       scannedAt: new Date(),
     });
 
@@ -134,7 +180,62 @@ export function registerQrBoxRoutes(app: Express) {
       return;
     }
 
-    if (!device.assignment?.assignment?.classroomId) {
+    const teacherCandidates = collectTeacherQrCandidateValues(rawValue);
+    let teacherUser: Awaited<ReturnType<typeof getUserByTeacherCode>> = undefined;
+    for (const candidate of teacherCandidates) {
+      const resolved = await getUserByTeacherCode(candidate);
+      if (resolved) {
+        teacherUser = resolved;
+        break;
+      }
+    }
+
+    if (teacherUser) {
+      const session = await openTeacherQrSession({
+        deviceId,
+        teacherUserId: teacherUser.id,
+      });
+
+      if (!session?.assignment?.assignment?.classroomId) {
+        await recordQrScanLog({
+          deviceId,
+          assignmentId: device.assignmentId,
+          rawValue,
+          status: "teacher_no_assignment",
+          message: "teacher has no recent assignment",
+        });
+        res.status(409).json({ error: "ครูยังไม่มีวิชาที่จะเปิดคาบอัตโนมัติ" });
+        return;
+      }
+
+      await recordQrScanLog({
+        deviceId,
+        assignmentId: session.assignmentId,
+        rawValue,
+        status: "teacher_session_opened",
+        message: "teacher session opened",
+        scannedAt: new Date(),
+      });
+
+      res.json({
+        success: true,
+        status: "teacher_session_opened",
+        deviceId,
+        assignmentId: session.assignmentId,
+        teacher: {
+          id: teacherUser.id,
+        },
+        assignment: session.assignment,
+        candidates: collectTeacherQrCandidateValues(rawValue),
+      });
+      return;
+    }
+
+    const session = await getActiveQrScanSessionByDeviceId(deviceId);
+    const effectiveAssignmentId =
+      session?.assignmentId ?? device.assignmentId ?? null;
+
+    if (!effectiveAssignmentId) {
       await recordQrScanLog({
         deviceId,
         assignmentId: device.assignmentId,
@@ -146,7 +247,21 @@ export function registerQrBoxRoutes(app: Express) {
       return;
     }
 
-    const classroomId = device.assignment.assignment.classroomId;
+    const currentAssignment =
+      session?.assignment ?? device.assignment ?? null;
+    if (!currentAssignment?.assignment?.classroomId) {
+      await recordQrScanLog({
+        deviceId,
+        assignmentId: effectiveAssignmentId,
+        rawValue,
+        status: "missing_assignment",
+        message: "assignment has no classroom",
+      });
+      res.status(409).json({ error: "Device has no classroom assignment" });
+      return;
+    }
+
+    const classroomId = currentAssignment.assignment.classroomId;
     const students = await getStudentsByClassroom(classroomId);
     const student = findMatchingQrStudent(
       students.map(row => ({
@@ -159,7 +274,7 @@ export function registerQrBoxRoutes(app: Express) {
     if (!student) {
       await recordQrScanLog({
         deviceId,
-        assignmentId: device.assignmentId,
+        assignmentId: effectiveAssignmentId,
         rawValue,
         status: "not_found",
         message: "student not found",
@@ -170,18 +285,18 @@ export function registerQrBoxRoutes(app: Express) {
 
     const date = await scanDateKeyFromNow();
     await upsertAttendance({
-      assignmentId: device.assignmentId,
+      assignmentId: effectiveAssignmentId,
       studentId: student.id,
       date: new Date(`${date}T00:00:00.000Z`) as any,
       status: "present",
-      recordedBy: device.createdBy,
+      recordedBy: session?.teacherUserId ?? device.createdBy,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
 
     await recordQrScanLog({
       deviceId,
-      assignmentId: device.assignmentId,
+      assignmentId: effectiveAssignmentId,
       studentId: student.id,
       rawValue,
       status: "success",
@@ -197,7 +312,7 @@ export function registerQrBoxRoutes(app: Express) {
         id: student.id,
         studentCode: student.studentCode,
       },
-      assignmentId: device.assignmentId,
+      assignmentId: effectiveAssignmentId,
       deviceId,
       candidates: collectQrCandidateValues(rawValue),
     });
