@@ -197,12 +197,10 @@ export function registerQrBoxRoutes(app: Express) {
     const activeAssignment =
       timetableAssignment?.assignment ??
       activeSession?.assignment ??
-      device.assignment ??
       null;
     const activeAssignmentId =
       timetableAssignment?.assignment?.id ??
       activeSession?.assignmentId ??
-      device.assignmentId ??
       null;
 
     if (teacherUser) {
