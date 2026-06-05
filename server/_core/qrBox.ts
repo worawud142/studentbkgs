@@ -199,30 +199,29 @@ export function registerQrBoxRoutes(app: Express) {
       : null;
     const activeSession = await getActiveQrScanSessionByDeviceId(deviceId);
     const activeAssignment =
-      timetableAssignment?.assignment ??
       activeSession?.assignment ??
+      timetableAssignment?.assignment ??
       null;
     const activeAssignmentId =
-      timetableAssignment?.assignment?.assignment?.id ??
       activeSession?.assignmentId ??
+      timetableAssignment?.assignment?.assignment?.id ??
       null;
 
     if (teacherUser) {
       const session = await openTeacherQrSession({
         deviceId,
         teacherUserId: teacherUser.id,
-        assignmentId: timetableAssignment?.assignment?.assignment?.id,
       });
 
-      if (!session?.assignment?.assignment?.classroomId && !timetableAssignment) {
+      if (!session?.assignment?.assignment?.classroomId) {
         await recordQrScanLog({
           deviceId,
           assignmentId: device.assignmentId,
           rawValue,
           status: "teacher_no_assignment",
-          message: "teacher has no recent assignment",
+          message: "teacher has no active timetable assignment",
         });
-        res.status(409).json({ error: "ครูยังไม่มีวิชาที่จะเปิดคาบอัตโนมัติ" });
+        res.status(409).json({ error: "ครูยังไม่มีคาบสอนที่ active อยู่ตอนนี้" });
         return;
       }
 
@@ -230,14 +229,14 @@ export function registerQrBoxRoutes(app: Express) {
         deviceId,
         assignmentId: session?.assignmentId ?? activeAssignmentId ?? device.assignmentId,
         rawValue,
-        status: timetableAssignment ? "teacher_session_opened_timetable" : "teacher_session_opened",
-        message: timetableAssignment ? "teacher session opened for timetable" : "teacher session opened",
+        status: "teacher_session_opened_timetable",
+        message: "teacher session opened for active timetable",
         scannedAt: new Date(),
       });
 
       res.json({
         success: true,
-        status: timetableAssignment ? "teacher_session_opened_timetable" : "teacher_session_opened",
+        status: "teacher_session_opened_timetable",
         deviceId,
         assignmentId: session?.assignmentId ?? activeAssignmentId,
         teacher: {

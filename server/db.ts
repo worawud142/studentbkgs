@@ -1433,12 +1433,45 @@ export async function getCurrentTeachingScheduleSlotForAssignment(
   assignmentId: number,
   at = new Date()
 ) {
-  const assignment = await getAssignmentById(assignmentId);
-  if (!assignment?.assignment?.classroomId) return null;
-  return getCurrentTeachingScheduleSlotForClassroom(
-    assignment.assignment.classroomId,
-    at
-  );
+  const db = await getDb();
+  if (!db) return null;
+  await ensureTeachingScheduleTables();
+  const nowParts = currentBangkokDateTimeParts(at);
+  const rows = await db
+    .select({
+      slot: teachingScheduleSlots,
+      assignment: teachingAssignments,
+      subject: subjects,
+      classroom: classrooms,
+      teacher: users,
+      teacherProfile: teacherProfiles,
+    })
+    .from(teachingScheduleSlots)
+    .leftJoin(
+      teachingAssignments,
+      eq(teachingScheduleSlots.assignmentId, teachingAssignments.id)
+    )
+    .leftJoin(subjects, eq(teachingAssignments.subjectId, subjects.id))
+    .leftJoin(classrooms, eq(teachingAssignments.classroomId, classrooms.id))
+    .leftJoin(users, eq(teachingAssignments.teacherId, users.id))
+    .leftJoin(
+      teacherProfiles,
+      eq(teachingAssignments.teacherId, teacherProfiles.userId)
+    )
+    .where(
+      and(
+        eq(teachingScheduleSlots.assignmentId, assignmentId),
+        eq(teachingScheduleSlots.isActive, true)
+      )
+    )
+    .orderBy(teachingScheduleSlots.dayOfWeek, teachingScheduleSlots.startTime);
+
+  const matched = rows.find(row => slotMatchesNow(row.slot, nowParts));
+  if (!matched) return null;
+  return {
+    ...matched,
+    teacher: sanitizeUserRow(matched.teacher),
+  };
 }
 
 export async function getCurrentTeachingScheduleAssignmentForClassroom(
@@ -1451,6 +1484,57 @@ export async function getCurrentTeachingScheduleAssignmentForClassroom(
   if (!assignment) return null;
   return {
     slot: slot.slot,
+    assignment,
+    teacher: assignment.teacher,
+    teacherProfile: assignment.teacherProfile,
+    subject: assignment.subject,
+    classroom: assignment.classroom,
+  };
+}
+
+export async function getCurrentTeachingScheduleAssignmentForTeacher(
+  teacherUserId: number,
+  at = new Date()
+) {
+  const db = await getDb();
+  if (!db) return null;
+  await ensureTeachingScheduleTables();
+  const nowParts = currentBangkokDateTimeParts(at);
+  const rows = await db
+    .select({
+      slot: teachingScheduleSlots,
+      assignment: teachingAssignments,
+      subject: subjects,
+      classroom: classrooms,
+      teacher: users,
+      teacherProfile: teacherProfiles,
+    })
+    .from(teachingScheduleSlots)
+    .leftJoin(
+      teachingAssignments,
+      eq(teachingScheduleSlots.assignmentId, teachingAssignments.id)
+    )
+    .leftJoin(subjects, eq(teachingAssignments.subjectId, subjects.id))
+    .leftJoin(classrooms, eq(teachingAssignments.classroomId, classrooms.id))
+    .leftJoin(users, eq(teachingAssignments.teacherId, users.id))
+    .leftJoin(
+      teacherProfiles,
+      eq(teachingAssignments.teacherId, teacherProfiles.userId)
+    )
+    .where(
+      and(
+        eq(teachingAssignments.teacherId, teacherUserId),
+        eq(teachingScheduleSlots.isActive, true)
+      )
+    )
+    .orderBy(teachingScheduleSlots.dayOfWeek, teachingScheduleSlots.startTime);
+
+  const matched = rows.find(row => slotMatchesNow(row.slot, nowParts));
+  if (!matched?.slot?.assignmentId) return null;
+  const assignment = await getAssignmentById(matched.slot.assignmentId);
+  if (!assignment) return null;
+  return {
+    slot: matched.slot,
     assignment,
     teacher: assignment.teacher,
     teacherProfile: assignment.teacherProfile,
@@ -1648,6 +1732,20 @@ export async function getActiveQrScanSessionByDeviceId(deviceId: number) {
     .limit(1);
   if (result.length === 0) return null;
   const row = result[0];
+  const activeSlot = await getCurrentTeachingScheduleSlotForAssignment(
+    row.session.assignmentId
+  );
+  if (!activeSlot) {
+    await db
+      .update(qrScanSessions)
+      .set({
+        isActive: false,
+        closedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(qrScanSessions.id, row.session.id));
+    return null;
+  }
   return {
     ...row.session,
     teacher: sanitizeUserRow(row.teacher),
@@ -1691,7 +1789,8 @@ export async function openTeacherQrSession(data: {
 
   const preferredAssignment = data.assignmentId
     ? await getAssignmentById(data.assignmentId)
-    : await getTeacherPreferredAssignment(data.teacherUserId);
+    : (await getCurrentTeachingScheduleAssignmentForTeacher(data.teacherUserId))
+        ?.assignment;
   const assignment = preferredAssignment;
   if (!assignment?.assignment?.id) {
     return null;
