@@ -1459,6 +1459,18 @@ export async function getCurrentTeachingScheduleAssignmentForClassroom(
   };
 }
 
+export async function getCurrentTeachingScheduleAssignmentForDevice(
+  deviceAssignmentId: number,
+  at = new Date()
+) {
+  const assignment = await getAssignmentById(deviceAssignmentId);
+  if (!assignment?.assignment?.classroomId) return null;
+  return getCurrentTeachingScheduleAssignmentForClassroom(
+    assignment.assignment.classroomId,
+    at
+  );
+}
+
 function generateQrBoxToken() {
   return randomUUID().replace(/-/g, "");
 }
@@ -1607,9 +1619,7 @@ export async function getQrScanDeviceById(id: number) {
     ...row.device,
     assignment,
     activeTimetableAssignment: row.device.assignmentId
-      ? await getCurrentTeachingScheduleAssignmentForClassroom(
-          assignment?.assignment?.classroomId ?? 0
-        )
+      ? await getCurrentTeachingScheduleAssignmentForDevice(row.device.assignmentId)
       : null,
     createdByUser: sanitizeUserRow(row.teacher),
     createdByProfile: row.teacherProfile,

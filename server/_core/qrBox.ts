@@ -6,7 +6,7 @@ import {
 } from "../../shared/qr";
 import {
   closeActiveQrScanSession,
-  getCurrentTeachingScheduleSlot,
+  getCurrentTeachingScheduleAssignmentForDevice,
   getActiveQrScanSessionByDeviceId,
   getQrScanDeviceById,
   getUserByTeacherCode,
@@ -68,7 +68,9 @@ export function registerQrBoxRoutes(app: Express) {
         lastScanAt: device.lastScanAt,
       },
       assignment: device.assignment,
-      activeTimetableAssignment: await getCurrentTeachingScheduleSlot(),
+      activeTimetableAssignment: device.assignmentId
+        ? await getCurrentTeachingScheduleAssignmentForDevice(device.assignmentId)
+        : null,
       activeSession: await getActiveQrScanSessionByDeviceId(deviceId),
       serverDate: await scanDateKeyFromNow(),
       scanEndpoint: `/api/qr-boxes/${deviceId}/scan`,
@@ -192,14 +194,16 @@ export function registerQrBoxRoutes(app: Express) {
       }
     }
 
-    const timetableAssignment = await getCurrentTeachingScheduleSlot();
+    const timetableAssignment = device.assignmentId
+      ? await getCurrentTeachingScheduleAssignmentForDevice(device.assignmentId)
+      : null;
     const activeSession = await getActiveQrScanSessionByDeviceId(deviceId);
     const activeAssignment =
       timetableAssignment?.assignment ??
       activeSession?.assignment ??
       null;
     const activeAssignmentId =
-      timetableAssignment?.assignment?.id ??
+      timetableAssignment?.assignment?.assignment?.id ??
       activeSession?.assignmentId ??
       null;
 
@@ -207,7 +211,7 @@ export function registerQrBoxRoutes(app: Express) {
       const session = await openTeacherQrSession({
         deviceId,
         teacherUserId: teacherUser.id,
-        assignmentId: timetableAssignment?.assignment?.id,
+        assignmentId: timetableAssignment?.assignment?.assignment?.id,
       });
 
       if (!session?.assignment?.assignment?.classroomId && !timetableAssignment) {
