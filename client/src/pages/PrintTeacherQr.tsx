@@ -114,20 +114,20 @@ export default function PrintTeacherQr() {
         <div className="paper-frame mx-auto w-full max-w-[210mm] bg-white p-[12mm] shadow-lg">
           <div className="qr-card mx-auto w-full max-w-[500px] rounded-2xl border-2 border-slate-300 bg-white p-4 shadow-sm">
             <div className="mb-3 flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-medium text-slate-500">
-                บัตร QR ครู
-              </p>
-              <h2 className="mt-1 text-lg font-bold leading-tight text-slate-900">
-                {profile.prefix || ""}{profile.firstName} {profile.lastName}
-              </h2>
-            </div>
-            <div className="rounded-full bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700">
-              รหัสครู {profile.teacherCode}
-            </div>
+              <div>
+                <p className="text-xs font-medium text-slate-500">
+                  บัตร QR ครู
+                </p>
+                <h2 className="mt-1 text-lg font-bold leading-tight text-slate-900">
+                  {profile.prefix || ""}{profile.firstName} {profile.lastName}
+                </h2>
+              </div>
+              <div className="rounded-full bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700">
+                รหัสครู {profile.teacherCode}
+              </div>
             </div>
 
-            <div className="grid gap-4 md:grid-cols-[150px_1fr] md:items-center">
+            <div className="grid grid-cols-[150px_1fr] items-center gap-4">
               <div className="flex h-[150px] w-[150px] shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white">
                 {teacherQrSvg ? (
                   <div
