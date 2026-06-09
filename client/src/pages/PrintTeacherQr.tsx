@@ -76,11 +76,16 @@ export default function PrintTeacherQr() {
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 print:bg-white">
       <style>{`
-        @page { size: A4; margin: 12mm; }
+        @page { size: A4; margin: 0; }
+        html, body {
+          print-color-adjust: exact;
+          -webkit-print-color-adjust: exact;
+        }
         @media print {
           .no-print { display: none !important; }
           .print-shell { padding: 0 !important; }
           .qr-card { box-shadow: none !important; }
+          .paper-frame { box-shadow: none !important; }
         }
       `}</style>
 
@@ -106,8 +111,9 @@ export default function PrintTeacherQr() {
       </div>
 
       <main className="print-shell mx-auto flex min-h-[calc(100vh-61px)] max-w-6xl items-center justify-center p-5">
-        <div className="qr-card w-full max-w-[500px] rounded-2xl border-2 border-slate-300 bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-start justify-between gap-3">
+        <div className="paper-frame mx-auto w-full max-w-[210mm] bg-white p-[12mm] shadow-lg">
+          <div className="qr-card mx-auto w-full max-w-[500px] rounded-2xl border-2 border-slate-300 bg-white p-4 shadow-sm">
+            <div className="mb-3 flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-medium text-slate-500">
                 บัตร QR ครู
@@ -119,36 +125,37 @@ export default function PrintTeacherQr() {
             <div className="rounded-full bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700">
               รหัสครู {profile.teacherCode}
             </div>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-[150px_1fr] md:items-center">
-            <div className="flex h-[150px] w-[150px] shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white">
-              {teacherQrSvg ? (
-                <div
-                  className="h-full w-full [&_svg]:h-full [&_svg]:w-full"
-                  dangerouslySetInnerHTML={{ __html: teacherQrSvg }}
-                  aria-label={`QR ครู ${profile.prefix ?? ""}${profile.firstName} ${profile.lastName}`}
-                />
-              ) : (
-                <div className="text-center text-slate-400">
-                  <QrCode className="mx-auto mb-2 h-10 w-10" />
-                  กำลังสร้าง QR...
-                </div>
-              )}
             </div>
 
-            <div className="min-w-0 text-sm">
-              <p className="text-slate-500">ชื่อครู</p>
-              <p className="text-lg font-bold leading-tight text-slate-900">
-                {profile.prefix || ""}{profile.firstName} {profile.lastName}
-              </p>
-              {profile.isHomeroom && (
-                <p className="mt-1 text-sm font-semibold text-slate-700">
-                  ครูประจำชั้น
+            <div className="grid gap-4 md:grid-cols-[150px_1fr] md:items-center">
+              <div className="flex h-[150px] w-[150px] shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white">
+                {teacherQrSvg ? (
+                  <div
+                    className="h-full w-full [&_svg]:h-full [&_svg]:w-full"
+                    dangerouslySetInnerHTML={{ __html: teacherQrSvg }}
+                    aria-label={`QR ครู ${profile.prefix ?? ""}${profile.firstName} ${profile.lastName}`}
+                  />
+                ) : (
+                  <div className="text-center text-slate-400">
+                    <QrCode className="mx-auto mb-2 h-10 w-10" />
+                    กำลังสร้าง QR...
+                  </div>
+                )}
+              </div>
+
+              <div className="min-w-0 text-sm">
+                <p className="text-slate-500">ชื่อครู</p>
+                <p className="text-lg font-bold leading-tight text-slate-900">
+                  {profile.prefix || ""}{profile.firstName} {profile.lastName}
                 </p>
-              )}
-              <p className="mt-3 text-slate-500">รหัสครู</p>
-              <p className="font-mono text-xl font-bold text-slate-900">{profile.teacherCode}</p>
+                {profile.isHomeroom && (
+                  <p className="mt-1 text-sm font-semibold text-slate-700">
+                    ครูประจำชั้น
+                  </p>
+                )}
+                <p className="mt-3 text-slate-500">รหัสครู</p>
+                <p className="font-mono text-xl font-bold text-slate-900">{profile.teacherCode}</p>
+              </div>
             </div>
           </div>
         </div>
