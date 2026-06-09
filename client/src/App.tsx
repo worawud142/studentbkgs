@@ -18,6 +18,7 @@ import QrBoxPage from "./pages/QrBoxPage";
 import PrintPor1 from "./pages/PrintPor1";
 import PrintPor6 from "./pages/PrintPor6";
 import PrintQrCards from "./pages/PrintQrCards";
+import PrintTeacherQr from "./pages/PrintTeacherQr";
 
 function Router() {
   return (
@@ -38,6 +39,7 @@ function Router() {
       <Route path="/print/por6/classroom/:classroomId" component={PrintPor6} />
       <Route path="/print/por6/:assignmentId" component={PrintPor6} />
       <Route path="/print/qr/:classroomId" component={PrintQrCards} />
+      <Route path="/print/teacher-qr" component={PrintTeacherQr} />
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>

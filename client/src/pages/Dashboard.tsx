@@ -14,6 +14,7 @@ import {
   GraduationCap,
   School,
   Download,
+  Printer,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useEffect, useMemo, useState } from "react";
@@ -281,17 +282,27 @@ export default function Dashboard() {
                     </div>
                   )}
                 </div>
-                <div className="space-y-2 text-sm text-slate-600">
-                  <p className="font-medium text-slate-900">
-                    ใช้งานอย่างไร
-                  </p>
-                  <p>1. เปิดเครื่อง ESP32 + GM65</p>
-                  <p>2. โดยปกติระบบจะอิงตารางสอนอัตโนมัติ</p>
-                  <p>3. หากต้องการสำรอง สามารถสแกน QR ครู 1 ครั้ง</p>
-                  <p>4. จากนั้นให้นักเรียนสแกน QR ได้เลย</p>
-                  <p className="text-xs text-slate-400">
-                    ถ้าตั้งตารางสอนครบ เครื่องจะใช้คาบที่ตรงกับวันและเวลาโดยอัตโนมัติ
-                  </p>
+                <div className="space-y-3 text-sm text-slate-600">
+                  <div className="space-y-2">
+                    <p className="font-medium text-slate-900">
+                      ใช้งานอย่างไร
+                    </p>
+                    <p>1. เปิดเครื่อง ESP32 + GM65</p>
+                    <p>2. โดยปกติระบบจะอิงตารางสอนอัตโนมัติ</p>
+                    <p>3. หากต้องการสำรอง สามารถสแกน QR ครู 1 ครั้ง</p>
+                    <p>4. จากนั้นให้นักเรียนสแกน QR ได้เลย</p>
+                    <p className="text-xs text-slate-400">
+                      ถ้าตั้งตารางสอนครบ เครื่องจะใช้คาบที่ตรงกับวันและเวลาโดยอัตโนมัติ
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button asChild variant="outline" className="border-slate-300">
+                      <Link href="/print/teacher-qr">
+                        <Printer className="w-4 h-4 mr-2" />
+                        พิมพ์ QR ครู
+                      </Link>
+                    </Button>
+                  </div>
                 </div>
               </div>
             </CardContent>
