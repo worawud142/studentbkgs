@@ -30,7 +30,7 @@ export default function PrintTeacherQr() {
 
       const svg = await QRCode.toString(payload, {
         type: "svg",
-        width: 260,
+        width: 150,
         margin: 1,
         errorCorrectionLevel: "M",
       });
@@ -105,14 +105,14 @@ export default function PrintTeacherQr() {
         </div>
       </div>
 
-      <main className="print-shell mx-auto flex min-h-[calc(100vh-61px)] max-w-4xl items-center justify-center p-6">
-        <div className="qr-card w-full max-w-2xl rounded-3xl border-2 border-slate-300 bg-white p-6 shadow-sm">
-          <div className="mb-5 flex items-start justify-between gap-4">
+      <main className="print-shell mx-auto max-w-6xl p-5">
+        <div className="qr-card w-full rounded-2xl border-2 border-slate-300 bg-white p-4 shadow-sm md:p-5">
+          <div className="mb-3 flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-blue-600">
+              <p className="text-xs font-medium text-slate-500">
                 QR ครูสำหรับเปิดคาบ
               </p>
-              <h2 className="mt-2 text-2xl font-bold text-slate-900">
+              <h2 className="mt-1 text-lg font-bold leading-tight text-slate-900 md:text-xl">
                 {profile.prefix || ""}{profile.firstName} {profile.lastName}
               </h2>
               <p className="mt-1 text-sm text-slate-500">
@@ -122,14 +122,13 @@ export default function PrintTeacherQr() {
                 {profile.isHomeroom ? " · ครูประจำชั้น" : ""}
               </p>
             </div>
-            <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-2 text-right">
-              <p className="text-xs font-medium text-blue-700">รหัสครู</p>
-              <p className="font-mono text-lg font-bold text-blue-900">{profile.teacherCode}</p>
+            <div className="rounded-full bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700">
+              รหัสครู {profile.teacherCode}
             </div>
           </div>
 
-          <div className="grid gap-5 md:grid-cols-[280px_1fr] md:items-center">
-            <div className="flex h-[280px] items-center justify-center rounded-2xl border-2 border-slate-200 bg-white p-4">
+          <div className="grid gap-4 md:grid-cols-[150px_1fr] md:items-center">
+            <div className="flex h-[150px] w-[150px] shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-white">
               {teacherQrSvg ? (
                 <div
                   className="h-full w-full [&_svg]:h-full [&_svg]:w-full"
@@ -144,8 +143,8 @@ export default function PrintTeacherQr() {
               )}
             </div>
 
-            <div className="space-y-4 text-sm text-slate-600">
-              <div className="rounded-2xl bg-slate-50 p-4">
+            <div className="min-w-0 text-sm text-slate-600">
+              <div className="rounded-xl bg-slate-50 p-4">
                 <p className="font-medium text-slate-900">วิธีใช้งาน</p>
                 <div className="mt-2 space-y-2 leading-relaxed">
                   <p>1. พิมพ์ QR นี้ออกมาแล้วติดไว้ที่ห้องหรือพกติดตัว</p>
@@ -157,7 +156,7 @@ export default function PrintTeacherQr() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-dashed border-slate-300 p-4">
+              <div className="mt-4 rounded-xl border border-dashed border-slate-300 p-4">
                 <p className="font-medium text-slate-900">หมายเหตุ</p>
                 <p className="mt-2 leading-relaxed">
                   QR นี้เป็น QR สำรองสำหรับครู ไม่ใช่ QR เช็คชื่อนักเรียน และระบบจะผูกกับ
