@@ -112,7 +112,7 @@ export default function PrintTeacherQr() {
 
       <main className="print-shell mx-auto flex min-h-[calc(100vh-61px)] max-w-6xl items-center justify-center p-5">
         <div className="paper-frame mx-auto w-full max-w-[210mm] bg-white p-[12mm] shadow-lg">
-          <div className="qr-card mx-auto w-full max-w-[500px] rounded-2xl border-2 border-slate-300 bg-white p-4 shadow-sm">
+          <div className="qr-card mx-auto w-full max-w-[430px] rounded-2xl border-2 border-slate-300 bg-white p-4 shadow-sm">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
                 <p className="text-xs font-medium text-slate-500">
