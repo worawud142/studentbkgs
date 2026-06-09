@@ -105,8 +105,8 @@ export default function PrintTeacherQr() {
         </div>
       </div>
 
-      <main className="print-shell mx-auto max-w-6xl p-5">
-        <div className="qr-card w-full rounded-2xl border-2 border-slate-300 bg-white p-4 shadow-sm md:p-5">
+      <main className="print-shell mx-auto flex min-h-[calc(100vh-61px)] max-w-6xl items-center justify-center p-5">
+        <div className="qr-card w-full max-w-[520px] rounded-2xl border-2 border-slate-300 bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-medium text-slate-500">
@@ -143,26 +143,14 @@ export default function PrintTeacherQr() {
               )}
             </div>
 
-            <div className="min-w-0 text-sm text-slate-600">
-              <div className="rounded-xl bg-slate-50 p-4">
-                <p className="font-medium text-slate-900">วิธีใช้งาน</p>
-                <div className="mt-2 space-y-2 leading-relaxed">
-                  <p>1. พิมพ์ QR นี้ออกมาแล้วติดไว้ที่ห้องหรือพกติดตัว</p>
-                  <p>2. เมื่อต้องการเปิดคาบ ให้ครูสแกน QR นี้ก่อน</p>
-                  <p>3. หลังจากเปิดคาบแล้ว นักเรียนค่อยสแกน QR เช็คชื่อ</p>
-                  <p className="text-xs text-slate-400">
-                    ระบบจะใช้รหัสครูนี้เพื่อเปิด session สำหรับคาบที่ active อยู่ตอนนั้น
-                  </p>
-                </div>
-              </div>
-
-              <div className="mt-4 rounded-xl border border-dashed border-slate-300 p-4">
-                <p className="font-medium text-slate-900">หมายเหตุ</p>
-                <p className="mt-2 leading-relaxed">
-                  QR นี้เป็น QR สำรองสำหรับครู ไม่ใช่ QR เช็คชื่อนักเรียน และระบบจะผูกกับ
-                  `teacherCode` ของครูคนนี้เท่านั้น
-                </p>
-              </div>
+            <div className="min-w-0 text-sm">
+              <p className="text-slate-500">รหัสครู</p>
+              <p className="font-mono text-xl font-bold text-slate-900">{profile.teacherCode}</p>
+              <p className="mt-3 text-slate-500">สถานะการใช้งาน</p>
+              <p className="font-semibold text-slate-900">ใช้สแกนเพื่อเปิดคาบเรียน</p>
+              <p className="mt-3 text-[11px] leading-relaxed text-slate-400">
+                ใช้ร่วมกับเครื่องสแกนเพื่อเปิด session ของครูตอนเริ่มคาบ
+              </p>
             </div>
           </div>
         </div>
