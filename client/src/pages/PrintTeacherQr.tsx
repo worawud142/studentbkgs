@@ -138,7 +138,16 @@ export default function PrintTeacherQr() {
             </div>
 
             <div className="min-w-0 text-sm">
-              <p className="text-slate-500">รหัสครู</p>
+              <p className="text-slate-500">ชื่อครู</p>
+              <p className="text-lg font-bold leading-tight text-slate-900">
+                {profile.prefix || ""}{profile.firstName} {profile.lastName}
+              </p>
+              {profile.isHomeroom && (
+                <p className="mt-1 text-sm font-semibold text-slate-700">
+                  ครูประจำชั้น
+                </p>
+              )}
+              <p className="mt-3 text-slate-500">รหัสครู</p>
               <p className="font-mono text-xl font-bold text-slate-900">{profile.teacherCode}</p>
             </div>
           </div>
