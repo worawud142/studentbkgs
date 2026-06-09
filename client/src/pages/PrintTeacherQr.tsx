@@ -106,21 +106,15 @@ export default function PrintTeacherQr() {
       </div>
 
       <main className="print-shell mx-auto flex min-h-[calc(100vh-61px)] max-w-6xl items-center justify-center p-5">
-        <div className="qr-card w-full max-w-[520px] rounded-2xl border-2 border-slate-300 bg-white p-4 shadow-sm">
+        <div className="qr-card w-full max-w-[500px] rounded-2xl border-2 border-slate-300 bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-start justify-between gap-3">
             <div>
               <p className="text-xs font-medium text-slate-500">
-                QR ครูสำหรับเปิดคาบ
+                บัตร QR ครู
               </p>
-              <h2 className="mt-1 text-lg font-bold leading-tight text-slate-900 md:text-xl">
+              <h2 className="mt-1 text-lg font-bold leading-tight text-slate-900">
                 {profile.prefix || ""}{profile.firstName} {profile.lastName}
               </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                {profile.teachingLevel === "primary" && "ครูระดับประถมศึกษา"}
-                {profile.teachingLevel === "secondary" && "ครูระดับมัธยมศึกษา"}
-                {profile.teachingLevel === "both" && "ครูระดับประถมและมัธยมศึกษา"}
-                {profile.isHomeroom ? " · ครูประจำชั้น" : ""}
-              </p>
             </div>
             <div className="rounded-full bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700">
               รหัสครู {profile.teacherCode}
@@ -146,11 +140,6 @@ export default function PrintTeacherQr() {
             <div className="min-w-0 text-sm">
               <p className="text-slate-500">รหัสครู</p>
               <p className="font-mono text-xl font-bold text-slate-900">{profile.teacherCode}</p>
-              <p className="mt-3 text-slate-500">สถานะการใช้งาน</p>
-              <p className="font-semibold text-slate-900">ใช้สแกนเพื่อเปิดคาบเรียน</p>
-              <p className="mt-3 text-[11px] leading-relaxed text-slate-400">
-                ใช้ร่วมกับเครื่องสแกนเพื่อเปิด session ของครูตอนเริ่มคาบ
-              </p>
             </div>
           </div>
         </div>
