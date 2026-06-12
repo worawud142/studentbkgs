@@ -270,7 +270,7 @@ describe("excel exporter", () => {
       },
     },
   ])(
-    "keeps overlapping attendance dates on the latest matching sheet for $name templates",
+    "keeps overlapping attendance dates on the first matching sheet for $name templates",
     async ({ template, assignment }) => {
       const { outputPath } = await runPythonExporter(template, {
         ...basePayload,
@@ -287,8 +287,8 @@ describe("excel exporter", () => {
       const earlierSheet = await readCells(outputPath, "เวลาเรียน (2)", ["AE6"]);
       const laterSheet = await readCells(outputPath, "เวลาเรียน (3)", ["L6"]);
 
-      expect(earlierSheet.AE6).toBeNull();
-      expect(laterSheet.L6).toBe("/");
+      expect(earlierSheet.AE6).toBe("/");
+      expect(laterSheet.L6).toBeNull();
     },
     20000
   );

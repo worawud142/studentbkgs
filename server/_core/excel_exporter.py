@@ -530,7 +530,7 @@ def write_latest_attendance(wb, payload, visible_students):
     assigned_attendance = {sheet["worksheet"].title: {} for sheet in attendance_sheets}
 
     for (student_id, day_key), status in attendance_by_student_date.items():
-        for sheet in reversed(attendance_sheets):
+        for sheet in attendance_sheets:
             if sheet["start"] <= day_key <= sheet["end"]:
                 assigned_attendance[sheet["worksheet"].title][(student_id, day_key)] = status
                 break
