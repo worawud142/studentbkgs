@@ -4,7 +4,7 @@ import os
 import re
 import sys
 from copy import copy
-from datetime import date
+from datetime import date, timedelta
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.cell.cell import MergedCell
@@ -459,9 +459,10 @@ def month_for_attendance_column(ws, column):
     return thai_month_from_label(label)
 
 
-def attendance_date_columns(ws, assignment):
+def attendance_date_columns(ws, assignment, previous_sheet_end=None):
     columns = []
     current_month = None
+    current_year = None
     previous_day = None
     for col in range(1, ws.max_column + 1):
         raw_day = ws.cell(row=4, column=col).value
@@ -472,18 +473,36 @@ def attendance_date_columns(ws, assignment):
 
         header_month = month_for_attendance_column(ws, col)
         if current_month is None:
-            current_month = header_month
+            next_date = (
+                previous_sheet_end + timedelta(days=1)
+                if previous_sheet_end is not None
+                else None
+            )
+            current_month = (
+                next_date.month
+                if next_date is not None and next_date.day == day
+                else header_month
+            )
+            current_year = (
+                next_date.year
+                if next_date is not None and next_date.day == day
+                else academic_gregorian_year(assignment, current_month)
+            )
         elif previous_day is not None and day < previous_day:
-            current_month = current_month + 1 if current_month < 12 else 1
+            if current_month == 12:
+                current_month = 1
+                current_year += 1
+            else:
+                current_month += 1
         elif header_month is not None and previous_day is None:
             current_month = header_month
+            current_year = academic_gregorian_year(assignment, current_month)
 
-        if current_month is None:
+        if current_month is None or current_year is None:
             previous_day = day
             continue
 
-        year = academic_gregorian_year(assignment, current_month)
-        key = date_key(year, current_month, day)
+        key = date_key(current_year, current_month, day)
         if key:
             columns.append((key, col))
         previous_day = day
@@ -492,10 +511,11 @@ def attendance_date_columns(ws, assignment):
 
 def attendance_sheet_ranges(wb, assignment):
     sheets = []
+    previous_sheet_end = None
     for ws in wb.worksheets:
         if not ws.title.startswith("เวลาเรียน"):
             continue
-        date_columns = attendance_date_columns(ws, assignment)
+        date_columns = attendance_date_columns(ws, assignment, previous_sheet_end)
         if not date_columns:
             continue
         sheets.append(
@@ -506,6 +526,7 @@ def attendance_sheet_ranges(wb, assignment):
                 "end": date_columns[-1][0],
             }
         )
+        previous_sheet_end = date.fromisoformat(date_columns[-1][0])
     return sheets
 
 

@@ -270,7 +270,7 @@ describe("excel exporter", () => {
       },
     },
   ])(
-    "keeps overlapping attendance dates on the first matching sheet for $name templates",
+    "maps consecutive attendance sheets to the correct month for $name templates",
     async ({ template, assignment }) => {
       const { outputPath } = await runPythonExporter(template, {
         ...basePayload,
@@ -281,6 +281,11 @@ describe("excel exporter", () => {
             date: "2026-06-10",
             status: "present",
           },
+          {
+            studentId: 1,
+            date: "2026-07-10",
+            status: "absent",
+          },
         ],
       });
 
@@ -288,7 +293,7 @@ describe("excel exporter", () => {
       const laterSheet = await readCells(outputPath, "เวลาเรียน (3)", ["L6"]);
 
       expect(earlierSheet.AE6).toBe("/");
-      expect(laterSheet.L6).toBeNull();
+      expect(laterSheet.L6).toBe("ข");
     },
     20000
   );
