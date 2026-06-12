@@ -223,6 +223,22 @@ function extendRowFormulas(
   }
 }
 
+function extendRowFormat(
+  worksheet: ExcelJS.Worksheet,
+  sourceRow: number,
+  targetStartRow: number,
+  studentCount: number
+) {
+  const source = worksheet.getRow(sourceRow);
+  for (let row = targetStartRow; row < targetStartRow + studentCount; row++) {
+    const target = worksheet.getRow(row);
+    target.height = source.height;
+    for (let column = 1; column <= worksheet.columnCount; column++) {
+      target.getCell(column).style = { ...source.getCell(column).style };
+    }
+  }
+}
+
 function normalizeTerm(category: Record<string, any>): "midyear" | "endyear" {
   return category.term === "endyear" ? "endyear" : "midyear";
 }
@@ -740,6 +756,7 @@ function extendStudentFormulas(
   const studentCount = students.length;
   for (const worksheet of workbook.worksheets) {
     if (worksheet.name.startsWith("เวลาเรียน")) {
+      extendRowFormat(worksheet, 6, 6, studentCount);
       extendRowFormulas(worksheet, 6, 6, studentCount);
     }
   }
@@ -774,6 +791,7 @@ function extendStudentFormulas(
   for (const [sheetName, sourceRow, targetStartRow] of formulaSheets) {
     const worksheet = workbook.getWorksheet(sheetName);
     if (worksheet) {
+      extendRowFormat(worksheet, sourceRow, targetStartRow, studentCount);
       extendRowFormulas(
         worksheet,
         sourceRow,
@@ -785,6 +803,7 @@ function extendStudentFormulas(
 
   const resultSheet = workbook.getWorksheet("ผลการเรียน");
   if (resultSheet) {
+    extendRowFormat(resultSheet, 9, 9, studentCount);
     extendRowFormulas(resultSheet, 9, 9, studentCount, 2, 9);
   }
 }

@@ -221,9 +221,9 @@ describe("node Excel runtime", () => {
       level: "primary",
       classroomName: "ป.5/1",
       unitSheet: "ภาค1(8)",
-      unitCell: "F26",
+      unitCell: "F42",
       summarySheet: "สรุปผลรวม (10)",
-      summaryCell: "Q27",
+      summaryCell: "Q43",
       assessmentSheet: "คุณลักษณะ -อ่าน -สมรรถนะ(11)",
     },
     {
@@ -232,9 +232,9 @@ describe("node Excel runtime", () => {
       level: "secondary",
       classroomName: "ม.2/1",
       unitSheet: "หน่วย 1,4 (5)",
-      unitCell: "H25",
+      unitCell: "H41",
       summarySheet: "สรุปผลรวม (8)",
-      summaryCell: "Q26",
+      summaryCell: "Q42",
       assessmentSheet: "คุณลักษณะ อ่าน สมรรถนะ (9)",
     },
   ])(
@@ -251,7 +251,7 @@ describe("node Excel runtime", () => {
     }) => {
       const tmpDir = await makeTmpDir();
       const outputPath = path.join(tmpDir, `${level}-formulas.xlsx`);
-      const students = Array.from({ length: 20 }, (_, index) => ({
+      const students = Array.from({ length: 36 }, (_, index) => ({
         id: index + 1,
         studentNumber: index + 1,
         studentCode: `${1001 + index}`,
@@ -291,17 +291,19 @@ describe("node Excel runtime", () => {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.readFile(outputPath);
 
-      expect(workbook.getWorksheet("เวลาเรียน (4)")?.getCell("AX25").formula).toContain("25");
+      const attendanceCell = workbook.getWorksheet("เวลาเรียน (4)")?.getCell("AX41");
+      expect(attendanceCell?.formula).toContain("41");
+      expect(attendanceCell?.border.left.style).toBeTruthy();
       expect(workbook.getWorksheet(unitSheet)?.getCell(unitCell).formula).toContain(
         unitCell.replace(/^[A-Z]+/, "")
       );
       expect(workbook.getWorksheet(summarySheet)?.getCell(summaryCell).formula).toContain(
         summaryCell.replace(/^[A-Z]+/, "")
       );
-      expect(workbook.getWorksheet(assessmentSheet)?.getCell("K24").formula).toContain(
+      expect(workbook.getWorksheet(assessmentSheet)?.getCell("K40").formula).toContain(
         summaryCell
       );
-      expect(workbook.getWorksheet("ผลการเรียน")?.getCell("C28").formula).toContain("B25");
+      expect(workbook.getWorksheet("ผลการเรียน")?.getCell("C44").formula).toContain("B41");
     },
     30000
   );

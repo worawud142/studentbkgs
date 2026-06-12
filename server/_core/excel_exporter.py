@@ -430,10 +430,28 @@ def extend_row_formulas(ws, source_row, target_start_row, student_count, min_col
             target.value = Translator(formula, origin=origin).translate_formula(target.coordinate)
 
 
+def extend_row_format(ws, source_row, target_start_row, student_count):
+    source_height = ws.row_dimensions[source_row].height
+    for row in range(target_start_row, target_start_row + student_count):
+        if source_height is not None:
+            ws.row_dimensions[row].height = source_height
+        for col in range(1, ws.max_column + 1):
+            source = ws.cell(row=source_row, column=col)
+            target = ws.cell(row=row, column=col)
+            if isinstance(target, MergedCell):
+                continue
+            if source.has_style:
+                target._style = copy(source._style)
+            if source.number_format:
+                target.number_format = source.number_format
+            target.protection = copy(source.protection)
+
+
 def extend_latest_student_formulas(wb, visible_students):
     student_count = len(visible_students)
     for ws in wb.worksheets:
         if ws.title.startswith("เวลาเรียน"):
+            extend_row_format(ws, 6, 6, student_count)
             extend_row_formulas(ws, 6, 6, student_count)
 
     formula_sheets = []
@@ -459,11 +477,15 @@ def extend_latest_student_formulas(wb, visible_students):
 
     for sheet_name, source_row, target_start_row in formula_sheets:
         if sheet_name in wb.sheetnames:
+            extend_row_format(
+                wb[sheet_name], source_row, target_start_row, student_count
+            )
             extend_row_formulas(
                 wb[sheet_name], source_row, target_start_row, student_count
             )
 
     if "ผลการเรียน" in wb.sheetnames:
+        extend_row_format(wb["ผลการเรียน"], 9, 9, student_count)
         extend_row_formulas(
             wb["ผลการเรียน"], 9, 9, student_count, min_col=2, max_col=9
         )

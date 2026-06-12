@@ -88,6 +88,33 @@ print(json.dumps({cell: ws[cell].value for cell in cells}, ensure_ascii=False))
   return JSON.parse(result) as Record<string, any>;
 }
 
+async function readCellBorder(outputPath: string, sheetName: string, cell: string) {
+  const script = `
+import json
+import sys
+from openpyxl import load_workbook
+
+wb = load_workbook(sys.argv[1])
+border = wb[sys.argv[2]][sys.argv[3]].border
+print(json.dumps({"left": border.left.style, "right": border.right.style}))
+`;
+  const result = await new Promise<string>((resolve, reject) => {
+    const child = spawn("python3", ["-c", script, outputPath, sheetName, cell], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", chunk => (stdout += chunk.toString()));
+    child.stderr.on("data", chunk => (stderr += chunk.toString()));
+    child.on("error", reject);
+    child.on("close", code => {
+      if (code === 0) resolve(stdout.trim());
+      else reject(new Error(stderr.trim() || `border reader exited with code ${code}`));
+    });
+  });
+  return JSON.parse(result) as { left: string | null; right: string | null };
+}
+
 describe("excel exporter", () => {
   const basePayload = {
     mode: "class",
@@ -304,9 +331,9 @@ describe("excel exporter", () => {
       template: path.resolve(process.cwd(), "templates/academic/ปพ.5-ป.1.xlsx"),
       assignment: basePayload.assignment,
       unitSheet: "ภาค1(8)",
-      unitCell: "F26",
+      unitCell: "F42",
       summarySheet: "สรุปผลรวม (10)",
-      summaryCell: "Q27",
+      summaryCell: "Q43",
       assessmentSheet: "คุณลักษณะ -อ่าน -สมรรถนะ(11)",
     },
     {
@@ -320,9 +347,9 @@ describe("excel exporter", () => {
         subjectCode: "ท22101",
       },
       unitSheet: "หน่วย 1,4 (5)",
-      unitCell: "H25",
+      unitCell: "H41",
       summarySheet: "สรุปผลรวม (8)",
-      summaryCell: "Q26",
+      summaryCell: "Q42",
       assessmentSheet: "คุณลักษณะ อ่าน สมรรถนะ (9)",
     },
   ])(
@@ -336,7 +363,7 @@ describe("excel exporter", () => {
       summaryCell,
       assessmentSheet,
     }) => {
-      const students = Array.from({ length: 20 }, (_, index) => ({
+      const students = Array.from({ length: 36 }, (_, index) => ({
         ...basePayload.students[0],
         id: index + 1,
         studentNumber: index + 1,
@@ -351,17 +378,23 @@ describe("excel exporter", () => {
         attendance: [],
       });
 
-      const attendance = await readCells(outputPath, "เวลาเรียน (4)", ["AX25"]);
+      const attendance = await readCells(outputPath, "เวลาเรียน (4)", ["AX41"]);
+      const attendanceBorder = await readCellBorder(
+        outputPath,
+        "เวลาเรียน (4)",
+        "AX41"
+      );
       const unit = await readCells(outputPath, unitSheet, [unitCell]);
       const summary = await readCells(outputPath, summarySheet, [summaryCell]);
-      const assessment = await readCells(outputPath, assessmentSheet, ["K24"]);
-      const result = await readCells(outputPath, "ผลการเรียน", ["C28"]);
+      const assessment = await readCells(outputPath, assessmentSheet, ["K40"]);
+      const result = await readCells(outputPath, "ผลการเรียน", ["C44"]);
 
-      expect(attendance.AX25).toContain("25");
+      expect(attendance.AX41).toContain("41");
+      expect(attendanceBorder.left).toBeTruthy();
       expect(unit[unitCell]).toContain(unitCell.replace(/^[A-Z]+/, ""));
       expect(summary[summaryCell]).toContain(summaryCell.replace(/^[A-Z]+/, ""));
-      expect(assessment.K24).toContain(summaryCell);
-      expect(result.C28).toContain("B25");
+      expect(assessment.K40).toContain(summaryCell);
+      expect(result.C44).toContain("B41");
     },
     30000
   );
