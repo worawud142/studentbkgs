@@ -8,6 +8,7 @@ from datetime import date, timedelta
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.cell.cell import MergedCell
+from openpyxl.formula.translate import Translator
 from openpyxl.utils import get_column_letter
 
 
@@ -411,6 +412,63 @@ def write_latest_score_student_names(wb, visible_students):
             write_if_not_merged(ws, row, 2, student_visible_name(student))
 
 
+def extend_row_formulas(ws, source_row, target_start_row, student_count, min_col=1, max_col=None):
+    if student_count <= 0:
+        return
+    max_col = max_col or ws.max_column
+    source_formulas = []
+    for col in range(min_col, max_col + 1):
+        cell = ws.cell(row=source_row, column=col)
+        if isinstance(cell.value, str) and cell.value.startswith("="):
+            source_formulas.append((col, cell.coordinate, cell.value))
+
+    for row in range(target_start_row, target_start_row + student_count):
+        for col, origin, formula in source_formulas:
+            target = ws.cell(row=row, column=col)
+            if isinstance(target, MergedCell):
+                continue
+            target.value = Translator(formula, origin=origin).translate_formula(target.coordinate)
+
+
+def extend_latest_student_formulas(wb, visible_students):
+    student_count = len(visible_students)
+    for ws in wb.worksheets:
+        if ws.title.startswith("เวลาเรียน"):
+            extend_row_formulas(ws, 6, 6, student_count)
+
+    formula_sheets = []
+    if has_latest_primary_layout(wb):
+        formula_sheets.extend(
+            [
+                (LATEST_PRIMARY_TERM_SHEETS["midyear"], 7, 7),
+                (LATEST_PRIMARY_TERM_SHEETS["endyear"], 7, 7),
+                (LATEST_PRIMARY_SUMMARY_SHEET, 8, 8),
+                ("คุณลักษณะ -อ่าน -สมรรถนะ(11)", 5, 5),
+            ]
+        )
+    if has_latest_secondary_layout(wb):
+        formula_sheets.extend(
+            [(sheet_name, 6, 6) for sheet_name, _columns in LATEST_SECONDARY_UNIT_SHEETS]
+        )
+        formula_sheets.extend(
+            [
+                (LATEST_SECONDARY_SUMMARY_SHEET, 7, 7),
+                ("คุณลักษณะ อ่าน สมรรถนะ (9)", 5, 5),
+            ]
+        )
+
+    for sheet_name, source_row, target_start_row in formula_sheets:
+        if sheet_name in wb.sheetnames:
+            extend_row_formulas(
+                wb[sheet_name], source_row, target_start_row, student_count
+            )
+
+    if "ผลการเรียน" in wb.sheetnames:
+        extend_row_formulas(
+            wb["ผลการเรียน"], 9, 9, student_count, min_col=2, max_col=9
+        )
+
+
 def thai_month_from_label(value):
     text = str(value or "").strip()
     for name, month in THAI_MONTHS.items():
@@ -675,6 +733,7 @@ def fill_latest_academic_print_workbook(wb, payload):
     }
 
     write_latest_cover(wb, assignment)
+    extend_latest_student_formulas(wb, visible_students)
     write_latest_student_lists(wb, visible_students)
     write_latest_score_student_names(wb, visible_students)
     write_latest_attendance(wb, payload, visible_students)

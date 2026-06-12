@@ -213,4 +213,96 @@ describe("node Excel runtime", () => {
       formula: expect.stringContaining("'สรุปผลรวม (8)'!Q7"),
     });
   });
+
+  it.each([
+    {
+      name: "primary",
+      template: "ปพ.5-ป.1.xlsx",
+      level: "primary",
+      classroomName: "ป.5/1",
+      unitSheet: "ภาค1(8)",
+      unitCell: "F26",
+      summarySheet: "สรุปผลรวม (10)",
+      summaryCell: "Q27",
+      assessmentSheet: "คุณลักษณะ -อ่าน -สมรรถนะ(11)",
+    },
+    {
+      name: "secondary",
+      template: "ปพ.5-ม2.xlsx",
+      level: "secondary",
+      classroomName: "ม.2/1",
+      unitSheet: "หน่วย 1,4 (5)",
+      unitCell: "H25",
+      summarySheet: "สรุปผลรวม (8)",
+      summaryCell: "Q26",
+      assessmentSheet: "คุณลักษณะ อ่าน สมรรถนะ (9)",
+    },
+  ])(
+    "extends formulas through the last student row for $name templates",
+    async ({
+      template,
+      level,
+      classroomName,
+      unitSheet,
+      unitCell,
+      summarySheet,
+      summaryCell,
+      assessmentSheet,
+    }) => {
+      const tmpDir = await makeTmpDir();
+      const outputPath = path.join(tmpDir, `${level}-formulas.xlsx`);
+      const students = Array.from({ length: 20 }, (_, index) => ({
+        id: index + 1,
+        studentNumber: index + 1,
+        studentCode: `${1001 + index}`,
+        prefix: index % 2 === 0 ? "เด็กชาย" : "เด็กหญิง",
+        firstName: `นักเรียน${index + 1}`,
+        lastName: "ทดสอบ",
+      }));
+
+      await buildNodeExportFile({
+        outputPath,
+        templateFileName: path.resolve(
+          process.cwd(),
+          "templates/academic",
+          template
+        ),
+        payload: {
+          mode: "class",
+          assignment: {
+            subjectCode: "ท11101",
+            subjectName: "ภาษาไทย",
+            subjectCredits: "1.0",
+            hoursPerWeek: 2,
+            teacherName: "ครูผู้สอนตัวอย่าง",
+            classroomName,
+            classroomLevel: level,
+            classroomGrade: level === "primary" ? 5 : 2,
+            academicYear: { year: 2569, semester: 1, level },
+          },
+          students,
+          categories: [],
+          scores: [],
+          gradeResults: [],
+          attendance: [],
+        },
+      });
+
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.readFile(outputPath);
+
+      expect(workbook.getWorksheet("เวลาเรียน (4)")?.getCell("AX25").formula).toContain("25");
+      expect(workbook.getWorksheet(unitSheet)?.getCell(unitCell).formula).toContain(
+        unitCell.replace(/^[A-Z]+/, "")
+      );
+      expect(workbook.getWorksheet(summarySheet)?.getCell(summaryCell).formula).toContain(
+        summaryCell.replace(/^[A-Z]+/, "")
+      );
+      expect(workbook.getWorksheet(assessmentSheet)?.getCell("K24").formula).toContain(
+        summaryCell
+      );
+      expect(workbook.getWorksheet("ผลการเรียน")?.getCell("C28").formula).toContain("B25");
+    },
+    30000
+  );
 });

@@ -185,6 +185,44 @@ function writeFormula(cell: ExcelJS.Cell, formula: string) {
   cell.value = { formula: formula.replace(/^=/, "") };
 }
 
+function extendRowFormulas(
+  worksheet: ExcelJS.Worksheet,
+  sourceRow: number,
+  targetStartRow: number,
+  studentCount: number,
+  minColumn = 1,
+  maxColumn = worksheet.columnCount
+) {
+  if (studentCount <= 0) return;
+  const targetEndRow = targetStartRow + studentCount - 1;
+  const sourceFormulas: Array<{ column: number; formula: string }> = [];
+
+  for (let column = minColumn; column <= maxColumn; column++) {
+    const formula = worksheet.getCell(sourceRow, column).formula;
+    if (formula) sourceFormulas.push({ column, formula });
+  }
+
+  for (const { column, formula } of sourceFormulas) {
+    const letter = worksheet.getColumn(column).letter;
+    worksheet.fillFormula(
+      `${letter}${sourceRow}:${letter}${targetEndRow}`,
+      formula
+    );
+    const translated = Array.from(
+      { length: studentCount },
+      (_, index) => worksheet.getCell(targetStartRow + index, column).formula
+    );
+    translated.forEach((targetFormula, index) => {
+      if (targetFormula) {
+        writeFormula(
+          worksheet.getCell(targetStartRow + index, column),
+          targetFormula
+        );
+      }
+    });
+  }
+}
+
 function normalizeTerm(category: Record<string, any>): "midyear" | "endyear" {
   return category.term === "endyear" ? "endyear" : "midyear";
 }
@@ -695,6 +733,62 @@ function writeScoreStudentNames(
   }
 }
 
+function extendStudentFormulas(
+  workbook: ExcelJS.Workbook,
+  students: Record<string, any>[]
+) {
+  const studentCount = students.length;
+  for (const worksheet of workbook.worksheets) {
+    if (worksheet.name.startsWith("เวลาเรียน")) {
+      extendRowFormulas(worksheet, 6, 6, studentCount);
+    }
+  }
+
+  const formulaSheets: Array<[string, number, number]> = [];
+  if (
+    hasSheets(workbook, [
+      "ปก (1)",
+      "เวลาเรียน (2)",
+      LATEST_PRIMARY_TERM_SHEETS.midyear,
+      LATEST_PRIMARY_TERM_SHEETS.endyear,
+      LATEST_PRIMARY_SUMMARY_SHEET,
+    ])
+  ) {
+    formulaSheets.push(
+      [LATEST_PRIMARY_TERM_SHEETS.midyear, 7, 7],
+      [LATEST_PRIMARY_TERM_SHEETS.endyear, 7, 7],
+      [LATEST_PRIMARY_SUMMARY_SHEET, 8, 8],
+      ["คุณลักษณะ -อ่าน -สมรรถนะ(11)", 5, 5]
+    );
+  }
+  if (hasSheets(workbook, ["ปก (1)", "เวลาเรียน (2)", LATEST_SECONDARY_SUMMARY_SHEET])) {
+    formulaSheets.push(
+      ...LATEST_SECONDARY_UNIT_SHEETS.map(
+        ([sheetName]) => [sheetName, 6, 6] as [string, number, number]
+      ),
+      [LATEST_SECONDARY_SUMMARY_SHEET, 7, 7],
+      ["คุณลักษณะ อ่าน สมรรถนะ (9)", 5, 5]
+    );
+  }
+
+  for (const [sheetName, sourceRow, targetStartRow] of formulaSheets) {
+    const worksheet = workbook.getWorksheet(sheetName);
+    if (worksheet) {
+      extendRowFormulas(
+        worksheet,
+        sourceRow,
+        targetStartRow,
+        studentCount
+      );
+    }
+  }
+
+  const resultSheet = workbook.getWorksheet("ผลการเรียน");
+  if (resultSheet) {
+    extendRowFormulas(resultSheet, 9, 9, studentCount, 2, 9);
+  }
+}
+
 function writeCover(workbook: ExcelJS.Workbook, assignment: Record<string, any>) {
   const worksheet = workbook.getWorksheet("ปก (1)");
   if (!worksheet) return;
@@ -878,6 +972,7 @@ function fillLatestAcademicPrintWorkbook(
   const scores = scoreMap(payload);
 
   writeCover(workbook, assignment);
+  extendStudentFormulas(workbook, students);
   writeStudentLists(workbook, students);
   writeScoreStudentNames(workbook, students);
   repairSecondaryAssessmentFormulas(workbook, students);

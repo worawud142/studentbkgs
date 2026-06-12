@@ -297,4 +297,72 @@ describe("excel exporter", () => {
     },
     20000
   );
+
+  it.each([
+    {
+      name: "primary",
+      template: path.resolve(process.cwd(), "templates/academic/ปพ.5-ป.1.xlsx"),
+      assignment: basePayload.assignment,
+      unitSheet: "ภาค1(8)",
+      unitCell: "F26",
+      summarySheet: "สรุปผลรวม (10)",
+      summaryCell: "Q27",
+      assessmentSheet: "คุณลักษณะ -อ่าน -สมรรถนะ(11)",
+    },
+    {
+      name: "secondary",
+      template: path.resolve(process.cwd(), "templates/academic/ปพ.5-ม2.xlsx"),
+      assignment: {
+        ...basePayload.assignment,
+        classroomLevel: "secondary",
+        classroomName: "ม.2/1",
+        classroomGrade: 2,
+        subjectCode: "ท22101",
+      },
+      unitSheet: "หน่วย 1,4 (5)",
+      unitCell: "H25",
+      summarySheet: "สรุปผลรวม (8)",
+      summaryCell: "Q26",
+      assessmentSheet: "คุณลักษณะ อ่าน สมรรถนะ (9)",
+    },
+  ])(
+    "extends formulas through the last student row for $name templates",
+    async ({
+      template,
+      assignment,
+      unitSheet,
+      unitCell,
+      summarySheet,
+      summaryCell,
+      assessmentSheet,
+    }) => {
+      const students = Array.from({ length: 20 }, (_, index) => ({
+        ...basePayload.students[0],
+        id: index + 1,
+        studentNumber: index + 1,
+        studentCode: `${1001 + index}`,
+        firstName: `นักเรียน${index + 1}`,
+      }));
+      const { outputPath } = await runPythonExporter(template, {
+        ...basePayload,
+        assignment,
+        students,
+        scores: [],
+        attendance: [],
+      });
+
+      const attendance = await readCells(outputPath, "เวลาเรียน (4)", ["AX25"]);
+      const unit = await readCells(outputPath, unitSheet, [unitCell]);
+      const summary = await readCells(outputPath, summarySheet, [summaryCell]);
+      const assessment = await readCells(outputPath, assessmentSheet, ["K24"]);
+      const result = await readCells(outputPath, "ผลการเรียน", ["C28"]);
+
+      expect(attendance.AX25).toContain("25");
+      expect(unit[unitCell]).toContain(unitCell.replace(/^[A-Z]+/, ""));
+      expect(summary[summaryCell]).toContain(summaryCell.replace(/^[A-Z]+/, ""));
+      expect(assessment.K24).toContain(summaryCell);
+      expect(result.C28).toContain("B25");
+    },
+    30000
+  );
 });
