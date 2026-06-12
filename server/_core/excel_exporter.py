@@ -490,6 +490,25 @@ def attendance_date_columns(ws, assignment):
     return columns
 
 
+def attendance_sheet_ranges(wb, assignment):
+    sheets = []
+    for ws in wb.worksheets:
+        if not ws.title.startswith("เวลาเรียน"):
+            continue
+        date_columns = attendance_date_columns(ws, assignment)
+        if not date_columns:
+            continue
+        sheets.append(
+            {
+                "worksheet": ws,
+                "date_columns": date_columns,
+                "start": date_columns[0][0],
+                "end": date_columns[-1][0],
+            }
+        )
+    return sheets
+
+
 def write_latest_attendance(wb, payload, visible_students):
     assignment = payload["assignment"]
     attendance_by_student_date = {}
@@ -507,14 +526,25 @@ def write_latest_attendance(wb, payload, visible_students):
         for row, student in enumerate(visible_students, start=6)
     }
 
-    for ws in wb.worksheets:
-        if not ws.title.startswith("เวลาเรียน"):
-            continue
-        date_columns = attendance_date_columns(ws, assignment)
+    attendance_sheets = attendance_sheet_ranges(wb, assignment)
+    assigned_attendance = {sheet["worksheet"].title: {} for sheet in attendance_sheets}
+
+    for (student_id, day_key), status in attendance_by_student_date.items():
+        for sheet in reversed(attendance_sheets):
+            if sheet["start"] <= day_key <= sheet["end"]:
+                assigned_attendance[sheet["worksheet"].title][(student_id, day_key)] = status
+                break
+
+    for sheet in attendance_sheets:
+        ws = sheet["worksheet"]
+        date_columns = sheet["date_columns"]
         clear_columns(ws, 6, ws.max_row, [col for _, col in date_columns])
+        sheet_attendance = assigned_attendance.get(ws.title, {})
+        if not sheet_attendance:
+            continue
         for day_key, col in date_columns:
             for student_id, row in student_rows.items():
-                status = attendance_by_student_date.get((student_id, day_key))
+                status = sheet_attendance.get((student_id, day_key))
                 if not status:
                     continue
                 write_if_not_merged(ws, row, col, ATTENDANCE_MARKS.get(status, status))

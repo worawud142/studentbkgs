@@ -251,4 +251,45 @@ describe("excel exporter", () => {
     },
     20000
   );
+
+  it.each([
+    {
+      name: "primary",
+      template: path.resolve(process.cwd(), "templates/academic/ปพ.5-ป.1.xlsx"),
+      assignment: basePayload.assignment,
+    },
+    {
+      name: "secondary",
+      template: path.resolve(process.cwd(), "templates/academic/ปพ.5-ม2.xlsx"),
+      assignment: {
+        ...basePayload.assignment,
+        classroomLevel: "secondary",
+        classroomName: "ม.2/1",
+        classroomGrade: 2,
+        subjectCode: "ท22101",
+      },
+    },
+  ])(
+    "keeps overlapping attendance dates on the latest matching sheet for $name templates",
+    async ({ template, assignment }) => {
+      const { outputPath } = await runPythonExporter(template, {
+        ...basePayload,
+        assignment,
+        attendance: [
+          {
+            studentId: 1,
+            date: "2026-06-10",
+            status: "present",
+          },
+        ],
+      });
+
+      const earlierSheet = await readCells(outputPath, "เวลาเรียน (2)", ["AE6"]);
+      const laterSheet = await readCells(outputPath, "เวลาเรียน (3)", ["L6"]);
+
+      expect(earlierSheet.AE6).toBeNull();
+      expect(laterSheet.L6).toBe("/");
+    },
+    20000
+  );
 });
