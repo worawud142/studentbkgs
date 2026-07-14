@@ -45,7 +45,7 @@ static const bool BUZZER_ACTIVE_HIGH = true;
 
 // -------------------- Timing -------------------
 static const unsigned long WIFI_RETRY_INTERVAL_MS = 5000;
-static const unsigned long HEARTBEAT_INTERVAL_MS = 30000;
+static const unsigned long HEARTBEAT_INTERVAL_MS = 10000;
 static const unsigned long CONFIG_REFRESH_INTERVAL_MS = 5UL * 60UL * 1000UL;
 static const unsigned long DUPLICATE_SCAN_LOCK_MS = 1500;
 

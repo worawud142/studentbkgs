@@ -8,7 +8,7 @@ This sketch connects one ESP32 box to the school management web app and lets you
 - Loads the device config from the web app
 - Reads QR codes from GM65 over UART
 - Sends the QR payload to the scan endpoint
-- Sends a heartbeat ping every 30 seconds
+- Sends a heartbeat ping every 10 seconds
 
 ## Why this works for multiple classrooms
 

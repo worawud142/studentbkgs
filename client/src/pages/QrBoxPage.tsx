@@ -40,10 +40,10 @@ function formatDateTime(value?: string | Date | null) {
   }).format(date);
 }
 
-// The ESP32 reports every 30 seconds. Allow up to two delayed/missed reports
-// before marking it offline, avoiding status flicker on a slow Render request.
-const QR_BOX_ONLINE_WINDOW_MS = 90 * 1000;
-const QR_BOX_REFRESH_INTERVAL_MS = 30 * 1000;
+// The ESP32 reports every 10 seconds. Two missed reports indicate that the
+// box is no longer reachable while leaving a small network-delay margin.
+const QR_BOX_ONLINE_WINDOW_MS = 25 * 1000;
+const QR_BOX_REFRESH_INTERVAL_MS = 5 * 1000;
 
 function isOnline(lastSeenAt?: string | Date | null, now = Date.now()) {
   if (!lastSeenAt) return false;
@@ -82,7 +82,7 @@ export default function QrBoxPage() {
   const classroomIdHint = Number(new URLSearchParams(window.location.search).get("classroomId") || 0);
 
   useEffect(() => {
-    const timer = window.setInterval(() => setStatusNow(Date.now()), 10 * 1000);
+    const timer = window.setInterval(() => setStatusNow(Date.now()), 5 * 1000);
     return () => window.clearInterval(timer);
   }, []);
 

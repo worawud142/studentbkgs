@@ -14,13 +14,14 @@ import {
   openTeacherQrSession,
   recordQrScanLog,
   resolveBangkokTodayAttendanceDate,
+  touchQrScanDevice,
   upsertAttendance,
   verifyQrScanDeviceToken,
 } from "../db";
 import { ENV } from "./env";
 import { sendTelegramMessage } from "./telegram";
 
-const ONLINE_NOTIFICATION_GAP_MS = 2 * 60 * 1000;
+const ONLINE_NOTIFICATION_GAP_MS = 25 * 1000;
 
 function getDeviceToken(req: import("express").Request) {
   const auth = req.header("authorization");
@@ -111,14 +112,7 @@ export function registerQrBoxRoutes(app: Express) {
       `[QR Box] ping device=${device.id} wasOffline=${wasOffline} telegramConfigured=${telegramConfigured}`
     );
 
-    await recordQrScanLog({
-      deviceId,
-      assignmentId: device.assignmentId,
-      rawValue: "__ping__",
-      status: "ping",
-      message: "device heartbeat",
-      scannedAt: new Date(),
-    });
+    await touchQrScanDevice(deviceId, { lastSeenAt: new Date() });
 
     if (wasOffline) {
       const delivered = await sendTelegramMessage(
