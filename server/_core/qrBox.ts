@@ -115,7 +115,7 @@ export function registerQrBoxRoutes(app: Express) {
     });
 
     if (wasOffline) {
-      void sendTelegramMessage(
+      await sendTelegramMessage(
         `✅ กล่องสแกนพร้อมใช้งาน\nชื่อ: ${device.name}\nเวลา: ${new Date().toLocaleString("th-TH", {
           timeZone: "Asia/Bangkok",
         })}`
