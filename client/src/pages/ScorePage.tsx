@@ -112,6 +112,7 @@ export default function ScorePage() {
 
   const saveScores = trpc.score.save.useMutation({
     onSuccess: () => {
+      toast.success("บันทึกคะแนนเรียบร้อย");
       utils.score.getByAssignment.invalidate({ assignmentId: aId });
       utils.score.getGradeResults.invalidate({ assignmentId: aId });
       setAutoSaveStatus(dirtyScoreKeysRef.current.size > 0 ? "unsaved" : "saved");
