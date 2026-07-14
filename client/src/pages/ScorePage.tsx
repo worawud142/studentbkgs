@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Save, Trash2, BookOpen, Award, FileText, Download, Edit2 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { Plus, Save, Trash2, BookOpen, Award, FileText, Download, Edit2, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
 import { toast } from "sonner";
 import { Link } from "wouter";
@@ -62,7 +62,11 @@ export default function ScorePage() {
   const [editCatForm, setEditCatForm] = useState({ name: "", maxScore: "", order: 0, term: "midyear" as "midyear" | "endyear" });
   const [scoreInputs, setScoreInputs] = useState<Record<string, string>>({});
   const [dirtyScoreKeys, setDirtyScoreKeys] = useState<Set<string>>(() => new Set());
-  const [pendingSave, setPendingSave] = useState(false);
+  const [savingScoreKeys, setSavingScoreKeys] = useState<Set<string>>(() => new Set());
+  const [autoSaveStatus, setAutoSaveStatus] = useState<"idle" | "unsaved" | "saving" | "saved" | "error">("idle");
+  const dirtyScoreKeysRef = useRef<Set<string>>(new Set());
+  const savingScoreKeysRef = useRef<Set<string>>(new Set());
+  const hasHydratedScores = useRef(false);
 
   const { data: assignment } = trpc.assignment.get.useQuery({ id: aId });
   const { data: students = [] } = trpc.student.listByClassroom.useQuery(
@@ -107,14 +111,23 @@ export default function ScorePage() {
   });
 
   const saveScores = trpc.score.save.useMutation({
-    onSuccess: (result) => {
-      toast.success(`บันทึกคะแนนเรียบร้อย (${(result.inserted ?? 0) + (result.updated ?? 0)} รายการ)`);
+    onSuccess: () => {
       utils.score.getByAssignment.invalidate({ assignmentId: aId });
       utils.score.getGradeResults.invalidate({ assignmentId: aId });
-      setDirtyScoreKeys(new Set());
-      setPendingSave(false);
+      setAutoSaveStatus(dirtyScoreKeysRef.current.size > 0 ? "unsaved" : "saved");
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e, records) => {
+      const nextDirty = new Set(dirtyScoreKeysRef.current);
+      records.forEach((record) => nextDirty.add(`${record.categoryId}-${record.studentId}`));
+      dirtyScoreKeysRef.current = nextDirty;
+      setDirtyScoreKeys(nextDirty);
+      setAutoSaveStatus("error");
+      toast.error(`บันทึกคะแนนอัตโนมัติไม่สำเร็จ: ${e.message}`);
+    },
+    onSettled: () => {
+      savingScoreKeysRef.current = new Set();
+      setSavingScoreKeys(new Set());
+    },
   });
 
   const recordExport = trpc.document.recordExport.useMutation({
@@ -127,43 +140,73 @@ export default function ScorePage() {
     },
   });
 
-  // Build score map from DB
+  // Build score map from DB without overwriting edits that are waiting to be saved.
   useEffect(() => {
     const map: Record<string, string> = {};
     scores.forEach((s) => {
       map[`${s.categoryId}-${s.studentId}`] = s.score?.toString() || "";
     });
-    setScoreInputs(map);
-    setDirtyScoreKeys(new Set());
-    setPendingSave(false);
+    setScoreInputs((current) => {
+      if (!hasHydratedScores.current) return map;
+
+      const next = { ...map };
+      const protectedKeys = new Set([
+        ...Array.from(dirtyScoreKeysRef.current),
+        ...Array.from(savingScoreKeysRef.current),
+      ]);
+      protectedKeys.forEach((key) => {
+        if (key in current) next[key] = current[key];
+      });
+      return next;
+    });
+    hasHydratedScores.current = true;
   }, [scores]);
 
   const handleScoreChange = (catId: number, studentId: number, value: string) => {
     const key = `${catId}-${studentId}`;
     setScoreInputs((prev) => ({ ...prev, [key]: value }));
-    setDirtyScoreKeys((prev) => {
-      const next = new Set(prev);
-      next.add(key);
-      return next;
-    });
-    setPendingSave(true);
+    const nextDirty = new Set(dirtyScoreKeysRef.current);
+    nextDirty.add(key);
+    dirtyScoreKeysRef.current = nextDirty;
+    setDirtyScoreKeys(nextDirty);
+    setAutoSaveStatus("unsaved");
   };
 
-  const handleSaveAll = () => {
+  const flushDirtyScores = () => {
+    if (savingScoreKeysRef.current.size > 0) return;
+
+    const keysToSave = Array.from(dirtyScoreKeysRef.current);
     const records: { categoryId: number; studentId: number; score: string | null }[] = [];
-    dirtyScoreKeys.forEach((key) => {
+    keysToSave.forEach((key) => {
       const [categoryId, studentId] = key.split("-").map(Number);
       const val = scoreInputs[key];
       if (!Number.isFinite(categoryId) || !Number.isFinite(studentId)) return;
       records.push({ categoryId, studentId, score: val !== undefined && val !== "" ? val : null });
     });
-    if (records.length === 0) {
-      setPendingSave(false);
-      toast.info("ไม่มีคะแนนที่เปลี่ยนแปลง");
-      return;
-    }
+
+    if (records.length === 0) return;
+
+    const remainingDirty = new Set(dirtyScoreKeysRef.current);
+    keysToSave.forEach((key) => remainingDirty.delete(key));
+    dirtyScoreKeysRef.current = remainingDirty;
+    savingScoreKeysRef.current = new Set(keysToSave);
+    setDirtyScoreKeys(remainingDirty);
+    setSavingScoreKeys(new Set(keysToSave));
+    setAutoSaveStatus("saving");
     saveScores.mutate(records);
   };
+
+  // Save automatically after the teacher pauses typing. Blur also flushes immediately.
+  useEffect(() => {
+    if (
+      dirtyScoreKeys.size === 0 ||
+      savingScoreKeys.size > 0 ||
+      autoSaveStatus === "error"
+    ) return;
+
+    const timer = window.setTimeout(flushDirtyScores, 700);
+    return () => window.clearTimeout(timer);
+  }, [dirtyScoreKeys, savingScoreKeys, scoreInputs, autoSaveStatus]);
 
   const handleExportAcademicPrint = async () => {
     const href = `${isSecondary ? templateByLevel.secondary.href : templateByLevel.primary.href}&assignmentId=${aId}`;
@@ -293,16 +336,33 @@ export default function ScorePage() {
               </p>
             </div>
             <div className="flex gap-2">
-              {pendingSave && (
+              {savingScoreKeys.size > 0 && (
+                <span className="inline-flex items-center gap-1.5 text-sm text-blue-600">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  กำลังบันทึกอัตโนมัติ...
+                </span>
+              )}
+              {savingScoreKeys.size === 0 && dirtyScoreKeys.size > 0 && (
                 <Button
-                  onClick={handleSaveAll}
-                  disabled={saveScores.isPending}
+                  onClick={flushDirtyScores}
                   size="sm"
                   className="bg-green-600 hover:bg-green-700"
                 >
                   <Save className="w-4 h-4 mr-1" />
-                  {saveScores.isPending ? "กำลังบันทึก..." : "บันทึกคะแนน"}
+                  {autoSaveStatus === "error" ? "ลองบันทึกอีกครั้ง" : "บันทึกทันที"}
                 </Button>
+              )}
+              {savingScoreKeys.size === 0 && dirtyScoreKeys.size === 0 && autoSaveStatus === "saved" && (
+                <span className="inline-flex items-center gap-1.5 text-sm text-green-600">
+                  <CheckCircle2 className="w-4 h-4" />
+                  บันทึกแล้ว
+                </span>
+              )}
+              {autoSaveStatus === "error" && (
+                <span className="inline-flex items-center gap-1 text-sm text-red-600">
+                  <AlertCircle className="w-4 h-4" />
+                  บันทึกไม่สำเร็จ
+                </span>
               )}
               <Dialog open={showAddCat} onOpenChange={setShowAddCat}>
                 <DialogTrigger asChild>
@@ -522,6 +582,7 @@ export default function ScorePage() {
                                 type="number"
                                 value={scoreInputs[key] ?? ""}
                                 onChange={(e) => handleScoreChange(cat.id, s.id, e.target.value)}
+                                onBlur={flushDirtyScores}
                                 className={`score-input ${isOver ? "border-red-400 bg-red-50" : ""}`}
                                 min="0"
                                 max={max}
