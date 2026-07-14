@@ -40,10 +40,13 @@ function formatDateTime(value?: string | Date | null) {
   }).format(date);
 }
 
+const QR_BOX_ONLINE_WINDOW_MS = 2 * 60 * 1000;
+const QR_BOX_REFRESH_INTERVAL_MS = 30 * 1000;
+
 function isOnline(lastSeenAt?: string | Date | null) {
   if (!lastSeenAt) return false;
   const diff = Date.now() - new Date(lastSeenAt).getTime();
-  return Number.isFinite(diff) && diff < 5 * 60 * 1000;
+  return Number.isFinite(diff) && diff < QR_BOX_ONLINE_WINDOW_MS;
 }
 
 function assignmentLabel(row: any) {
@@ -76,13 +79,15 @@ export default function QrBoxPage() {
   const classroomIdHint = Number(new URLSearchParams(window.location.search).get("classroomId") || 0);
 
   const { data: devices = [], isLoading: devicesLoading } = trpc.qrBox.list.useQuery(undefined, {
-    refetchOnWindowFocus: false,
+    refetchInterval: QR_BOX_REFRESH_INTERVAL_MS,
+    refetchOnWindowFocus: true,
   });
   const { data: selectedDeviceDetails } = trpc.qrBox.get.useQuery(
     { id: Number(selectedDeviceId) },
     {
       enabled: selectedDeviceId !== "all",
-      refetchOnWindowFocus: false,
+      refetchInterval: QR_BOX_REFRESH_INTERVAL_MS,
+      refetchOnWindowFocus: true,
     }
   );
   const { data: assignments = [] } = trpc.assignment.listAll.useQuery(undefined, {
@@ -99,7 +104,10 @@ export default function QrBoxPage() {
       deviceId: selectedDeviceId === "all" ? undefined : Number(selectedDeviceId),
       limit: 50,
     },
-    { refetchOnWindowFocus: false }
+    {
+      refetchInterval: QR_BOX_REFRESH_INTERVAL_MS,
+      refetchOnWindowFocus: true,
+    }
   );
 
   const createMutation = trpc.qrBox.create.useMutation({
