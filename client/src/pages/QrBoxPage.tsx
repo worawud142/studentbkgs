@@ -40,9 +40,9 @@ function formatDateTime(value?: string | Date | null) {
   }).format(date);
 }
 
-// The ESP32 reports every 30 seconds. Allow a small network-delay margin,
-// then mark it offline without making the admin wait several minutes.
-const QR_BOX_ONLINE_WINDOW_MS = 45 * 1000;
+// The ESP32 reports every 30 seconds. Allow up to two delayed/missed reports
+// before marking it offline, avoiding status flicker on a slow Render request.
+const QR_BOX_ONLINE_WINDOW_MS = 90 * 1000;
 const QR_BOX_REFRESH_INTERVAL_MS = 30 * 1000;
 
 function isOnline(lastSeenAt?: string | Date | null, now = Date.now()) {
