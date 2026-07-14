@@ -17,6 +17,9 @@ import {
   upsertAttendance,
   verifyQrScanDeviceToken,
 } from "../db";
+import { sendTelegramMessage } from "./telegram";
+
+const ONLINE_NOTIFICATION_GAP_MS = 2 * 60 * 1000;
 
 function getDeviceToken(req: import("express").Request) {
   const auth = req.header("authorization");
@@ -98,6 +101,10 @@ export function registerQrBoxRoutes(app: Express) {
       return;
     }
 
+    const wasOffline =
+      !device.lastSeenAt ||
+      Date.now() - new Date(device.lastSeenAt).getTime() > ONLINE_NOTIFICATION_GAP_MS;
+
     await recordQrScanLog({
       deviceId,
       assignmentId: device.assignmentId,
@@ -106,6 +113,14 @@ export function registerQrBoxRoutes(app: Express) {
       message: "device heartbeat",
       scannedAt: new Date(),
     });
+
+    if (wasOffline) {
+      void sendTelegramMessage(
+        `✅ กล่องสแกนพร้อมใช้งาน\nชื่อ: ${device.name}\nเวลา: ${new Date().toLocaleString("th-TH", {
+          timeZone: "Asia/Bangkok",
+        })}`
+      );
+    }
 
     res.json({
       success: true,
