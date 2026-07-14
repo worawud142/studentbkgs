@@ -17,6 +17,7 @@ import {
   upsertAttendance,
   verifyQrScanDeviceToken,
 } from "../db";
+import { ENV } from "./env";
 import { sendTelegramMessage } from "./telegram";
 
 const ONLINE_NOTIFICATION_GAP_MS = 2 * 60 * 1000;
@@ -104,6 +105,11 @@ export function registerQrBoxRoutes(app: Express) {
     const wasOffline =
       !device.lastSeenAt ||
       Date.now() - new Date(device.lastSeenAt).getTime() > ONLINE_NOTIFICATION_GAP_MS;
+    const telegramConfigured = Boolean(ENV.telegramBotToken && ENV.telegramChatId);
+
+    console.info(
+      `[QR Box] ping device=${device.id} wasOffline=${wasOffline} telegramConfigured=${telegramConfigured}`
+    );
 
     await recordQrScanLog({
       deviceId,
@@ -115,11 +121,12 @@ export function registerQrBoxRoutes(app: Express) {
     });
 
     if (wasOffline) {
-      await sendTelegramMessage(
+      const delivered = await sendTelegramMessage(
         `✅ กล่องสแกนพร้อมใช้งาน\nชื่อ: ${device.name}\nเวลา: ${new Date().toLocaleString("th-TH", {
           timeZone: "Asia/Bangkok",
         })}`
       );
+      console.info(`[QR Box] Telegram ready notification delivered=${delivered}`);
     }
 
     res.json({
