@@ -22,7 +22,7 @@ import {
   WifiOff,
   QrCode,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 type QrBoxFormState = {
@@ -43,9 +43,9 @@ function formatDateTime(value?: string | Date | null) {
 const QR_BOX_ONLINE_WINDOW_MS = 2 * 60 * 1000;
 const QR_BOX_REFRESH_INTERVAL_MS = 30 * 1000;
 
-function isOnline(lastSeenAt?: string | Date | null) {
+function isOnline(lastSeenAt?: string | Date | null, now = Date.now()) {
   if (!lastSeenAt) return false;
-  const diff = Date.now() - new Date(lastSeenAt).getTime();
+  const diff = now - new Date(lastSeenAt).getTime();
   return Number.isFinite(diff) && diff < QR_BOX_ONLINE_WINDOW_MS;
 }
 
@@ -76,10 +76,17 @@ export default function QrBoxPage() {
   const [editingDevice, setEditingDevice] = useState<any | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState<QrBoxFormState>({ name: "", assignmentId: "" });
+  const [statusNow, setStatusNow] = useState(() => Date.now());
   const classroomIdHint = Number(new URLSearchParams(window.location.search).get("classroomId") || 0);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setStatusNow(Date.now()), 10 * 1000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const { data: devices = [], isLoading: devicesLoading } = trpc.qrBox.list.useQuery(undefined, {
     refetchInterval: QR_BOX_REFRESH_INTERVAL_MS,
+    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
   });
   const { data: selectedDeviceDetails } = trpc.qrBox.get.useQuery(
@@ -87,6 +94,7 @@ export default function QrBoxPage() {
     {
       enabled: selectedDeviceId !== "all",
       refetchInterval: QR_BOX_REFRESH_INTERVAL_MS,
+      refetchIntervalInBackground: true,
       refetchOnWindowFocus: true,
     }
   );
@@ -106,6 +114,7 @@ export default function QrBoxPage() {
     },
     {
       refetchInterval: QR_BOX_REFRESH_INTERVAL_MS,
+      refetchIntervalInBackground: true,
       refetchOnWindowFocus: true,
     }
   );
@@ -308,7 +317,7 @@ export default function QrBoxPage() {
                   <Wifi className="h-5 w-5 text-green-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-slate-900">{devices.filter((device: any) => isOnline(device.lastSeenAt)).length}</p>
+                  <p className="text-2xl font-bold text-slate-900">{devices.filter((device: any) => isOnline(device.lastSeenAt, statusNow)).length}</p>
                   <p className="text-xs text-slate-500">ออนไลน์</p>
                 </div>
               </div>
@@ -361,7 +370,7 @@ export default function QrBoxPage() {
                 </div>
               ) : (
                 devices.map((device: any) => {
-                  const online = isOnline(device.lastSeenAt);
+                  const online = isOnline(device.lastSeenAt, statusNow);
                   const endpointBase = window.location.origin;
                   const scanUrl = `${endpointBase}/api/qr-boxes/${device.id}/scan`;
                   const pingUrl = `${endpointBase}/api/qr-boxes/${device.id}/ping`;

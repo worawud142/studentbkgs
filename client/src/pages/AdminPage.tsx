@@ -235,11 +235,13 @@ export default function AdminPage() {
 // ─── System Data Tab ─────────────────────────────────────────────────────────
 function SystemDataTab() {
   const utils = trpc.useUtils();
+  const [qrBoxStatusNow, setQrBoxStatusNow] = useState(() => Date.now());
   const { data: teacherRows = [] } = trpc.teacher.allProfiles.useQuery();
   const { data: userRows = [] } = trpc.teacher.allUsers.useQuery();
   const { data: classrooms = [] } = trpc.classroom.list.useQuery({});
   const { data: qrBoxes = [] } = trpc.qrBox.list.useQuery(undefined, {
     refetchInterval: 30 * 1000,
+    refetchIntervalInBackground: true,
     refetchOnWindowFocus: true,
   });
   const [showAddTeacher, setShowAddTeacher] = useState(false);
@@ -269,6 +271,10 @@ function SystemDataTab() {
     isHomeroom: false,
     homeroomClassroomIds: [] as string[],
   });
+  useEffect(() => {
+    const timer = window.setInterval(() => setQrBoxStatusNow(Date.now()), 10 * 1000);
+    return () => window.clearInterval(timer);
+  }, []);
   useEffect(() => {
     if (!schoolSettings) return;
     setSchoolForm({
@@ -355,7 +361,7 @@ function SystemDataTab() {
               จัดการ ESP32-S3 + GM65, ดูสถานะออนไลน์, หมุน token และดู log การสแกนจากหน้าคอนโซลได้ที่นี่
             </p>
             <p className="text-xs text-slate-400">
-              มีทั้งหมด {qrBoxes.length} กล่อง · ออนไลน์ {qrBoxes.filter((box: any) => box.lastSeenAt && Date.now() - new Date(box.lastSeenAt).getTime() < 2 * 60 * 1000).length} กล่อง
+              มีทั้งหมด {qrBoxes.length} กล่อง · ออนไลน์ {qrBoxes.filter((box: any) => box.lastSeenAt && qrBoxStatusNow - new Date(box.lastSeenAt).getTime() < 2 * 60 * 1000).length} กล่อง
             </p>
           </div>
           <Button asChild className="bg-white text-slate-950 hover:bg-slate-100">
