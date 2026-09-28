@@ -192,7 +192,13 @@ describe("node Excel runtime", () => {
     await workbook.xlsx.readFile(outputPath);
     expect(workbook.getWorksheet("ปก (1)")?.getCell("G9").value).toBe(2);
     expect(workbook.getWorksheet("ปก (1)")?.getCell("E11").value).toBe(2);
-    expect(workbook.getWorksheet("ปก (1)")?.getImages()).toHaveLength(1);
+    const [embeddedLogo] = workbook.getWorksheet("ปก (1)")?.getImages() ?? [];
+    expect(embeddedLogo).toBeTruthy();
+    const embeddedLogoData = workbook.getImage(Number(embeddedLogo.imageId));
+    const logoFile = await fs.stat(
+      path.resolve(process.cwd(), "templates/academic/school-logo.png")
+    );
+    expect(embeddedLogoData.buffer).toHaveLength(logoFile.size);
     expect(workbook.getWorksheet("ปก (1)")?.getCell("E12").value).toBe(
       "ครูผู้สอนตัวอย่าง"
     );
