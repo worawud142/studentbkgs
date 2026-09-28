@@ -190,6 +190,9 @@ describe("node Excel runtime", () => {
 
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.readFile(outputPath);
+    expect(workbook.getWorksheet("ปก (1)")?.getCell("G9").value).toBe(2);
+    expect(workbook.getWorksheet("ปก (1)")?.getCell("E11").value).toBe(2);
+    expect(workbook.getWorksheet("ปก (1)")?.getImages()).toHaveLength(1);
     expect(workbook.getWorksheet("ปก (1)")?.getCell("E12").value).toBe(
       "ครูผู้สอนตัวอย่าง"
     );

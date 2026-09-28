@@ -135,11 +135,12 @@ function visibleStudents(payload: ExportPayload) {
 }
 
 function classroomGrade(assignment: Record<string, any>) {
-  if (assignment.classroomGrade !== null && assignment.classroomGrade !== undefined) {
-    return assignment.classroomGrade;
-  }
-  const match = String(assignment.classroomName ?? "").match(/(\d+)/);
-  return match ? Number(match[1]) : "";
+  const classroomName = String(assignment.classroomName ?? "").trim();
+  const match = classroomName.match(/(\d+)/);
+  if (match) return Number(match[1]);
+
+  if (assignment.classroomGrade == null) return "";
+  return assignment.classroomGrade;
 }
 
 function assignedTeacherLabel(assignment: Record<string, any>) {

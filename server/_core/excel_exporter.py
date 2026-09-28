@@ -288,11 +288,13 @@ def has_latest_secondary_layout(wb):
 
 
 def classroom_grade(assignment):
+    classroom_name = str(assignment.get("classroomName", "") or "").strip()
+    match = re.search(r"(\d+)", classroom_name)
+    if match:
+        return int(match.group(1))
+
     grade = assignment.get("classroomGrade")
-    if grade not in (None, ""):
-        return grade
-    match = re.search(r"(\d+)", str(assignment.get("classroomName", "") or ""))
-    return int(match.group(1)) if match else ""
+    return "" if grade in (None, "") else grade
 
 
 def write_if_not_merged(ws, row, column, value):

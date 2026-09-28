@@ -115,6 +115,31 @@ print(json.dumps({"left": border.left.style, "right": border.right.style}))
   return JSON.parse(result) as { left: string | null; right: string | null };
 }
 
+async function readImageCount(outputPath: string, sheetName: string) {
+  const script = `
+import sys
+from openpyxl import load_workbook
+
+wb = load_workbook(sys.argv[1])
+print(len(wb[sys.argv[2]]._images))
+`;
+  const result = await new Promise<string>((resolve, reject) => {
+    const child = spawn("python3", ["-c", script, outputPath, sheetName], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", chunk => (stdout += chunk.toString()));
+    child.stderr.on("data", chunk => (stderr += chunk.toString()));
+    child.on("error", reject);
+    child.on("close", code => {
+      if (code === 0) resolve(stdout.trim());
+      else reject(new Error(stderr.trim() || `image reader exited with code ${code}`));
+    });
+  });
+  return Number(result);
+}
+
 describe("excel exporter", () => {
   const basePayload = {
     mode: "class",
@@ -181,6 +206,8 @@ describe("excel exporter", () => {
       );
 
       const cover = await readCells(outputPath, "ปก (1)", [
+        "G9",
+        "E11",
         "C12",
         "E12",
         "C13",
@@ -197,6 +224,9 @@ describe("excel exporter", () => {
       ]);
 
       expect(cover.C12).toBe("ครูผู้สอน");
+      expect(cover.G9).toBe(5);
+      expect(cover.E11).toBe(2);
+      expect(await readImageCount(outputPath, "ปก (1)")).toBeGreaterThan(0);
       expect(cover.E12).toBe("ครูผู้สอนตัวอย่าง");
       expect(cover.C13).toBe("ครูประจำชั้น");
       expect(cover.E13).toBe("นางสมหญิง ใจดี");
@@ -239,6 +269,8 @@ describe("excel exporter", () => {
       );
 
       const cover = await readCells(outputPath, "ปก (1)", [
+        "G9",
+        "E11",
         "C12",
         "E12",
         "C13",
@@ -259,6 +291,9 @@ describe("excel exporter", () => {
       ]);
 
       expect(cover.C12).toBe("ครูผู้สอน");
+      expect(cover.G9).toBe(2);
+      expect(cover.E11).toBe(2);
+      expect(await readImageCount(outputPath, "ปก (1)")).toBeGreaterThan(0);
       expect(cover.E12).toBe("ครูผู้สอนตัวอย่าง");
       expect(cover.C13).toBe("ครูที่ปรึกษา");
       expect(cover.E13).toBe("นางสาวกาญจนา คำดี");
