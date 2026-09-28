@@ -491,6 +491,23 @@ def extend_latest_student_formulas(wb, visible_students):
         )
 
 
+def repair_latest_attendance_total_formulas(wb, visible_students):
+    """Convert attendance-day counts into the subject's actual taught hours."""
+    sheet_name = "เวลาเรียน (4)"
+    if sheet_name not in wb.sheetnames:
+        return
+
+    ws = wb[sheet_name]
+    for row, _student in enumerate(visible_students, start=6):
+        cell = ws.cell(row=row, column=50)  # AX = รวมเวลาเรียน
+        formula = cell.value
+        if not isinstance(formula, str) or not formula.startswith("="):
+            continue
+        if "'ปก (1)'!E11" in formula:
+            continue
+        cell.value = f"=({formula[1:]})*'ปก (1)'!E11"
+
+
 def thai_month_from_label(value):
     text = str(value or "").strip()
     for name, month in THAI_MONTHS.items():
@@ -756,6 +773,7 @@ def fill_latest_academic_print_workbook(wb, payload):
 
     write_latest_cover(wb, assignment)
     extend_latest_student_formulas(wb, visible_students)
+    repair_latest_attendance_total_formulas(wb, visible_students)
     write_latest_student_lists(wb, visible_students)
     write_latest_score_student_names(wb, visible_students)
     write_latest_attendance(wb, payload, visible_students)

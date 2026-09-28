@@ -318,9 +318,11 @@ describe("excel exporter", () => {
 
       const earlierSheet = await readCells(outputPath, "เวลาเรียน (2)", ["AE6"]);
       const laterSheet = await readCells(outputPath, "เวลาเรียน (3)", ["L6"]);
+      const totalSheet = await readCells(outputPath, "เวลาเรียน (4)", ["AX6"]);
 
       expect(earlierSheet.AE6).toBe("/");
       expect(laterSheet.L6).toBe("ข");
+      expect(totalSheet.AX6).toContain("*'ปก (1)'!E11");
     },
     20000
   );

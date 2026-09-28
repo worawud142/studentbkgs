@@ -808,6 +808,23 @@ function extendStudentFormulas(
   }
 }
 
+function repairAttendanceTotalFormulas(
+  workbook: ExcelJS.Workbook,
+  students: Record<string, any>[]
+) {
+  const worksheet = workbook.getWorksheet("เวลาเรียน (4)");
+  if (!worksheet) return;
+
+  students.forEach((_student, index) => {
+    const cell = worksheet.getCell(6 + index, 50); // AX = รวมเวลาเรียน
+    const formula = cell.formula;
+    if (!formula || formula.includes("'ปก (1)'!E11")) return;
+    cell.value = {
+      formula: `(${formula})*'ปก (1)'!E11`,
+    };
+  });
+}
+
 function writeCover(workbook: ExcelJS.Workbook, assignment: Record<string, any>) {
   const worksheet = workbook.getWorksheet("ปก (1)");
   if (!worksheet) return;
@@ -992,6 +1009,7 @@ function fillLatestAcademicPrintWorkbook(
 
   writeCover(workbook, assignment);
   extendStudentFormulas(workbook, students);
+  repairAttendanceTotalFormulas(workbook, students);
   writeStudentLists(workbook, students);
   writeScoreStudentNames(workbook, students);
   repairSecondaryAssessmentFormulas(workbook, students);

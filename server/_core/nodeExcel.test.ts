@@ -293,6 +293,7 @@ describe("node Excel runtime", () => {
 
       const attendanceCell = workbook.getWorksheet("เวลาเรียน (4)")?.getCell("AX41");
       expect(attendanceCell?.formula).toContain("41");
+      expect(attendanceCell?.formula).toContain("*'ปก (1)'!E11");
       expect(attendanceCell?.border.left.style).toBeTruthy();
       expect(workbook.getWorksheet(unitSheet)?.getCell(unitCell).formula).toContain(
         unitCell.replace(/^[A-Z]+/, "")
