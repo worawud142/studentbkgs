@@ -8,7 +8,6 @@ from datetime import date, timedelta
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.cell.cell import MergedCell
-from openpyxl.drawing.image import Image
 from openpyxl.formula.translate import Translator
 from openpyxl.utils import get_column_letter
 
@@ -355,22 +354,6 @@ def write_latest_cover(wb, assignment):
         write_if_not_merged(ws, row, name_col, name)
         set_black_font(ws.cell(row=row, column=label_col))
         set_black_font(ws.cell(row=row, column=name_col))
-
-
-def replace_school_logo(wb, template_path):
-    if "ปก (1)" not in wb.sheetnames:
-        return
-
-    logo_path = os.path.join(os.path.dirname(template_path), "school-logo.png")
-    if not os.path.exists(logo_path):
-        return
-
-    ws = wb["ปก (1)"]
-    ws._images = []
-    logo = Image(logo_path)
-    logo.width = 120
-    logo.height = 120
-    ws.add_image(logo, "H1")
 
 
 def secondary_attribute_formula(summary_row):
@@ -1054,8 +1037,6 @@ def main():
         fill_class_workbook(wb, payload, os.path.basename(template_path))
     else:
         fill_student_workbook(wb, payload, os.path.basename(template_path))
-
-    replace_school_logo(wb, template_path)
 
     wb.calculation.calcMode = "auto"
     wb.calculation.fullCalcOnLoad = True

@@ -25,12 +25,6 @@ type ExportPayload = Record<string, any>;
 
 const workbookContentType =
   "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-const SCHOOL_LOGO_FILE = path.resolve(
-  process.cwd(),
-  "templates",
-  "academic",
-  "school-logo.png"
-);
 
 const STUDENT_HEADERS = [
   "เลขที่",
@@ -1060,25 +1054,6 @@ async function loadTemplateWorkbook(templateFileName: string) {
   }
 }
 
-async function addSchoolLogo(workbook: ExcelJS.Workbook) {
-  const worksheet = workbook.getWorksheet("ปก (1)");
-  if (!worksheet) return;
-
-  // Replace the imported template image so the exported workbook owns a fresh,
-  // portable drawing relationship instead of relying on the template's crop.
-  (worksheet as ExcelJS.Worksheet & { _media: unknown[] })._media = [];
-  const logo = await fs.readFile(SCHOOL_LOGO_FILE, "base64");
-  const imageId = workbook.addImage({
-    base64: `data:image/png;base64,${logo}`,
-    extension: "png",
-  });
-  worksheet.addImage(imageId, {
-    tl: { col: 7.5, row: 0.1 },
-    ext: { width: 120, height: 120 },
-    editAs: "oneCell",
-  });
-}
-
 export async function buildNodeExportFile(options: {
   payload: ExportPayload;
   templateFileName: string;
@@ -1086,7 +1061,6 @@ export async function buildNodeExportFile(options: {
 }) {
   const workbook = await loadTemplateWorkbook(options.templateFileName);
   fillLatestAcademicPrintWorkbook(workbook, options.payload);
-  await addSchoolLogo(workbook);
   addCommonDataSheets(workbook, options.payload);
   workbook.calcProperties.fullCalcOnLoad = true;
   await workbook.xlsx.writeFile(options.outputPath);
