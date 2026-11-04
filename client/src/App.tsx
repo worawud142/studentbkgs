@@ -11,6 +11,8 @@ import SetupProfile from "./pages/SetupProfile";
 import ClassroomDetail from "./pages/ClassroomDetail";
 import AttendancePage from "./pages/AttendancePage";
 import ScorePage from "./pages/ScorePage";
+import AssignmentBoxReview from "./pages/AssignmentBoxReview";
+import SubmissionBoxPage from "./pages/SubmissionBoxPage";
 import StudentDetail from "./pages/StudentDetail";
 import DocumentsPage from "./pages/DocumentsPage";
 import AdminPage from "./pages/AdminPage";
@@ -30,6 +32,8 @@ function Router() {
       <Route path="/classroom/:id" component={ClassroomDetail} />
       <Route path="/attendance/:assignmentId" component={AttendancePage} />
       <Route path="/scores/:assignmentId" component={ScorePage} />
+      <Route path="/assignment-box/:assignmentId/:categoryId" component={AssignmentBoxReview} />
+      <Route path="/submission-box/:assignmentId/:categoryId" component={SubmissionBoxPage} />
       <Route path="/student/:id" component={StudentDetail} />
       <Route path="/documents" component={DocumentsPage} />
       <Route path="/admin" component={AdminPage} />

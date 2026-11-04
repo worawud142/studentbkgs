@@ -1,7 +1,13 @@
 import { useAuth } from "@/_core/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import TeacherLayout from "@/components/TeacherLayout";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -23,13 +29,16 @@ import QRCode from "qrcode";
 export default function Dashboard() {
   const { user, loading, isAuthenticated } = useAuth();
   const [, navigate] = useLocation();
-  const [activeLevel, setActiveLevel] = useState<"all" | "primary" | "secondary">("all");
+  const [activeLevel, setActiveLevel] = useState<
+    "all" | "primary" | "secondary"
+  >("all");
+  const [assignmentView, setAssignmentView] = useState<"current" | "history">(
+    "current"
+  );
   const [teacherQrSvg, setTeacherQrSvg] = useState("");
 
-  const { data: profile, isLoading: profileLoading } = trpc.teacher.myProfile.useQuery(
-    undefined,
-    { enabled: isAuthenticated }
-  );
+  const { data: profile, isLoading: profileLoading } =
+    trpc.teacher.myProfile.useQuery(undefined, { enabled: isAuthenticated });
 
   // Get active academic years
   const { data: activeYearPrimary } = trpc.academicYear.getActive.useQuery(
@@ -42,18 +51,34 @@ export default function Dashboard() {
   );
 
   // Get teacher's assignments
-  const { data: assignments = [], isLoading: assignmentsLoading } = trpc.assignment.myList.useQuery(
-    {},
-    { enabled: isAuthenticated }
+  const { data: assignments = [], isLoading: assignmentsLoading } =
+    trpc.assignment.myList.useQuery(
+      { includeClosed: true },
+      { enabled: isAuthenticated }
+    );
+
+  const currentAssignments = useMemo(
+    () => assignments.filter(a => a.academicYear?.isActive),
+    [assignments]
   );
+  const historicalAssignments = useMemo(
+    () => assignments.filter(a => !a.academicYear?.isActive),
+    [assignments]
+  );
+  const visibleAssignments =
+    assignmentView === "current" ? currentAssignments : historicalAssignments;
 
   const filteredAssignments = useMemo(() => {
-    if (activeLevel === "all") return assignments;
-    return assignments.filter((a) => a.classroom?.level === activeLevel);
-  }, [assignments, activeLevel]);
+    if (activeLevel === "all") return visibleAssignments;
+    return visibleAssignments.filter(a => a.classroom?.level === activeLevel);
+  }, [visibleAssignments, activeLevel]);
 
-  const primaryAssignments = assignments.filter((a) => a.classroom?.level === "primary");
-  const secondaryAssignments = assignments.filter((a) => a.classroom?.level === "secondary");
+  const primaryAssignments = currentAssignments.filter(
+    a => a.classroom?.level === "primary"
+  );
+  const secondaryAssignments = currentAssignments.filter(
+    a => a.classroom?.level === "secondary"
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -111,9 +136,16 @@ export default function Dashboard() {
           <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <GraduationCap className="w-8 h-8 text-blue-600" />
           </div>
-          <h2 className="text-xl font-bold text-slate-900 mb-2">ยินดีต้อนรับสู่ระบบ</h2>
-          <p className="text-slate-500 mb-6">กรุณาตั้งค่าโปรไฟล์ครูของคุณก่อนเริ่มใช้งาน</p>
-          <Button onClick={() => navigate("/setup")} className="bg-blue-600 hover:bg-blue-700">
+          <h2 className="text-xl font-bold text-slate-900 mb-2">
+            ยินดีต้อนรับสู่ระบบ
+          </h2>
+          <p className="text-slate-500 mb-6">
+            กรุณาตั้งค่าโปรไฟล์ครูของคุณก่อนเริ่มใช้งาน
+          </p>
+          <Button
+            onClick={() => navigate("/setup")}
+            className="bg-blue-600 hover:bg-blue-700"
+          >
             <Plus className="w-4 h-4 mr-2" />
             ตั้งค่าโปรไฟล์ครู
           </Button>
@@ -129,7 +161,8 @@ export default function Dashboard() {
         <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl p-6 text-white">
           <p className="text-blue-200 text-sm mb-1">สวัสดี</p>
           <h2 className="text-2xl font-bold mb-1">
-            {profile.prefix}{profile.firstName} {profile.lastName}
+            {profile.prefix}
+            {profile.firstName} {profile.lastName}
           </h2>
           <p className="text-blue-200 text-sm">
             {profile.teachingLevel === "primary" && "ครูระดับประถมศึกษา"}
@@ -144,17 +177,25 @@ export default function Dashboard() {
           <CardHeader className="pb-4">
             <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
               <div>
-                <Badge variant="outline" className="border-amber-300 bg-amber-100 text-amber-900">
+                <Badge
+                  variant="outline"
+                  className="border-amber-300 bg-amber-100 text-amber-900"
+                >
                   ส่งออกไฟล์
                 </Badge>
                 <CardTitle className="mt-3 text-slate-900 text-xl">
                   ส่งออก Excel / XLSM ได้จากการ์ดรายวิชา
                 </CardTitle>
                 <CardDescription className="mt-2 text-slate-600">
-                  ใช้ปุ่มส่งออกบนแต่ละวิชาเพื่อดาวน์โหลดไฟล์ที่เติมข้อมูลจริงแล้ว หรือไปหน้าเอกสารเพื่อหยิบไฟล์ต้นแบบ
+                  ใช้ปุ่มส่งออกบนแต่ละวิชาเพื่อดาวน์โหลดไฟล์ที่เติมข้อมูลจริงแล้ว
+                  หรือไปหน้าเอกสารเพื่อหยิบไฟล์ต้นแบบ
                 </CardDescription>
               </div>
-              <Button asChild size="lg" className="bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-lg shadow-amber-500/20">
+              <Button
+                asChild
+                size="lg"
+                className="bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-lg shadow-amber-500/20"
+              >
                 <Link href="/documents">
                   <Download className="w-4 h-4" />
                   ไปหน้าเอกสาร ปพ.
@@ -173,8 +214,10 @@ export default function Dashboard() {
                   <BookOpen className="w-5 h-5 text-blue-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-slate-900">{assignments.length}</p>
-                  <p className="text-slate-500 text-xs">วิชาที่สอน</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {currentAssignments.length}
+                  </p>
+                  <p className="text-slate-500 text-xs">วิชาที่กำลังสอน</p>
                 </div>
               </div>
             </CardContent>
@@ -186,7 +229,9 @@ export default function Dashboard() {
                   <School className="w-5 h-5 text-green-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-slate-900">{primaryAssignments.length}</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {primaryAssignments.length}
+                  </p>
                   <p className="text-slate-500 text-xs">วิชาประถม</p>
                 </div>
               </div>
@@ -199,7 +244,9 @@ export default function Dashboard() {
                   <GraduationCap className="w-5 h-5 text-purple-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-slate-900">{secondaryAssignments.length}</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {secondaryAssignments.length}
+                  </p>
                   <p className="text-slate-500 text-xs">วิชามัธยม</p>
                 </div>
               </div>
@@ -213,7 +260,7 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-slate-900">
-                    {new Set(assignments.map((a) => a.classroom?.id)).size}
+                    {new Set(currentAssignments.map(a => a.classroom?.id)).size}
                   </p>
                   <p className="text-slate-500 text-xs">ห้องเรียน</p>
                 </div>
@@ -228,9 +275,13 @@ export default function Dashboard() {
             <div className="bg-green-50 border border-green-200 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-1">
                 <span className="badge-primary-level">ประถม</span>
-                <span className="text-green-700 font-semibold text-sm">ปีการศึกษาที่ใช้งาน</span>
+                <span className="text-green-700 font-semibold text-sm">
+                  ปีการศึกษาที่ใช้งาน
+                </span>
               </div>
-              <p className="text-green-900 font-bold">ปีการศึกษา {activeYearPrimary.year}</p>
+              <p className="text-green-900 font-bold">
+                ปีการศึกษา {activeYearPrimary.year}
+              </p>
               <p className="text-green-600 text-xs">วัดผลแบบรายปี</p>
             </div>
           )}
@@ -238,11 +289,14 @@ export default function Dashboard() {
             <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
               <div className="flex items-center gap-2 mb-1">
                 <span className="badge-secondary-level">มัธยม</span>
-                <span className="text-blue-700 font-semibold text-sm">ปีการศึกษาที่ใช้งาน</span>
+                <span className="text-blue-700 font-semibold text-sm">
+                  ปีการศึกษาที่ใช้งาน
+                </span>
               </div>
               <p className="text-blue-900 font-bold">
                 ปีการศึกษา {activeYearSecondary.year}
-                {activeYearSecondary.semester && ` ภาคเรียนที่ ${activeYearSecondary.semester}`}
+                {activeYearSecondary.semester &&
+                  ` ภาคเรียนที่ ${activeYearSecondary.semester}`}
               </p>
               <p className="text-blue-600 text-xs">วัดผลแบบรายภาคเรียน</p>
             </div>
@@ -254,12 +308,18 @@ export default function Dashboard() {
             <CardHeader className="pb-4">
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <Badge variant="outline" className="border-indigo-300 bg-indigo-100 text-indigo-900">
+                  <Badge
+                    variant="outline"
+                    className="border-indigo-300 bg-indigo-100 text-indigo-900"
+                  >
                     QR ครู
                   </Badge>
-                  <CardTitle className="mt-3 text-slate-900">QR สำรองสำหรับเปิดคาบด้วยครู</CardTitle>
+                  <CardTitle className="mt-3 text-slate-900">
+                    QR สำรองสำหรับเปิดคาบด้วยครู
+                  </CardTitle>
                   <CardDescription className="mt-2 text-slate-600">
-                    ระบบจะใช้ตารางสอนเป็นหลัก และ QR นี้เป็นทางเลือกสำรองเมื่ออยากเปิดคาบเอง
+                    ระบบจะใช้ตารางสอนเป็นหลัก และ QR
+                    นี้เป็นทางเลือกสำรองเมื่ออยากเปิดคาบเอง
                   </CardDescription>
                 </div>
                 <div className="rounded-xl border border-indigo-200 bg-white px-4 py-2 text-sm font-semibold text-indigo-900">
@@ -284,19 +344,22 @@ export default function Dashboard() {
                 </div>
                 <div className="space-y-3 text-sm text-slate-600">
                   <div className="space-y-2">
-                    <p className="font-medium text-slate-900">
-                      ใช้งานอย่างไร
-                    </p>
+                    <p className="font-medium text-slate-900">ใช้งานอย่างไร</p>
                     <p>1. เปิดเครื่อง ESP32 + GM65</p>
                     <p>2. โดยปกติระบบจะอิงตารางสอนอัตโนมัติ</p>
                     <p>3. หากต้องการสำรอง สามารถสแกน QR ครู 1 ครั้ง</p>
                     <p>4. จากนั้นให้นักเรียนสแกน QR ได้เลย</p>
                     <p className="text-xs text-slate-400">
-                      ถ้าตั้งตารางสอนครบ เครื่องจะใช้คาบที่ตรงกับวันและเวลาโดยอัตโนมัติ
+                      ถ้าตั้งตารางสอนครบ
+                      เครื่องจะใช้คาบที่ตรงกับวันและเวลาโดยอัตโนมัติ
                     </p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Button asChild variant="outline" className="border-slate-300">
+                    <Button
+                      asChild
+                      variant="outline"
+                      className="border-slate-300"
+                    >
                       <Link href="/print/teacher-qr">
                         <Printer className="w-4 h-4 mr-2" />
                         พิมพ์ QR ครู
@@ -311,10 +374,38 @@ export default function Dashboard() {
 
         {/* Assignments */}
         <div>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-slate-900">รายวิชาที่สอน</h3>
-            <div className="flex gap-2">
-              {(["all", "primary", "secondary"] as const).map((lvl) => (
+          <div className="flex flex-col gap-3 mb-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 className="font-semibold text-slate-900">
+                {assignmentView === "current"
+                  ? "รายวิชาที่กำลังสอน"
+                  : "รายวิชาย้อนหลัง"}
+              </h3>
+              <p className="text-xs text-slate-500 mt-1">
+                {assignmentView === "current"
+                  ? "แสดงเฉพาะปีการศึกษาหรือภาคเรียนที่กำลังใช้งาน"
+                  : "ข้อมูลจากปีการศึกษาและภาคเรียนที่ปิดแล้ว"}
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <div className="flex rounded-lg bg-slate-100 p-1">
+                {(["current", "history"] as const).map(view => (
+                  <button
+                    key={view}
+                    onClick={() => setAssignmentView(view)}
+                    className={`px-3 py-1 rounded-md text-xs font-medium transition-colors ${
+                      assignmentView === view
+                        ? "bg-white text-blue-700 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                  >
+                    {view === "current"
+                      ? "กำลังสอน"
+                      : `ย้อนหลัง (${historicalAssignments.length})`}
+                  </button>
+                ))}
+              </div>
+              {(["all", "primary", "secondary"] as const).map(lvl => (
                 <button
                   key={lvl}
                   onClick={() => setActiveLevel(lvl)}
@@ -324,7 +415,11 @@ export default function Dashboard() {
                       : "bg-slate-100 text-slate-600 hover:bg-slate-200"
                   }`}
                 >
-                  {lvl === "all" ? "ทั้งหมด" : lvl === "primary" ? "ประถม" : "มัธยม"}
+                  {lvl === "all"
+                    ? "ทั้งหมด"
+                    : lvl === "primary"
+                      ? "ประถม"
+                      : "มัธยม"}
                 </button>
               ))}
             </div>
@@ -335,39 +430,98 @@ export default function Dashboard() {
           ) : filteredAssignments.length === 0 ? (
             <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
               <AlertCircle className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-              <p className="text-slate-500 font-medium">ยังไม่มีรายวิชาที่สอน</p>
-              <p className="text-slate-400 text-sm mt-1">ติดต่อผู้ดูแลระบบเพื่อกำหนดรายวิชา</p>
+              <p className="text-slate-500 font-medium">
+                {assignmentView === "current"
+                  ? "ยังไม่มีรายวิชาที่กำลังสอน"
+                  : "ยังไม่มีรายวิชาย้อนหลัง"}
+              </p>
+              <p className="text-slate-400 text-sm mt-1">
+                {assignmentView === "current"
+                  ? "ติดต่อผู้ดูแลระบบเพื่อเปิดรอบการศึกษาหรือกำหนดรายวิชา"
+                  : "รายวิชาจะย้ายมาที่นี่เมื่อแอดมินปิดรอบการศึกษา"}
+              </p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredAssignments.map((a) => (
-                <Card key={a.assignment.id} className="hover:shadow-md transition-shadow">
+              {filteredAssignments.map(a => (
+                <Card
+                  key={a.assignment.id}
+                  className="hover:shadow-md transition-shadow"
+                >
                   <CardContent className="p-5">
                     <div className="flex items-start justify-between mb-3">
-                      <span className={a.classroom?.level === "primary" ? "badge-primary-level" : "badge-secondary-level"}>
+                      <span
+                        className={
+                          a.classroom?.level === "primary"
+                            ? "badge-primary-level"
+                            : "badge-secondary-level"
+                        }
+                      >
                         {a.classroom?.level === "primary" ? "ประถม" : "มัธยม"}
                       </span>
-                      <span className="text-slate-400 text-xs">{a.subject?.subjectCode}</span>
+                      <span className="text-slate-400 text-xs">
+                        {a.subject?.subjectCode}
+                      </span>
                     </div>
-                    <h4 className="font-semibold text-slate-900 mb-1 line-clamp-2">{a.subject?.name}</h4>
+                    <h4 className="font-semibold text-slate-900 mb-1 line-clamp-2">
+                      {a.subject?.name}
+                    </h4>
                     <p className="text-slate-500 text-sm mb-4">
                       ห้อง {a.classroom?.name} · {a.subject?.credits} หน่วยกิต
                     </p>
-                    <div className="flex gap-2">
-                      <Link href={`/attendance/${a.assignment.id}?classroomId=${a.assignment.classroomId}`} className="flex-1">
-                        <Button variant="outline" size="sm" className="w-full text-xs">
-                          <ClipboardList className="w-3 h-3 mr-1" />
-                          เช็คชื่อ
-                        </Button>
-                      </Link>
-                      <Link href={`/scores/${a.assignment.id}`} className="flex-1">
-                        <Button size="sm" className="w-full text-xs bg-blue-600 hover:bg-blue-700">
+                    {a.academicYear && (
+                      <p className="text-xs text-slate-400 mb-3">
+                        ปีการศึกษา {a.academicYear.year}
+                        {a.academicYear.semester
+                          ? ` · ภาคเรียนที่ ${a.academicYear.semester}`
+                          : " · รายปี"}
+                      </p>
+                    )}
+                    {assignmentView === "current" ? (
+                      <div className="flex gap-2">
+                        <Link
+                          href={`/attendance/${a.assignment.id}?classroomId=${a.assignment.classroomId}`}
+                          className="flex-1"
+                        >
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="w-full text-xs"
+                          >
+                            <ClipboardList className="w-3 h-3 mr-1" />
+                            เช็คชื่อ
+                          </Button>
+                        </Link>
+                        <Link
+                          href={`/scores/${a.assignment.id}`}
+                          className="flex-1"
+                        >
+                          <Button
+                            size="sm"
+                            className="w-full text-xs bg-blue-600 hover:bg-blue-700"
+                          >
+                            <BookOpen className="w-3 h-3 mr-1" />
+                            คะแนน
+                          </Button>
+                        </Link>
+                      </div>
+                    ) : (
+                      <Link href={`/scores/${a.assignment.id}`}>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="w-full text-xs"
+                        >
                           <BookOpen className="w-3 h-3 mr-1" />
-                          คะแนน
+                          ดูคะแนนย้อนหลัง
                         </Button>
                       </Link>
-                    </div>
-                    <Button asChild size="sm" className="w-full mt-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs shadow-sm">
+                    )}
+                    <Button
+                      asChild
+                      size="sm"
+                      className="w-full mt-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs shadow-sm"
+                    >
                       <a
                         href={`/api/templates/academic-print?export=1&assignmentId=${a.assignment.id}`}
                       >
@@ -375,7 +529,10 @@ export default function Dashboard() {
                         ส่งออก ปพ.5
                       </a>
                     </Button>
-                    <Link href={`/classroom/${a.assignment.classroomId}`} className="flex items-center gap-1 text-slate-400 hover:text-slate-600 text-xs mt-3 transition-colors">
+                    <Link
+                      href={`/classroom/${a.assignment.classroomId}`}
+                      className="flex items-center gap-1 text-slate-400 hover:text-slate-600 text-xs mt-3 transition-colors"
+                    >
                       <Users className="w-3 h-3" />
                       ดูรายชื่อนักเรียน
                       <ChevronRight className="w-3 h-3" />

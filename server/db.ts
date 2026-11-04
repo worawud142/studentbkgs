@@ -5,6 +5,8 @@ import { Pool } from "pg";
 import {
   InsertUser,
   academicYears,
+  assignmentAnswerKeys,
+  assignmentSubmissions,
   attendance,
   classroomHomeroomTeachers,
   classrooms,
@@ -113,7 +115,8 @@ async function ensurePor6Tables() {
   if (!db) throw new Error("DB not available");
   const schemaName = quotedSchemaName();
   await db.execute(sql.raw(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`));
-  await db.execute(sql.raw(`
+  await db.execute(
+    sql.raw(`
     CREATE TABLE IF NOT EXISTS ${schemaName}."school_settings" (
       "id" integer PRIMARY KEY,
       "schoolName" varchar(200) NOT NULL DEFAULT 'โรงเรียนบ้านขัวก่าย',
@@ -123,8 +126,10 @@ async function ensurePor6Tables() {
       "directorName" varchar(200),
       "updatedAt" timestamptz NOT NULL DEFAULT now()
     )
-  `));
-  await db.execute(sql.raw(`
+  `)
+  );
+  await db.execute(
+    sql.raw(`
     CREATE TABLE IF NOT EXISTS ${schemaName}."student_por6_assessments" (
       "id" integer PRIMARY KEY,
       "studentId" integer NOT NULL,
@@ -139,11 +144,14 @@ async function ensurePor6Tables() {
       "updatedAt" timestamptz NOT NULL DEFAULT now(),
       UNIQUE ("studentId", "academicYearId")
     )
-  `));
-  await db.execute(sql.raw(`
+  `)
+  );
+  await db.execute(
+    sql.raw(`
     ALTER TABLE ${schemaName}."student_por6_assessments"
     ADD COLUMN IF NOT EXISTS "activityLabels" jsonb
-  `));
+  `)
+  );
 }
 
 async function ensureClassroomHomeroomTable() {
@@ -151,7 +159,8 @@ async function ensureClassroomHomeroomTable() {
   if (!db) throw new Error("DB not available");
   const schemaName = quotedSchemaName();
   await db.execute(sql.raw(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`));
-  await db.execute(sql.raw(`
+  await db.execute(
+    sql.raw(`
     CREATE TABLE IF NOT EXISTS ${schemaName}."classroom_homeroom_teachers" (
       "id" integer PRIMARY KEY,
       "classroomId" integer NOT NULL,
@@ -159,7 +168,8 @@ async function ensureClassroomHomeroomTable() {
       "createdAt" timestamptz NOT NULL DEFAULT now(),
       UNIQUE ("classroomId", "teacherUserId")
     )
-  `));
+  `)
+  );
 }
 
 async function ensureQrScanTables() {
@@ -167,7 +177,8 @@ async function ensureQrScanTables() {
   if (!db) throw new Error("DB not available");
   const schemaName = quotedSchemaName();
   await db.execute(sql.raw(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`));
-  await db.execute(sql.raw(`
+  await db.execute(
+    sql.raw(`
     CREATE TABLE IF NOT EXISTS ${schemaName}."qr_scan_devices" (
       "id" serial PRIMARY KEY,
       "name" varchar(120) NOT NULL,
@@ -180,8 +191,10 @@ async function ensureQrScanTables() {
       "createdAt" timestamptz NOT NULL DEFAULT now(),
       "updatedAt" timestamptz NOT NULL DEFAULT now()
     )
-  `));
-  await db.execute(sql.raw(`
+  `)
+  );
+  await db.execute(
+    sql.raw(`
     CREATE TABLE IF NOT EXISTS ${schemaName}."qr_scan_logs" (
       "id" serial PRIMARY KEY,
       "deviceId" integer NOT NULL,
@@ -193,8 +206,10 @@ async function ensureQrScanTables() {
       "scannedAt" timestamptz NOT NULL DEFAULT now(),
       "createdAt" timestamptz NOT NULL DEFAULT now()
     )
-  `));
-  await db.execute(sql.raw(`
+  `)
+  );
+  await db.execute(
+    sql.raw(`
     CREATE TABLE IF NOT EXISTS ${schemaName}."qr_scan_sessions" (
       "id" serial PRIMARY KEY,
       "deviceId" integer NOT NULL,
@@ -207,7 +222,8 @@ async function ensureQrScanTables() {
       "createdAt" timestamptz NOT NULL DEFAULT now(),
       "updatedAt" timestamptz NOT NULL DEFAULT now()
     )
-  `));
+  `)
+  );
 }
 
 async function ensureTeachingScheduleTables() {
@@ -215,7 +231,8 @@ async function ensureTeachingScheduleTables() {
   if (!db) throw new Error("DB not available");
   const schemaName = quotedSchemaName();
   await db.execute(sql.raw(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`));
-  await db.execute(sql.raw(`
+  await db.execute(
+    sql.raw(`
     CREATE TABLE IF NOT EXISTS ${schemaName}."teaching_schedule_slots" (
       "id" serial PRIMARY KEY,
       "assignmentId" integer NOT NULL,
@@ -227,7 +244,79 @@ async function ensureTeachingScheduleTables() {
       "createdAt" timestamptz NOT NULL DEFAULT now(),
       "updatedAt" timestamptz NOT NULL DEFAULT now()
     )
-  `));
+  `)
+  );
+}
+
+async function ensureAssignmentBoxTables() {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  const schemaName = quotedSchemaName();
+  await db.execute(sql.raw(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`));
+  await db.execute(
+    sql.raw(`
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1
+        FROM pg_type t
+        JOIN pg_namespace n ON n.oid = t.typnamespace
+        WHERE t.typname = 'submission_status'
+          AND n.nspname = ${`'${ENV.dbSchema.replace(/'/g, "''")}'`}
+      ) THEN
+        CREATE TYPE ${schemaName}."submission_status" AS ENUM (
+          'pending_review',
+          'auto_scored',
+          'confirmed',
+          'rejected'
+        );
+      END IF;
+    END $$;
+  `)
+  );
+  await db.execute(
+    sql.raw(`
+    CREATE TABLE IF NOT EXISTS ${schemaName}."assignment_answer_keys" (
+      "id" serial PRIMARY KEY,
+      "assignmentId" integer NOT NULL,
+      "categoryId" integer NOT NULL,
+      "template" varchar(80) NOT NULL DEFAULT 'network_boarding_pass_t568b',
+      "title" varchar(200) NOT NULL,
+      "maxScore" numeric(6,2) NOT NULL,
+      "answers" jsonb NOT NULL,
+      "autoScoreMinConfidence" numeric(4,2) NOT NULL DEFAULT 0.85,
+      "isActive" boolean NOT NULL DEFAULT true,
+      "createdBy" integer NOT NULL,
+      "createdAt" timestamptz NOT NULL DEFAULT now(),
+      "updatedAt" timestamptz NOT NULL DEFAULT now()
+    )
+  `)
+  );
+  await db.execute(
+    sql.raw(`
+    CREATE TABLE IF NOT EXISTS ${schemaName}."assignment_submissions" (
+      "id" serial PRIMARY KEY,
+      "assignmentId" integer NOT NULL,
+      "categoryId" integer NOT NULL,
+      "answerKeyId" integer,
+      "studentId" integer,
+      "qrRawValue" text,
+      "imageDataUrl" text NOT NULL,
+      "status" ${schemaName}."submission_status" NOT NULL DEFAULT 'pending_review',
+      "detectedAnswers" jsonb,
+      "matchedAnswers" jsonb,
+      "suggestedScore" numeric(6,2),
+      "confirmedScore" numeric(6,2),
+      "confidence" numeric(4,2),
+      "reviewNote" text,
+      "aiFeedback" text,
+      "reviewedBy" integer,
+      "reviewedAt" timestamptz,
+      "createdAt" timestamptz NOT NULL DEFAULT now(),
+      "updatedAt" timestamptz NOT NULL DEFAULT now()
+    )
+  `)
+  );
 }
 
 // ─── Users ────────────────────────────────────────────────────────────────────
@@ -295,11 +384,7 @@ export async function getUserByOpenId(openId: string) {
 export async function getUserById(id: number) {
   const db = await getDb();
   if (!db) return undefined;
-  const result = await db
-    .select()
-    .from(users)
-    .where(eq(users.id, id))
-    .limit(1);
+  const result = await db.select().from(users).where(eq(users.id, id)).limit(1);
   return result.length > 0 ? result[0] : undefined;
 }
 
@@ -739,6 +824,10 @@ export async function setActiveAcademicYear(
 ) {
   const db = await getDb();
   if (!db) throw new Error("DB not available");
+  const target = await getAcademicYearById(id);
+  if (!target || target.level !== level) {
+    throw new Error("ไม่พบรอบการศึกษาที่ตรงกับระดับที่เลือก");
+  }
   await db
     .update(academicYears)
     .set({ isActive: false })
@@ -747,6 +836,18 @@ export async function setActiveAcademicYear(
     .update(academicYears)
     .set({ isActive: true })
     .where(eq(academicYears.id, id));
+}
+
+export async function closeAcademicYear(
+  id: number,
+  level: "primary" | "secondary"
+) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await db
+    .update(academicYears)
+    .set({ isActive: false })
+    .where(and(eq(academicYears.id, id), eq(academicYears.level, level)));
 }
 
 // ─── Classrooms ────────────────────────────────────────────────────────────────
@@ -764,7 +865,7 @@ export async function getClassrooms(
   const rows =
     conditions.length > 0
       ? await query
-      .where(and(...conditions))
+          .where(and(...conditions))
           .orderBy(classrooms.grade, classrooms.room)
       : await query.orderBy(classrooms.grade, classrooms.room);
   return Promise.all(rows.map(classroom => attachHomeroomTeachers(classroom)));
@@ -1061,24 +1162,37 @@ export async function deleteStudent(id: number) {
 // ─── Teaching Assignments ─────────────────────────────────────────────────────
 export async function getTeacherAssignments(
   teacherId: number,
-  academicYearId?: number
+  academicYearId?: number,
+  includeClosed = false
 ) {
   const db = await getDb();
   if (!db) return [];
   const conditions = [eq(teachingAssignments.teacherId, teacherId)];
   if (academicYearId)
     conditions.push(eq(teachingAssignments.academicYearId, academicYearId));
+  else if (!includeClosed) conditions.push(eq(academicYears.isActive, true));
   return db
     .select({
       assignment: teachingAssignments,
       subject: subjects,
       classroom: classrooms,
+      academicYear: academicYears,
     })
     .from(teachingAssignments)
     .leftJoin(subjects, eq(teachingAssignments.subjectId, subjects.id))
     .leftJoin(classrooms, eq(teachingAssignments.classroomId, classrooms.id))
+    .leftJoin(
+      academicYears,
+      eq(teachingAssignments.academicYearId, academicYears.id)
+    )
     .where(and(...conditions))
-    .orderBy(classrooms.level, classrooms.grade, classrooms.room);
+    .orderBy(
+      desc(academicYears.year),
+      desc(academicYears.semester),
+      classrooms.level,
+      classrooms.grade,
+      classrooms.room
+    );
 }
 
 export async function getTeacherLatestUsedAssignment(teacherId: number) {
@@ -1214,7 +1328,9 @@ export async function getTeachingScheduleSlots(options?: {
   await ensureTeachingScheduleTables();
   const conditions = [] as any[];
   if (options?.assignmentId) {
-    conditions.push(eq(teachingScheduleSlots.assignmentId, options.assignmentId));
+    conditions.push(
+      eq(teachingScheduleSlots.assignmentId, options.assignmentId)
+    );
   }
   if (options?.classroomId) {
     conditions.push(eq(teachingAssignments.classroomId, options.classroomId));
@@ -1246,13 +1362,15 @@ export async function getTeachingScheduleSlots(options?: {
 
   const rows =
     conditions.length > 0
-      ? await query.where(and(...conditions)).orderBy(
-          classrooms.level,
-          classrooms.grade,
-          classrooms.room,
-          teachingScheduleSlots.dayOfWeek,
-          teachingScheduleSlots.startTime
-        )
+      ? await query
+          .where(and(...conditions))
+          .orderBy(
+            classrooms.level,
+            classrooms.grade,
+            classrooms.room,
+            teachingScheduleSlots.dayOfWeek,
+            teachingScheduleSlots.startTime
+          )
       : await query.orderBy(
           classrooms.level,
           classrooms.grade,
@@ -1309,7 +1427,8 @@ export async function createTeachingScheduleSlot(
   if (!db) throw new Error("DB not available");
   await ensureTeachingScheduleTables();
   const id =
-    data.id ?? (await getNextNumericId(teachingScheduleSlots, teachingScheduleSlots.id));
+    data.id ??
+    (await getNextNumericId(teachingScheduleSlots, teachingScheduleSlots.id));
   await db.insert(teachingScheduleSlots).values({
     ...data,
     id,
@@ -1478,7 +1597,10 @@ export async function getCurrentTeachingScheduleAssignmentForClassroom(
   classroomId: number,
   at = new Date()
 ) {
-  const slot = await getCurrentTeachingScheduleSlotForClassroom(classroomId, at);
+  const slot = await getCurrentTeachingScheduleSlotForClassroom(
+    classroomId,
+    at
+  );
   if (!slot?.slot?.assignmentId) return null;
   const assignment = await getAssignmentById(slot.slot.assignmentId);
   if (!assignment) return null;
@@ -1584,9 +1706,12 @@ function currentBangkokDateTimeParts(at = new Date()) {
     minute: "2-digit",
     hour12: false,
   }).formatToParts(at);
-  const weekdayText = parts.find(part => part.type === "weekday")?.value ?? "Mon";
+  const weekdayText =
+    parts.find(part => part.type === "weekday")?.value ?? "Mon";
   const hour = Number(parts.find(part => part.type === "hour")?.value ?? "0");
-  const minute = Number(parts.find(part => part.type === "minute")?.value ?? "0");
+  const minute = Number(
+    parts.find(part => part.type === "minute")?.value ?? "0"
+  );
   const weekdayMap: Record<string, number> = {
     Sun: 0,
     Mon: 1,
@@ -1604,7 +1729,9 @@ function currentBangkokDateTimeParts(at = new Date()) {
 }
 
 function timeStringToMinutes(value: string) {
-  const match = String(value).trim().match(/^(\d{1,2}):(\d{2})$/);
+  const match = String(value)
+    .trim()
+    .match(/^(\d{1,2}):(\d{2})$/);
   if (!match) return null;
   const hour = Number(match[1]);
   const minute = Number(match[2]);
@@ -1620,12 +1747,15 @@ function formatMinutesAsTime(minutes: number) {
   return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
-function slotMatchesNow(slot: {
-  dayOfWeek: number;
-  startTime: string;
-  endTime: string;
-  isActive?: boolean;
-}, nowParts = currentBangkokDateTimeParts()) {
+function slotMatchesNow(
+  slot: {
+    dayOfWeek: number;
+    startTime: string;
+    endTime: string;
+    isActive?: boolean;
+  },
+  nowParts = currentBangkokDateTimeParts()
+) {
   if (slot.isActive === false) return false;
   if (slot.dayOfWeek !== nowParts.dayOfWeek) return false;
   const start = timeStringToMinutes(slot.startTime);
@@ -1703,7 +1833,9 @@ export async function getQrScanDeviceById(id: number) {
     ...row.device,
     assignment,
     activeTimetableAssignment: row.device.assignmentId
-      ? await getCurrentTeachingScheduleAssignmentForDevice(row.device.assignmentId)
+      ? await getCurrentTeachingScheduleAssignmentForDevice(
+          row.device.assignmentId
+        )
       : null,
     createdByUser: sanitizeUserRow(row.teacher),
     createdByProfile: row.teacherProfile,
@@ -1727,7 +1859,12 @@ export async function getActiveQrScanSessionByDeviceId(deviceId: number) {
       teacherProfiles,
       eq(qrScanSessions.teacherUserId, teacherProfiles.userId)
     )
-    .where(and(eq(qrScanSessions.deviceId, deviceId), eq(qrScanSessions.isActive, true)))
+    .where(
+      and(
+        eq(qrScanSessions.deviceId, deviceId),
+        eq(qrScanSessions.isActive, true)
+      )
+    )
     .orderBy(desc(qrScanSessions.updatedAt), desc(qrScanSessions.id))
     .limit(1);
   if (result.length === 0) return null;
@@ -1765,7 +1902,12 @@ export async function closeActiveQrScanSession(deviceId: number) {
       closedAt: new Date(),
       updatedAt: new Date(),
     })
-    .where(and(eq(qrScanSessions.deviceId, deviceId), eq(qrScanSessions.isActive, true)));
+    .where(
+      and(
+        eq(qrScanSessions.deviceId, deviceId),
+        eq(qrScanSessions.isActive, true)
+      )
+    );
 }
 
 export async function getTeacherQrSessionPayload(teacherUserId: number) {
@@ -1855,7 +1997,9 @@ export async function openTeacherQrSession(data: {
   });
 
   const session = await getActiveQrScanSessionByDeviceId(data.deviceId);
-  return session ?? { id: result.id, assignment, teacherUserId: data.teacherUserId };
+  return (
+    session ?? { id: result.id, assignment, teacherUserId: data.teacherUserId }
+  );
 }
 
 export async function createQrScanDevice(data: {
@@ -1984,15 +2128,23 @@ export async function getQrScanLogs(options?: {
     })
     .from(qrScanLogs)
     .leftJoin(qrScanDevices, eq(qrScanLogs.deviceId, qrScanDevices.id))
-    .leftJoin(teachingAssignments, eq(qrScanLogs.assignmentId, teachingAssignments.id))
+    .leftJoin(
+      teachingAssignments,
+      eq(qrScanLogs.assignmentId, teachingAssignments.id)
+    )
     .leftJoin(subjects, eq(teachingAssignments.subjectId, subjects.id))
     .leftJoin(classrooms, eq(teachingAssignments.classroomId, classrooms.id))
     .leftJoin(students, eq(qrScanLogs.studentId, students.id))
     .leftJoin(users, eq(qrScanDevices.createdBy, users.id));
   const rows =
     conditions.length > 0
-      ? await query.where(and(...conditions)).orderBy(desc(qrScanLogs.scannedAt), desc(qrScanLogs.id)).limit(limit)
-      : await query.orderBy(desc(qrScanLogs.scannedAt), desc(qrScanLogs.id)).limit(limit);
+      ? await query
+          .where(and(...conditions))
+          .orderBy(desc(qrScanLogs.scannedAt), desc(qrScanLogs.id))
+          .limit(limit)
+      : await query
+          .orderBy(desc(qrScanLogs.scannedAt), desc(qrScanLogs.id))
+          .limit(limit);
   return rows.map(row => ({
     ...row,
     teacher: sanitizeUserRow(row.teacher),
@@ -2068,10 +2220,7 @@ export async function getAttendanceByAssignmentAndDate(
     .select()
     .from(attendance)
     .where(
-      and(
-        eq(attendance.assignmentId, assignmentId),
-        attendanceDateFilter(date)
-      )
+      and(eq(attendance.assignmentId, assignmentId), attendanceDateFilter(date))
     );
 }
 
@@ -2574,7 +2723,11 @@ export async function upsertScoresBatch(items: (typeof scores.$inferInsert)[]) {
         return;
       }
 
-      if (item.score === null || item.score === undefined || item.score === "") {
+      if (
+        item.score === null ||
+        item.score === undefined ||
+        item.score === ""
+      ) {
         skipped += 1;
         return;
       }
@@ -2588,6 +2741,307 @@ export async function upsertScoresBatch(items: (typeof scores.$inferInsert)[]) {
   }
 
   return { inserted: inserts.length, updated, skipped };
+}
+
+type BoardingPassAnswer = {
+  pin: number;
+  accepted: string[];
+  score?: number;
+};
+
+type BoardingPassAnswerKey = {
+  pins: BoardingPassAnswer[];
+};
+
+type SubmissionAnalysis = {
+  detectedAnswers?: Record<string, string>;
+  confidence?: number;
+  feedback?: string;
+};
+
+const THAI_DIGITS: Record<string, string> = {
+  "๐": "0",
+  "๑": "1",
+  "๒": "2",
+  "๓": "3",
+  "๔": "4",
+  "๕": "5",
+  "๖": "6",
+  "๗": "7",
+  "๘": "8",
+  "๙": "9",
+};
+
+function normalizeShortAnswer(value: unknown) {
+  return String(value ?? "")
+    .trim()
+    .replace(/[๐-๙]/g, digit => THAI_DIGITS[digit] ?? digit)
+    .replace(/\s+/g, "")
+    .toLowerCase();
+}
+
+function normalizeConfidence(value: unknown) {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return 0;
+  return Math.max(0, Math.min(1, parsed));
+}
+
+function parseAnswerKeyAnswers(value: unknown): BoardingPassAnswerKey {
+  const raw = value as Partial<BoardingPassAnswerKey> | null;
+  const pins = Array.isArray(raw?.pins) ? raw.pins : [];
+  return {
+    pins: pins
+      .map(pin => ({
+        pin: Number(pin?.pin),
+        accepted: Array.isArray(pin?.accepted)
+          ? pin.accepted.map(String).filter(Boolean)
+          : [],
+        score:
+          pin?.score === undefined || pin?.score === null
+            ? undefined
+            : Number(pin.score),
+      }))
+      .filter(pin => Number.isInteger(pin.pin) && pin.pin >= 1 && pin.pin <= 8),
+  };
+}
+
+function scoreDetectedAnswers(
+  answerKey: BoardingPassAnswerKey,
+  detectedAnswers: Record<string, string>,
+  maxScore: number
+) {
+  const perItemScore =
+    answerKey.pins.length > 0 ? maxScore / answerKey.pins.length : 0;
+  let total = 0;
+  const matched: Array<{
+    pin: number;
+    detected: string;
+    accepted: string[];
+    correct: boolean;
+    score: number;
+  }> = [];
+
+  for (const item of answerKey.pins) {
+    const key = `pin${item.pin}`;
+    const detected = detectedAnswers[key] ?? "";
+    const normalizedDetected = normalizeShortAnswer(detected);
+    const accepted = item.accepted.map(normalizeShortAnswer);
+    const correct =
+      normalizedDetected.length > 0 && accepted.includes(normalizedDetected);
+    const score = correct ? (item.score ?? perItemScore) : 0;
+    if (correct) total += score;
+    matched.push({
+      pin: item.pin,
+      detected,
+      accepted: item.accepted,
+      correct,
+      score: Math.round(score * 100) / 100,
+    });
+  }
+
+  return {
+    score: Math.round(Math.min(total, maxScore) * 100) / 100,
+    matched,
+  };
+}
+
+export async function getAssignmentAnswerKeys(categoryId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  await ensureAssignmentBoxTables();
+  return db
+    .select()
+    .from(assignmentAnswerKeys)
+    .where(eq(assignmentAnswerKeys.categoryId, categoryId))
+    .orderBy(
+      desc(assignmentAnswerKeys.updatedAt),
+      desc(assignmentAnswerKeys.id)
+    );
+}
+
+export async function upsertAssignmentAnswerKey(
+  data: Omit<typeof assignmentAnswerKeys.$inferInsert, "answers"> & {
+    id?: number;
+    answers: BoardingPassAnswerKey;
+  }
+) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await ensureAssignmentBoxTables();
+  const values = {
+    ...data,
+    answers: data.answers as any,
+    updatedAt: new Date(),
+  };
+  if (data.id) {
+    await db
+      .update(assignmentAnswerKeys)
+      .set(values)
+      .where(eq(assignmentAnswerKeys.id, data.id));
+    return data.id;
+  }
+  const [result] = await db
+    .insert(assignmentAnswerKeys)
+    .values({
+      ...values,
+      createdAt: data.createdAt ?? new Date(),
+    })
+    .returning({ id: assignmentAnswerKeys.id });
+  return result.id;
+}
+
+export async function getAssignmentSubmissions(categoryId: number) {
+  const db = await getDb();
+  if (!db) return [];
+  await ensureAssignmentBoxTables();
+  const rows = await db
+    .select({
+      submission: assignmentSubmissions,
+      student: students,
+      answerKey: assignmentAnswerKeys,
+    })
+    .from(assignmentSubmissions)
+    .leftJoin(students, eq(assignmentSubmissions.studentId, students.id))
+    .leftJoin(
+      assignmentAnswerKeys,
+      eq(assignmentSubmissions.answerKeyId, assignmentAnswerKeys.id)
+    )
+    .where(eq(assignmentSubmissions.categoryId, categoryId))
+    .orderBy(
+      desc(assignmentSubmissions.createdAt),
+      desc(assignmentSubmissions.id)
+    );
+  return rows.map(row => ({
+    ...row.submission,
+    student: row.student,
+    answerKey: row.answerKey,
+  }));
+}
+
+export async function createAssignmentSubmission(data: {
+  assignmentId: number;
+  categoryId: number;
+  answerKeyId: number;
+  studentId: number | null;
+  qrRawValue?: string | null;
+  imageDataUrl: string;
+  analysis: SubmissionAnalysis;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await ensureAssignmentBoxTables();
+
+  const [answerKey] = await db
+    .select()
+    .from(assignmentAnswerKeys)
+    .where(eq(assignmentAnswerKeys.id, data.answerKeyId))
+    .limit(1);
+  if (!answerKey) throw new Error("ไม่พบชุดเฉลยสำหรับหน่วยนี้");
+
+  const detectedAnswers = data.analysis.detectedAnswers ?? {};
+  const parsedAnswerKey = parseAnswerKeyAnswers(answerKey.answers);
+  const maxScore = Number(answerKey.maxScore ?? 0);
+  const scored = scoreDetectedAnswers(
+    parsedAnswerKey,
+    detectedAnswers,
+    maxScore
+  );
+  const confidence = normalizeConfidence(data.analysis.confidence);
+  const minConfidence = Number(answerKey.autoScoreMinConfidence ?? 0.85);
+  const allRequiredPinsRead =
+    parsedAnswerKey.pins.length > 0 &&
+    parsedAnswerKey.pins.every(
+      item => normalizeShortAnswer(detectedAnswers[`pin${item.pin}`]).length > 0
+    );
+  const canAutoScore =
+    Boolean(data.studentId) &&
+    allRequiredPinsRead &&
+    confidence >= minConfidence;
+  const status = canAutoScore ? "auto_scored" : "pending_review";
+
+  const [inserted] = await db
+    .insert(assignmentSubmissions)
+    .values({
+      assignmentId: data.assignmentId,
+      categoryId: data.categoryId,
+      answerKeyId: data.answerKeyId,
+      studentId: data.studentId ?? null,
+      qrRawValue: data.qrRawValue ?? null,
+      imageDataUrl: data.imageDataUrl,
+      status,
+      detectedAnswers: detectedAnswers as any,
+      matchedAnswers: scored.matched as any,
+      suggestedScore: String(scored.score) as any,
+      confirmedScore: canAutoScore ? (String(scored.score) as any) : null,
+      confidence: String(confidence) as any,
+      aiFeedback: data.analysis.feedback ?? null,
+      reviewedAt: canAutoScore ? new Date() : null,
+    })
+    .returning({ id: assignmentSubmissions.id });
+
+  if (canAutoScore && data.studentId) {
+    await upsertScore({
+      categoryId: data.categoryId,
+      studentId: data.studentId,
+      score: String(scored.score) as any,
+      note: `Smart Assignment Box submission #${inserted.id}`,
+      recordedBy: answerKey.createdBy,
+    });
+  }
+
+  return {
+    id: inserted.id,
+    status,
+    suggestedScore: scored.score,
+    confidence,
+    matchedAnswers: scored.matched,
+  };
+}
+
+export async function reviewAssignmentSubmission(data: {
+  id: number;
+  score: string | null;
+  status: "confirmed" | "rejected";
+  note?: string | null;
+  reviewedBy: number;
+}) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await ensureAssignmentBoxTables();
+  const [existing] = await db
+    .select()
+    .from(assignmentSubmissions)
+    .where(eq(assignmentSubmissions.id, data.id))
+    .limit(1);
+  if (!existing) throw new Error("ไม่พบงานที่ส่ง");
+
+  await db
+    .update(assignmentSubmissions)
+    .set({
+      status: data.status,
+      confirmedScore: data.score as any,
+      reviewNote: data.note ?? null,
+      reviewedBy: data.reviewedBy,
+      reviewedAt: new Date(),
+      updatedAt: new Date(),
+    })
+    .where(eq(assignmentSubmissions.id, data.id));
+
+  if (
+    data.status === "confirmed" &&
+    existing.studentId &&
+    data.score !== null
+  ) {
+    await upsertScore({
+      categoryId: existing.categoryId,
+      studentId: existing.studentId,
+      score: data.score as any,
+      note: `Smart Assignment Box reviewed submission #${existing.id}`,
+      recordedBy: data.reviewedBy,
+    });
+  }
+
+  return { success: true };
 }
 
 // ─── Grade Results ─────────────────────────────────────────────────────────────
@@ -2674,7 +3128,10 @@ export async function getSchoolSettings() {
     directorName: "",
     updatedAt: new Date(),
   };
-  await db.insert(schoolSettings).values(initial as any).catch(() => {});
+  await db
+    .insert(schoolSettings)
+    .values(initial as any)
+    .catch(() => {});
   return initial;
 }
 
@@ -2863,14 +3320,18 @@ export async function getPor6StudentReport(studentId: number) {
   if (!classroom) return null;
   const academicYear = await getAcademicYearById(classroom.academicYearId);
   const school = await getSchoolSettings();
-  const assessment = await getPor6Assessment(student.id, classroom.academicYearId);
+  const assessment = await getPor6Assessment(
+    student.id,
+    classroom.academicYearId
+  );
   const homeroomTeachers = await getClassroomHomeroomTeachers(classroom.id);
   const homeroomTeacherNames = homeroomTeachers
-    .map(row =>
-      `${row.profile?.prefix ?? ""}${row.profile?.firstName ?? ""} ${row.profile?.lastName ?? ""}`.trim() ||
-      row.user?.name ||
-      row.user?.email ||
-      ""
+    .map(
+      row =>
+        `${row.profile?.prefix ?? ""}${row.profile?.firstName ?? ""} ${row.profile?.lastName ?? ""}`.trim() ||
+        row.user?.name ||
+        row.user?.email ||
+        ""
     )
     .filter(Boolean);
   const classmates = await getStudentsByClassroom(classroom.id);
@@ -2912,14 +3373,20 @@ export async function getPor6StudentReport(studentId: number) {
     if (values.length > 0) {
       classAverageByAssignment.set(
         id,
-        Math.round((values.reduce((sum, value) => sum + value, 0) / values.length) * 100) / 100
+        Math.round(
+          (values.reduce((sum, value) => sum + value, 0) / values.length) * 100
+        ) / 100
       );
     }
   });
 
   const rankRows = classmates.map(classmate => {
     const totals = assignmentIds
-      .map(id => toNumber(resultsByAssignmentStudent.get(`${id}-${classmate.id}`)?.totalScore))
+      .map(id =>
+        toNumber(
+          resultsByAssignmentStudent.get(`${id}-${classmate.id}`)?.totalScore
+        )
+      )
       .filter((value): value is number => value !== null);
     const percent =
       totals.length > 0
@@ -2951,7 +3418,9 @@ export async function getPor6StudentReport(studentId: number) {
       note: "",
     };
   });
-  const scoredSubjects = subjectsReport.filter(subject => subject.score !== null);
+  const scoredSubjects = subjectsReport.filter(
+    subject => subject.score !== null
+  );
   const totalScore = scoredSubjects.reduce(
     (sum, subject) => sum + (subject.score ?? 0),
     0
@@ -2966,8 +3435,9 @@ export async function getPor6StudentReport(studentId: number) {
     .filter((value): value is number => value !== null);
   const gpa =
     grades.length > 0
-      ? Math.round((grades.reduce((sum, grade) => sum + grade, 0) / grades.length) * 100) /
-        100
+      ? Math.round(
+          (grades.reduce((sum, grade) => sum + grade, 0) / grades.length) * 100
+        ) / 100
       : null;
 
   return {
@@ -2979,9 +3449,13 @@ export async function getPor6StudentReport(studentId: number) {
     assessment,
     subjects: subjectsReport,
     summary: {
-      totalHours: subjectsReport.reduce((sum, subject) => sum + subject.hours, 0),
+      totalHours: subjectsReport.reduce(
+        (sum, subject) => sum + subject.hours,
+        0
+      ),
       totalMaxScore,
-      totalScore: scoredSubjects.length > 0 ? Math.round(totalScore * 100) / 100 : null,
+      totalScore:
+        scoredSubjects.length > 0 ? Math.round(totalScore * 100) / 100 : null,
       percentage,
       gpa,
       rank,
@@ -3003,11 +3477,12 @@ export async function getPor6ClassroomReports(classroomId: number) {
   const school = await getSchoolSettings();
   const homeroomTeachers = await getClassroomHomeroomTeachers(classroom.id);
   const homeroomTeacherNames = homeroomTeachers
-    .map(row =>
-      `${row.profile?.prefix ?? ""}${row.profile?.firstName ?? ""} ${row.profile?.lastName ?? ""}`.trim() ||
-      row.user?.name ||
-      row.user?.email ||
-      ""
+    .map(
+      row =>
+        `${row.profile?.prefix ?? ""}${row.profile?.firstName ?? ""} ${row.profile?.lastName ?? ""}`.trim() ||
+        row.user?.name ||
+        row.user?.email ||
+        ""
     )
     .filter(Boolean);
   const studentIds = students.map(student => student.id);
@@ -3077,7 +3552,9 @@ export async function getPor6ClassroomReports(classroomId: number) {
   const rankRows = students.map(student => {
     const totals = assignmentIds
       .map(id =>
-        toNumber(resultsByAssignmentStudent.get(`${id}-${student.id}`)?.totalScore)
+        toNumber(
+          resultsByAssignmentStudent.get(`${id}-${student.id}`)?.totalScore
+        )
       )
       .filter((value): value is number => value !== null);
     const percent =
@@ -3129,8 +3606,10 @@ export async function getPor6ClassroomReports(classroomId: number) {
       .filter((value): value is number => value !== null);
     const gpa =
       grades.length > 0
-        ? Math.round((grades.reduce((sum, grade) => sum + grade, 0) / grades.length) * 100) /
-          100
+        ? Math.round(
+            (grades.reduce((sum, grade) => sum + grade, 0) / grades.length) *
+              100
+          ) / 100
         : null;
 
     return {

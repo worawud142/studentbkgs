@@ -71,6 +71,7 @@ unsigned long lastScanAt = 0;
 unsigned long lastHeartbeatAt = 0;
 unsigned long lastWifiAttemptAt = 0;
 unsigned long lastConfigRefreshAt = 0;
+unsigned long lastGM65ByteAt = 0;
 
 // -------------------- Helpers ------------------
 String trimTrailingSlash(String value) {
@@ -420,6 +421,7 @@ void handleScanResult(const String& rawValue) {
 void readGM65Serial() {
   while (GM65.available()) {
     char c = static_cast<char>(GM65.read());
+    lastGM65ByteAt = millis();
     if (c == '\r' || c == '\n') {
       if (lineBuffer.length() > 0) {
         handleScanResult(lineBuffer);
@@ -432,6 +434,11 @@ void readGM65Serial() {
         lineBuffer = "";
       }
     }
+  }
+
+  if (lineBuffer.length() > 0 && (millis() - lastGM65ByteAt) > 80) {
+    handleScanResult(lineBuffer);
+    lineBuffer = "";
   }
 }
 

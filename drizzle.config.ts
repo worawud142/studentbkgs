@@ -30,6 +30,8 @@ export default defineConfig({
     "qr_scan_sessions",
     "score_categories",
     "scores",
+    "assignment_answer_keys",
+    "assignment_submissions",
     "grade_results",
     "exported_documents",
   ],

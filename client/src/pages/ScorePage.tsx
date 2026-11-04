@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Plus, Save, Trash2, BookOpen, Award, FileText, Download, Edit2, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
+import { Plus, Save, Trash2, BookOpen, Award, FileText, Download, Edit2, QrCode, CheckCircle2, Loader2, AlertCircle } from "lucide-react";
 import { useState, useEffect, useRef } from "react";
 import { useParams } from "wouter";
 import { toast } from "sonner";
@@ -555,6 +555,15 @@ export default function ScorePage() {
                           <div className="text-xs text-amber-600 font-normal">
                             หมวดคงที่
                           </div>
+                        )}
+                        {!isFixedFinalCategory(cat) && (
+                          <Link
+                            href={`/assignment-box/${aId}/${cat.id}`}
+                            className="mt-1 inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-normal"
+                          >
+                            <QrCode className="w-3 h-3" />
+                            กล่องส่งงาน
+                          </Link>
                         )}
                       </th>
                     ))}

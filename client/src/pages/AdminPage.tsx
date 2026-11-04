@@ -67,15 +67,11 @@ function dayOfWeekLabel(dayOfWeek: number) {
 }
 
 function dayOfWeekLongLabel(dayOfWeek: number) {
-  return [
-    "อาทิตย์",
-    "จันทร์",
-    "อังคาร",
-    "พุธ",
-    "พฤหัสบดี",
-    "ศุกร์",
-    "เสาร์",
-  ][dayOfWeek] || "-";
+  return (
+    ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"][
+      dayOfWeek
+    ] || "-"
+  );
 }
 
 function homeroomClassroomIdsForTeacher(classrooms: any[], userId: number) {
@@ -272,7 +268,10 @@ function SystemDataTab() {
     homeroomClassroomIds: [] as string[],
   });
   useEffect(() => {
-    const timer = window.setInterval(() => setQrBoxStatusNow(Date.now()), 5 * 1000);
+    const timer = window.setInterval(
+      () => setQrBoxStatusNow(Date.now()),
+      5 * 1000
+    );
     return () => window.clearInterval(timer);
   }, []);
   useEffect(() => {
@@ -358,13 +357,26 @@ function SystemDataTab() {
               <h3 className="font-semibold text-lg">กล่องสแกน QR</h3>
             </div>
             <p className="text-sm text-slate-300 max-w-2xl">
-              จัดการ ESP32-S3 + GM65, ดูสถานะออนไลน์, หมุน token และดู log การสแกนจากหน้าคอนโซลได้ที่นี่
+              จัดการ ESP32-S3 + GM65, ดูสถานะออนไลน์, หมุน token และดู log
+              การสแกนจากหน้าคอนโซลได้ที่นี่
             </p>
             <p className="text-xs text-slate-400">
-              มีทั้งหมด {qrBoxes.length} กล่อง · ออนไลน์ {qrBoxes.filter((box: any) => box.lastSeenAt && qrBoxStatusNow - new Date(box.lastSeenAt).getTime() < 25 * 1000).length} กล่อง
+              มีทั้งหมด {qrBoxes.length} กล่อง · ออนไลน์{" "}
+              {
+                qrBoxes.filter(
+                  (box: any) =>
+                    box.lastSeenAt &&
+                    qrBoxStatusNow - new Date(box.lastSeenAt).getTime() <
+                      25 * 1000
+                ).length
+              }{" "}
+              กล่อง
             </p>
           </div>
-          <Button asChild className="bg-white text-slate-950 hover:bg-slate-100">
+          <Button
+            asChild
+            className="bg-white text-slate-950 hover:bg-slate-100"
+          >
             <a href="/admin/qr-boxes">
               <Wifi className="w-4 h-4 mr-2" />
               เปิดหน้าคอนโซลกล่อง
@@ -375,7 +387,9 @@ function SystemDataTab() {
 
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
         <div className="px-4 py-3 border-b border-slate-200">
-          <h3 className="font-semibold text-slate-900">ตั้งค่าโรงเรียนสำหรับ ปพ.6</h3>
+          <h3 className="font-semibold text-slate-900">
+            ตั้งค่าโรงเรียนสำหรับ ปพ.6
+          </h3>
           <p className="text-xs text-slate-500 mt-1">
             ข้อมูลนี้จะใช้เป็นหัวเอกสารและรายชื่อผู้ลงนามในหน้าพิมพ์ ปพ.6
           </p>
@@ -603,11 +617,12 @@ function SystemDataTab() {
                             setTeacherForm({
                               ...teacherForm,
                               teachingLevel: v as any,
-                              homeroomClassroomIds: filterClassroomIdsByTeachingLevel(
-                                teacherForm.homeroomClassroomIds,
-                                v as any,
-                                classrooms
-                              ),
+                              homeroomClassroomIds:
+                                filterClassroomIdsByTeachingLevel(
+                                  teacherForm.homeroomClassroomIds,
+                                  v as any,
+                                  classrooms
+                                ),
                             })
                           }
                         >
@@ -734,10 +749,11 @@ function SystemDataTab() {
                               phone: row.profile.phone || "",
                               teachingLevel: row.profile.teachingLevel,
                               isHomeroom: row.profile.isHomeroom,
-                              homeroomClassroomIds: homeroomClassroomIdsForTeacher(
-                                classrooms,
-                                row.profile.userId
-                              ),
+                              homeroomClassroomIds:
+                                homeroomClassroomIdsForTeacher(
+                                  classrooms,
+                                  row.profile.userId
+                                ),
                             })
                           }
                           className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors"
@@ -1145,6 +1161,17 @@ function AcademicYearTab() {
     onSuccess: () => {
       toast.success("ตั้งค่าปีการศึกษาที่ใช้งานเรียบร้อย");
       utils.academicYear.list.invalidate({});
+      utils.academicYear.getActive.invalidate();
+      utils.assignment.myList.invalidate();
+    },
+    onError: e => toast.error(e.message),
+  });
+  const close = trpc.academicYear.close.useMutation({
+    onSuccess: () => {
+      toast.success("ปิดรอบการศึกษาเรียบร้อย");
+      utils.academicYear.list.invalidate({});
+      utils.academicYear.getActive.invalidate();
+      utils.assignment.myList.invalidate();
     },
     onError: e => toast.error(e.message),
   });
@@ -1305,7 +1332,9 @@ function AcademicYearTab() {
                       ใช้งาน
                     </span>
                   ) : (
-                    <span className="text-slate-400 text-xs">ไม่ใช้งาน</span>
+                    <span className="text-slate-500 text-xs">
+                      ปิดแล้ว / ยังไม่เปิด
+                    </span>
                   )}
                 </td>
                 <td className="px-4 py-3 text-center">
@@ -1472,9 +1501,29 @@ function AcademicYearTab() {
                       </>
                     )}
                     {y.isActive && (
-                      <span className="text-[11px] text-slate-400">
-                        ต้องเปลี่ยนปีที่ใช้งานก่อนลบ
-                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-xs border-amber-300 text-amber-700 hover:bg-amber-50"
+                        disabled={close.isPending}
+                        onClick={() => {
+                          const label =
+                            y.level === "secondary"
+                              ? `ภาคเรียนที่ ${y.semester}`
+                              : `ปีการศึกษา ${y.year}`;
+                          if (
+                            confirm(
+                              `ปิด${label}? รายวิชาจะย้ายออกจากหน้ากำลังสอน แต่ข้อมูลเดิมยังอยู่ครบ`
+                            )
+                          ) {
+                            close.mutate({ id: y.id, level: y.level });
+                          }
+                        }}
+                      >
+                        {y.level === "secondary"
+                          ? "ปิดภาคเรียน"
+                          : "ปิดปีการศึกษา"}
+                      </Button>
                     )}
                   </div>
                 </td>
@@ -1660,7 +1709,10 @@ function ClassroomsTab() {
                     const userId = String(t.user?.id ?? t.profile.userId);
                     const checked = form.homeroomTeacherIds.includes(userId);
                     return (
-                      <label key={t.profile.id} className="flex items-center gap-2 text-sm">
+                      <label
+                        key={t.profile.id}
+                        className="flex items-center gap-2 text-sm"
+                      >
                         <input
                           type="checkbox"
                           checked={checked}
@@ -1669,7 +1721,9 @@ function ClassroomsTab() {
                               ...form,
                               homeroomTeacherIds: e.target.checked
                                 ? [...form.homeroomTeacherIds, userId]
-                                : form.homeroomTeacherIds.filter(id => id !== userId),
+                                : form.homeroomTeacherIds.filter(
+                                    id => id !== userId
+                                  ),
                             })
                           }
                         />
@@ -1726,9 +1780,9 @@ function ClassroomsTab() {
                         ? "badge-primary-level"
                         : "badge-secondary-level"
                     }
-                    >
-                      {c.level === "primary" ? "ประถม" : "มัธยม"}
-                    </span>
+                  >
+                    {c.level === "primary" ? "ประถม" : "มัธยม"}
+                  </span>
                 </td>
                 <td className="px-4 py-3 text-slate-600 hidden lg:table-cell">
                   <div className="text-[11px] text-slate-400">
@@ -1890,15 +1944,21 @@ function ClassroomsTab() {
                           </div>
                           <div>
                             <Label className="text-xs">
-                              {classroomAdvisorLabel(editForm.level)} (เลือกได้หลายคน)
+                              {classroomAdvisorLabel(editForm.level)}{" "}
+                              (เลือกได้หลายคน)
                             </Label>
                             <div className="mt-1 max-h-40 space-y-2 overflow-y-auto rounded-lg border border-slate-200 p-3">
                               {teachers.map(t => {
-                                const userId = String(t.user?.id ?? t.profile.userId);
+                                const userId = String(
+                                  t.user?.id ?? t.profile.userId
+                                );
                                 const checked =
                                   editForm.homeroomTeacherIds.includes(userId);
                                 return (
-                                  <label key={t.profile.id} className="flex items-center gap-2 text-sm">
+                                  <label
+                                    key={t.profile.id}
+                                    className="flex items-center gap-2 text-sm"
+                                  >
                                     <input
                                       type="checkbox"
                                       checked={checked}
@@ -1906,8 +1966,13 @@ function ClassroomsTab() {
                                         setEditForm({
                                           ...editForm,
                                           homeroomTeacherIds: e.target.checked
-                                            ? [...editForm.homeroomTeacherIds, userId]
-                                            : editForm.homeroomTeacherIds.filter(id => id !== userId),
+                                            ? [
+                                                ...editForm.homeroomTeacherIds,
+                                                userId,
+                                              ]
+                                            : editForm.homeroomTeacherIds.filter(
+                                                id => id !== userId
+                                              ),
                                         })
                                       }
                                     />
@@ -1917,7 +1982,9 @@ function ClassroomsTab() {
                                 );
                               })}
                               {teachers.length === 0 && (
-                                <p className="text-xs text-slate-400">ยังไม่มีข้อมูลครู</p>
+                                <p className="text-xs text-slate-400">
+                                  ยังไม่มีข้อมูลครู
+                                </p>
                               )}
                             </div>
                           </div>
@@ -2811,7 +2878,8 @@ function TimetableTab() {
     () =>
       assignments.map((row: any) => ({
         id: row.assignment.id,
-        label: `${row.subject?.subjectCode || "-"} ${row.subject?.name || ""} · ${row.classroom?.name || "-"}`.trim(),
+        label:
+          `${row.subject?.subjectCode || "-"} ${row.subject?.name || ""} · ${row.classroom?.name || "-"}`.trim(),
       })),
     [assignments]
   );
@@ -2924,7 +2992,9 @@ function TimetableTab() {
                   <Input
                     type="time"
                     value={form.startTime}
-                    onChange={e => setForm({ ...form, startTime: e.target.value })}
+                    onChange={e =>
+                      setForm({ ...form, startTime: e.target.value })
+                    }
                     className="mt-1"
                   />
                 </div>
@@ -2933,7 +3003,9 @@ function TimetableTab() {
                   <Input
                     type="time"
                     value={form.endTime}
-                    onChange={e => setForm({ ...form, endTime: e.target.value })}
+                    onChange={e =>
+                      setForm({ ...form, endTime: e.target.value })
+                    }
                     className="mt-1"
                   />
                 </div>
@@ -2952,7 +3024,9 @@ function TimetableTab() {
                   type="checkbox"
                   id="slot-active"
                   checked={form.isActive}
-                  onChange={e => setForm({ ...form, isActive: e.target.checked })}
+                  onChange={e =>
+                    setForm({ ...form, isActive: e.target.checked })
+                  }
                 />
                 <Label htmlFor="slot-active" className="text-sm cursor-pointer">
                   เปิดใช้งานคาบนี้
@@ -2975,12 +3049,24 @@ function TimetableTab() {
         <table className="w-full text-sm">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
-              <th className="text-left px-4 py-3 text-slate-600 font-medium">คาบ</th>
-              <th className="text-left px-4 py-3 text-slate-600 font-medium">วัน</th>
-              <th className="text-left px-4 py-3 text-slate-600 font-medium">เวลา</th>
-              <th className="text-left px-4 py-3 text-slate-600 font-medium">assignment</th>
-              <th className="text-center px-4 py-3 text-slate-600 font-medium">สถานะ</th>
-              <th className="text-center px-4 py-3 text-slate-600 font-medium">จัดการ</th>
+              <th className="text-left px-4 py-3 text-slate-600 font-medium">
+                คาบ
+              </th>
+              <th className="text-left px-4 py-3 text-slate-600 font-medium">
+                วัน
+              </th>
+              <th className="text-left px-4 py-3 text-slate-600 font-medium">
+                เวลา
+              </th>
+              <th className="text-left px-4 py-3 text-slate-600 font-medium">
+                assignment
+              </th>
+              <th className="text-center px-4 py-3 text-slate-600 font-medium">
+                สถานะ
+              </th>
+              <th className="text-center px-4 py-3 text-slate-600 font-medium">
+                จัดการ
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -2992,20 +3078,25 @@ function TimetableTab() {
               </tr>
             ) : (
               slots.map((slot: any) => {
-                const assignmentLabel = `${slot.subject?.subjectCode || "-"} ${slot.subject?.name || ""} · ${slot.classroom?.name || "-"}`.trim();
+                const assignmentLabel =
+                  `${slot.subject?.subjectCode || "-"} ${slot.subject?.name || ""} · ${slot.classroom?.name || "-"}`.trim();
                 return (
                   <tr key={slot.slot.id} className="hover:bg-slate-50">
                     <td className="px-4 py-3 font-medium">
                       {slot.slot.label || `คาบ ${slot.slot.id}`}
                     </td>
-                    <td className="px-4 py-3">{dayOfWeekLongLabel(slot.slot.dayOfWeek)}</td>
+                    <td className="px-4 py-3">
+                      {dayOfWeekLongLabel(slot.slot.dayOfWeek)}
+                    </td>
                     <td className="px-4 py-3">
                       {slot.slot.startTime} - {slot.slot.endTime}
                     </td>
                     <td className="px-4 py-3">{assignmentLabel}</td>
                     <td className="px-4 py-3 text-center">
                       {slot.slot.isActive ? (
-                        <span className="text-xs font-semibold text-green-600">ใช้งาน</span>
+                        <span className="text-xs font-semibold text-green-600">
+                          ใช้งาน
+                        </span>
                       ) : (
                         <span className="text-xs text-slate-400">ปิด</span>
                       )}
@@ -3040,17 +3131,27 @@ function TimetableTab() {
                             </DialogHeader>
                             <div className="space-y-3">
                               <div>
-                                <Label className="text-xs">วิชา / ห้องเรียน *</Label>
+                                <Label className="text-xs">
+                                  วิชา / ห้องเรียน *
+                                </Label>
                                 <Select
                                   value={editForm.assignmentId}
-                                  onValueChange={v => setEditForm({ ...editForm, assignmentId: v })}
+                                  onValueChange={v =>
+                                    setEditForm({
+                                      ...editForm,
+                                      assignmentId: v,
+                                    })
+                                  }
                                 >
                                   <SelectTrigger className="mt-1">
                                     <SelectValue placeholder="เลือก assignment" />
                                   </SelectTrigger>
                                   <SelectContent>
                                     {assignmentOptions.map(option => (
-                                      <SelectItem key={option.id} value={String(option.id)}>
+                                      <SelectItem
+                                        key={option.id}
+                                        value={String(option.id)}
+                                      >
                                         {option.label}
                                       </SelectItem>
                                     ))}
@@ -3062,14 +3163,19 @@ function TimetableTab() {
                                   <Label className="text-xs">วัน *</Label>
                                   <Select
                                     value={editForm.dayOfWeek}
-                                    onValueChange={v => setEditForm({ ...editForm, dayOfWeek: v })}
+                                    onValueChange={v =>
+                                      setEditForm({ ...editForm, dayOfWeek: v })
+                                    }
                                   >
                                     <SelectTrigger className="mt-1">
                                       <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
                                       {Array.from({ length: 7 }, (_, index) => (
-                                        <SelectItem key={index} value={String(index)}>
+                                        <SelectItem
+                                          key={index}
+                                          value={String(index)}
+                                        >
                                           {dayOfWeekLongLabel(index)}
                                         </SelectItem>
                                       ))}
@@ -3082,7 +3188,10 @@ function TimetableTab() {
                                     type="time"
                                     value={editForm.startTime}
                                     onChange={e =>
-                                      setEditForm({ ...editForm, startTime: e.target.value })
+                                      setEditForm({
+                                        ...editForm,
+                                        startTime: e.target.value,
+                                      })
                                     }
                                     className="mt-1"
                                   />
@@ -3093,7 +3202,10 @@ function TimetableTab() {
                                     type="time"
                                     value={editForm.endTime}
                                     onChange={e =>
-                                      setEditForm({ ...editForm, endTime: e.target.value })
+                                      setEditForm({
+                                        ...editForm,
+                                        endTime: e.target.value,
+                                      })
                                     }
                                     className="mt-1"
                                   />
@@ -3104,7 +3216,10 @@ function TimetableTab() {
                                 <Input
                                   value={editForm.label}
                                   onChange={e =>
-                                    setEditForm({ ...editForm, label: e.target.value })
+                                    setEditForm({
+                                      ...editForm,
+                                      label: e.target.value,
+                                    })
                                   }
                                   className="mt-1"
                                 />
@@ -3115,7 +3230,10 @@ function TimetableTab() {
                                   id={`slot-active-${slot.slot.id}`}
                                   checked={editForm.isActive}
                                   onChange={e =>
-                                    setEditForm({ ...editForm, isActive: e.target.checked })
+                                    setEditForm({
+                                      ...editForm,
+                                      isActive: e.target.checked,
+                                    })
                                   }
                                 />
                                 <Label
@@ -3126,7 +3244,10 @@ function TimetableTab() {
                                 </Label>
                               </div>
                               <div className="flex justify-end gap-2">
-                                <Button variant="outline" onClick={() => setEditSlot(null)}>
+                                <Button
+                                  variant="outline"
+                                  onClick={() => setEditSlot(null)}
+                                >
                                   ยกเลิก
                                 </Button>
                                 <Button
@@ -3153,7 +3274,8 @@ function TimetableTab() {
                         </Dialog>
                         <button
                           onClick={() => {
-                            if (confirm("ลบคาบนี้?")) del.mutate({ id: slot.slot.id });
+                            if (confirm("ลบคาบนี้?"))
+                              del.mutate({ id: slot.slot.id });
                           }}
                           className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
                         >

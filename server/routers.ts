@@ -17,9 +17,11 @@ import {
 } from "./_core/trpc";
 import {
   createAcademicYear,
+  closeAcademicYear,
   createClassroom,
   createExportedDocument,
   createScoreCategory,
+  createAssignmentSubmission,
   createStudent,
   createSubject,
   createTeachingAssignment,
@@ -54,6 +56,8 @@ import {
   getGradeResults,
   getScoreCategories,
   getScoresByAssignment,
+  getAssignmentAnswerKeys,
+  getAssignmentSubmissions,
   getStudentById,
   getStudentGradeResults,
   getStudentsByClassroom,
@@ -85,6 +89,7 @@ import {
   deleteQrScanDevice,
   rotateQrScanDeviceToken,
   upsertGradeResult,
+  upsertAssignmentAnswerKey,
   upsertUser,
   upsertTeacherProfile,
   updateUserRole,
@@ -95,8 +100,110 @@ import {
   updateSchoolSettings,
   upsertPor6Assessment,
   updatePor6ClassroomActivities,
+  reviewAssignmentSubmission,
 } from "./db";
 import { storagePut } from "./storage";
+import { invokeLLM } from "./_core/llm";
+import { collectQrCandidateValues } from "../shared/qr";
+
+type BoardingPassVisionResult = {
+  detectedAnswers: Record<string, string>;
+  confidence: number;
+  feedback: string;
+};
+
+function parseJsonObject(text: string) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error("AI did not return JSON");
+    return JSON.parse(match[0]);
+  }
+}
+
+async function analyzeBoardingPassImage(
+  imageDataUrl: string
+): Promise<BoardingPassVisionResult> {
+  try {
+    const result = await invokeLLM({
+      messages: [
+        {
+          role: "system",
+          content:
+            "You read Thai student network boarding pass worksheets. Return only JSON.",
+        },
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "Inspect the worksheet image. Read only the handwritten/filled answers inside the eight boxes labeled Pin 1 through Pin 8. Do not infer answers from the T568B title. If a box is blank or unreadable, return an empty string. Return JSON with detectedAnswers keys pin1..pin8, confidence from 0 to 1, and a short Thai feedback string.",
+            },
+            {
+              type: "image_url",
+              image_url: { url: imageDataUrl, detail: "high" },
+            },
+          ],
+        },
+      ],
+      responseFormat: {
+        type: "json_schema",
+        json_schema: {
+          name: "boarding_pass_detection",
+          strict: false,
+          schema: {
+            type: "object",
+            properties: {
+              detectedAnswers: {
+                type: "object",
+                properties: Object.fromEntries(
+                  Array.from({ length: 8 }, (_, index) => [
+                    `pin${index + 1}`,
+                    { type: "string" },
+                  ])
+                ),
+                additionalProperties: false,
+              },
+              confidence: { type: "number" },
+              feedback: { type: "string" },
+            },
+            required: ["detectedAnswers", "confidence", "feedback"],
+          },
+        },
+      },
+    });
+    const content = result.choices[0]?.message?.content;
+    const parsed =
+      typeof content === "string"
+        ? parseJsonObject(content)
+        : content && "text" in content[0]
+          ? parseJsonObject(content[0].text)
+          : {};
+    const answers = parsed?.detectedAnswers ?? {};
+    return {
+      detectedAnswers: Object.fromEntries(
+        Array.from({ length: 8 }, (_, index) => {
+          const key = `pin${index + 1}`;
+          return [key, String(answers[key] ?? "")];
+        })
+      ),
+      confidence: Math.max(0, Math.min(1, Number(parsed?.confidence ?? 0))),
+      feedback: String(parsed?.feedback ?? ""),
+    };
+  } catch (error) {
+    return {
+      detectedAnswers: Object.fromEntries(
+        Array.from({ length: 8 }, (_, index) => [`pin${index + 1}`, ""])
+      ),
+      confidence: 0,
+      feedback:
+        error instanceof Error
+          ? `AI ยังตรวจไม่ได้: ${error.message}`
+          : "AI ยังตรวจไม่ได้",
+    };
+  }
+}
 
 export const appRouter = router({
   system: systemRouter,
@@ -400,10 +507,14 @@ export const appRouter = router({
           lastName: teacherInput.lastName,
           phone: teacherInput.phone,
           teachingLevel: teacherInput.teachingLevel,
-          isHomeroom: teacherInput.isHomeroom || Boolean(homeroomClassroomIds?.length),
+          isHomeroom:
+            teacherInput.isHomeroom || Boolean(homeroomClassroomIds?.length),
         });
         if (homeroomClassroomIds !== undefined) {
-          await setTeacherHomeroomClassrooms(result.userId, homeroomClassroomIds);
+          await setTeacherHomeroomClassrooms(
+            result.userId,
+            homeroomClassroomIds
+          );
         }
         return result;
       }),
@@ -432,10 +543,14 @@ export const appRouter = router({
           lastName: teacherInput.lastName,
           phone: teacherInput.phone,
           teachingLevel: teacherInput.teachingLevel,
-          isHomeroom: teacherInput.isHomeroom || Boolean(homeroomClassroomIds?.length),
+          isHomeroom:
+            teacherInput.isHomeroom || Boolean(homeroomClassroomIds?.length),
         });
         if (homeroomClassroomIds !== undefined) {
-          await setTeacherHomeroomClassrooms(teacherInput.userId, homeroomClassroomIds);
+          await setTeacherHomeroomClassrooms(
+            teacherInput.userId,
+            homeroomClassroomIds
+          );
         }
         return { success: true };
       }),
@@ -545,6 +660,14 @@ export const appRouter = router({
         await setActiveAcademicYear(input.id, input.level);
         return { success: true };
       }),
+    close: adminProcedure
+      .input(
+        z.object({ id: z.number(), level: z.enum(["primary", "secondary"]) })
+      )
+      .mutation(async ({ input }) => {
+        await closeAcademicYear(input.id, input.level);
+        return { success: true };
+      }),
     delete: adminProcedure
       .input(z.object({ id: z.number() }))
       .mutation(async ({ input }) => {
@@ -618,7 +741,10 @@ export const appRouter = router({
           ...data,
           homeroomTeacherId: ids[0],
         });
-        if (homeroomTeacherIds !== undefined || data.homeroomTeacherId !== undefined) {
+        if (
+          homeroomTeacherIds !== undefined ||
+          data.homeroomTeacherId !== undefined
+        ) {
           await setClassroomHomeroomTeachers(id, ids);
         }
         return { success: true };
@@ -756,9 +882,18 @@ export const appRouter = router({
   // ─── Teaching Assignments ──────────────────────────────────────────────────
   assignment: router({
     myList: protectedProcedure
-      .input(z.object({ academicYearId: z.number().optional() }))
+      .input(
+        z.object({
+          academicYearId: z.number().optional(),
+          includeClosed: z.boolean().optional(),
+        })
+      )
       .query(async ({ ctx, input }) =>
-        getTeacherAssignments(ctx.user.id, input.academicYearId)
+        getTeacherAssignments(
+          ctx.user.id,
+          input.academicYearId,
+          input.includeClosed ?? false
+        )
       ),
     get: protectedProcedure
       .input(z.object({ id: z.number() }))
@@ -850,8 +985,14 @@ export const appRouter = router({
           id: z.number(),
           assignmentId: z.number().optional(),
           dayOfWeek: z.number().int().min(0).max(6).optional(),
-          startTime: z.string().regex(/^([01]?\d|2[0-3]):[0-5]\d$/).optional(),
-          endTime: z.string().regex(/^([01]?\d|2[0-3]):[0-5]\d$/).optional(),
+          startTime: z
+            .string()
+            .regex(/^([01]?\d|2[0-3]):[0-5]\d$/)
+            .optional(),
+          endTime: z
+            .string()
+            .regex(/^([01]?\d|2[0-3]):[0-5]\d$/)
+            .optional(),
           label: z.string().optional(),
           isActive: z.boolean().optional(),
         })
@@ -1122,6 +1263,102 @@ export const appRouter = router({
       }),
   }),
 
+  // ─── Smart Assignment Box ────────────────────────────────────────────────
+  assignmentBox: router({
+    getAnswerKeys: protectedProcedure
+      .input(z.object({ categoryId: z.number() }))
+      .query(async ({ input }) => getAssignmentAnswerKeys(input.categoryId)),
+    saveAnswerKey: editorProcedure
+      .input(
+        z.object({
+          id: z.number().optional(),
+          assignmentId: z.number(),
+          categoryId: z.number(),
+          title: z.string().min(1),
+          maxScore: z.string(),
+          template: z.string().default("network_boarding_pass_t568b"),
+          autoScoreMinConfidence: z.string().default("0.85"),
+          answers: z.object({
+            pins: z.array(
+              z.object({
+                pin: z.number().min(1).max(8),
+                accepted: z.array(z.string().min(1)),
+                score: z.number().optional(),
+              })
+            ),
+          }),
+          isActive: z.boolean().default(true),
+        })
+      )
+      .mutation(async ({ ctx, input }) => {
+        const id = await upsertAssignmentAnswerKey({
+          ...input,
+          createdBy: ctx.user.id,
+          maxScore: input.maxScore as any,
+          autoScoreMinConfidence: input.autoScoreMinConfidence as any,
+          answers: input.answers,
+        });
+        return { id };
+      }),
+    getSubmissions: protectedProcedure
+      .input(z.object({ categoryId: z.number() }))
+      .query(async ({ input }) => getAssignmentSubmissions(input.categoryId)),
+    submit: editorProcedure
+      .input(
+        z.object({
+          assignmentId: z.number(),
+          categoryId: z.number(),
+          answerKeyId: z.number(),
+          qrRawValue: z.string().optional(),
+          imageDataUrl: z.string().min(100),
+        })
+      )
+      .mutation(async ({ input }) => {
+        const assignment = await getAssignmentById(input.assignmentId);
+        if (!assignment?.assignment?.classroomId) {
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "ไม่พบรายวิชาหรือห้องเรียน",
+          });
+        }
+
+        const candidates = new Set(
+          collectQrCandidateValues(input.qrRawValue ?? "")
+        );
+        const classroomStudents = await getStudentsByClassroom(
+          assignment.assignment.classroomId
+        );
+        const matchedStudent =
+          classroomStudents.find(
+            student =>
+              candidates.has(String(student.id)) ||
+              candidates.has(student.studentCode)
+          ) ?? null;
+        const analysis = await analyzeBoardingPassImage(input.imageDataUrl);
+        return createAssignmentSubmission({
+          ...input,
+          studentId: matchedStudent?.id ?? null,
+          qrRawValue: input.qrRawValue ?? null,
+          analysis,
+        });
+      }),
+    review: editorProcedure
+      .input(
+        z.object({
+          id: z.number(),
+          score: z.string().nullable(),
+          status: z.enum(["confirmed", "rejected"]),
+          note: z.string().optional(),
+        })
+      )
+      .mutation(async ({ ctx, input }) =>
+        reviewAssignmentSubmission({
+          ...input,
+          reviewedBy: ctx.user.id,
+        })
+      ),
+  }),
+
   // ─── Documents ─────────────────────────────────────────────────────────────
   por6: router({
     getStudentReport: protectedProcedure
@@ -1166,12 +1403,16 @@ export const appRouter = router({
   // ─── Documents ─────────────────────────────────────────────────────────────
   document: router({
     list: protectedProcedure
-      .input(z.object({ documentType: z.enum(["por1", "por5", "por6"]).optional() }))
+      .input(
+        z.object({ documentType: z.enum(["por1", "por5", "por6"]).optional() })
+      )
       .query(async ({ ctx, input }) =>
         getExportedDocuments(ctx.user.id, input.documentType)
       ),
     listAll: adminProcedure
-      .input(z.object({ documentType: z.enum(["por1", "por5", "por6"]).optional() }))
+      .input(
+        z.object({ documentType: z.enum(["por1", "por5", "por6"]).optional() })
+      )
       .query(async ({ input }) =>
         getExportedDocuments(undefined, input.documentType)
       ),
@@ -1192,7 +1433,8 @@ export const appRouter = router({
           input.title ??
           `ปพ.5 ${assignment.classroom?.name ?? ""} ${assignment.subject?.name ?? ""}`.trim();
         const id = await createExportedDocument({
-          documentType: input.documentType === "por5" ? "por6" : input.documentType,
+          documentType:
+            input.documentType === "por5" ? "por6" : input.documentType,
           title,
           classroomId: assignment.assignment.classroomId,
           academicYearId: assignment.assignment.academicYearId,

@@ -63,6 +63,12 @@ export const documentTypeEnum = appSchema.enum("document_type", [
   "por5",
   "por6",
 ]);
+export const submissionStatusEnum = appSchema.enum("submission_status", [
+  "pending_review",
+  "auto_scored",
+  "confirmed",
+  "rejected",
+]);
 
 // ─── QR Scan Boxes ────────────────────────────────────────────────────────────
 export const qrScanDevices = appSchema.table("qr_scan_devices", {
@@ -384,6 +390,65 @@ export const scores = appSchema.table("scores", {
 
 export type Score = typeof scores.$inferSelect;
 export type InsertScore = typeof scores.$inferInsert;
+
+// ─── Smart Assignment Box ────────────────────────────────────────────────────
+export const assignmentAnswerKeys = appSchema.table("assignment_answer_keys", {
+  id: serial("id").primaryKey(),
+  assignmentId: integer("assignmentId").notNull(),
+  categoryId: integer("categoryId").notNull(),
+  template: varchar("template", { length: 80 })
+    .default("network_boarding_pass_t568b")
+    .notNull(),
+  title: varchar("title", { length: 200 }).notNull(),
+  maxScore: numeric("maxScore", { precision: 6, scale: 2 }).notNull(),
+  answers: jsonb("answers").notNull(),
+  autoScoreMinConfidence: numeric("autoScoreMinConfidence", {
+    precision: 4,
+    scale: 2,
+  })
+    .default("0.85")
+    .notNull(),
+  isActive: boolean("isActive").default(true).notNull(),
+  createdBy: integer("createdBy").notNull(),
+  createdAt: timestamp("createdAt", { mode: "date", withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updatedAt", { mode: "date", withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export type AssignmentAnswerKey = typeof assignmentAnswerKeys.$inferSelect;
+export type InsertAssignmentAnswerKey = typeof assignmentAnswerKeys.$inferInsert;
+
+export const assignmentSubmissions = appSchema.table("assignment_submissions", {
+  id: serial("id").primaryKey(),
+  assignmentId: integer("assignmentId").notNull(),
+  categoryId: integer("categoryId").notNull(),
+  answerKeyId: integer("answerKeyId"),
+  studentId: integer("studentId"),
+  qrRawValue: text("qrRawValue"),
+  imageDataUrl: text("imageDataUrl").notNull(),
+  status: submissionStatusEnum("status").default("pending_review").notNull(),
+  detectedAnswers: jsonb("detectedAnswers"),
+  matchedAnswers: jsonb("matchedAnswers"),
+  suggestedScore: numeric("suggestedScore", { precision: 6, scale: 2 }),
+  confirmedScore: numeric("confirmedScore", { precision: 6, scale: 2 }),
+  confidence: numeric("confidence", { precision: 4, scale: 2 }),
+  reviewNote: text("reviewNote"),
+  aiFeedback: text("aiFeedback"),
+  reviewedBy: integer("reviewedBy"),
+  reviewedAt: timestamp("reviewedAt", { mode: "date", withTimezone: true }),
+  createdAt: timestamp("createdAt", { mode: "date", withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updatedAt", { mode: "date", withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
+
+export type AssignmentSubmission = typeof assignmentSubmissions.$inferSelect;
+export type InsertAssignmentSubmission = typeof assignmentSubmissions.$inferInsert;
 
 // ─── Grade Results (ผลการเรียน) ────────────────────────────────────────────────
 export const gradeResults = appSchema.table("grade_results", {
