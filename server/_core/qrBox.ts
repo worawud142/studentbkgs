@@ -3,6 +3,7 @@ import {
   collectQrCandidateValues,
   collectTeacherQrCandidateValues,
   findMatchingQrStudent,
+  selectQrAttendanceAssignment,
 } from "../../shared/qr";
 import {
   closeActiveQrScanSession,
@@ -74,7 +75,9 @@ export function registerQrBoxRoutes(app: Express) {
       },
       assignment: device.assignment,
       activeTimetableAssignment: device.assignmentId
-        ? await getCurrentTeachingScheduleAssignmentForDevice(device.assignmentId)
+        ? await getCurrentTeachingScheduleAssignmentForDevice(
+            device.assignmentId
+          )
         : null,
       activeSession: await getActiveQrScanSessionByDeviceId(deviceId),
       serverDate: await scanDateKeyFromNow(),
@@ -105,8 +108,11 @@ export function registerQrBoxRoutes(app: Express) {
 
     const wasOffline =
       !device.lastSeenAt ||
-      Date.now() - new Date(device.lastSeenAt).getTime() > ONLINE_NOTIFICATION_GAP_MS;
-    const telegramConfigured = Boolean(ENV.telegramBotToken && ENV.telegramChatId);
+      Date.now() - new Date(device.lastSeenAt).getTime() >
+        ONLINE_NOTIFICATION_GAP_MS;
+    const telegramConfigured = Boolean(
+      ENV.telegramBotToken && ENV.telegramChatId
+    );
 
     console.info(
       `[QR Box] ping device=${device.id} wasOffline=${wasOffline} telegramConfigured=${telegramConfigured}`
@@ -116,11 +122,16 @@ export function registerQrBoxRoutes(app: Express) {
 
     if (wasOffline) {
       const delivered = await sendTelegramMessage(
-        `✅ กล่องสแกนพร้อมใช้งาน\nชื่อ: ${device.name}\nเวลา: ${new Date().toLocaleString("th-TH", {
-          timeZone: "Asia/Bangkok",
-        })}`
+        `✅ กล่องสแกนพร้อมใช้งาน\nชื่อ: ${device.name}\nเวลา: ${new Date().toLocaleString(
+          "th-TH",
+          {
+            timeZone: "Asia/Bangkok",
+          }
+        )}`
       );
-      console.info(`[QR Box] Telegram ready notification delivered=${delivered}`);
+      console.info(
+        `[QR Box] Telegram ready notification delivered=${delivered}`
+      );
     }
 
     res.json({
@@ -170,9 +181,12 @@ export function registerQrBoxRoutes(app: Express) {
   app.post("/api/qr-boxes/:deviceId/scan", async (req, res) => {
     const deviceId = toPositiveInteger(req.params.deviceId);
     const token = getDeviceToken(req);
-    const rawValue = typeof req.body?.rawValue === "string" ? req.body.rawValue.trim() : "";
+    const rawValue =
+      typeof req.body?.rawValue === "string" ? req.body.rawValue.trim() : "";
     if (!deviceId || !token || !rawValue) {
-      res.status(400).json({ error: "deviceId, token and rawValue are required" });
+      res
+        .status(400)
+        .json({ error: "deviceId, token and rawValue are required" });
       return;
     }
 
@@ -201,7 +215,8 @@ export function registerQrBoxRoutes(app: Express) {
     }
 
     const teacherCandidates = collectTeacherQrCandidateValues(rawValue);
-    let teacherUser: Awaited<ReturnType<typeof getUserByTeacherCode>> = undefined;
+    let teacherUser: Awaited<ReturnType<typeof getUserByTeacherCode>> =
+      undefined;
     for (const candidate of teacherCandidates) {
       const resolved = await getUserByTeacherCode(candidate);
       if (resolved) {
@@ -214,14 +229,22 @@ export function registerQrBoxRoutes(app: Express) {
       ? await getCurrentTeachingScheduleAssignmentForDevice(device.assignmentId)
       : null;
     const activeSession = await getActiveQrScanSessionByDeviceId(deviceId);
-    const activeAssignment =
-      activeSession?.assignment ??
-      timetableAssignment?.assignment ??
-      null;
-    const activeAssignmentId =
-      activeSession?.assignmentId ??
-      timetableAssignment?.assignment?.assignment?.id ??
-      null;
+    const assignmentSelection = selectQrAttendanceAssignment({
+      session: {
+        id: activeSession?.assignmentId,
+        assignment: activeSession?.assignment,
+      },
+      timetable: {
+        id: timetableAssignment?.assignment?.assignment?.id,
+        assignment: timetableAssignment?.assignment,
+      },
+      device: {
+        id: device.assignmentId,
+        assignment: device.assignment,
+      },
+    });
+    const activeAssignment = assignmentSelection?.assignment ?? null;
+    const activeAssignmentId = assignmentSelection?.id ?? null;
 
     if (teacherUser) {
       const session = await openTeacherQrSession({
@@ -237,13 +260,16 @@ export function registerQrBoxRoutes(app: Express) {
           status: "teacher_no_assignment",
           message: "teacher has no active timetable assignment",
         });
-        res.status(409).json({ error: "ครูยังไม่มีคาบสอนที่ active อยู่ตอนนี้" });
+        res
+          .status(409)
+          .json({ error: "ครูยังไม่มีคาบสอนที่ active อยู่ตอนนี้" });
         return;
       }
 
       await recordQrScanLog({
         deviceId,
-        assignmentId: session?.assignmentId ?? activeAssignmentId ?? device.assignmentId,
+        assignmentId:
+          session?.assignmentId ?? activeAssignmentId ?? device.assignmentId,
         rawValue,
         status: "teacher_session_opened_timetable",
         message: "teacher session opened for active timetable",
@@ -273,9 +299,11 @@ export function registerQrBoxRoutes(app: Express) {
         assignmentId: device.assignmentId,
         rawValue,
         status: "missing_timetable",
-        message: "no active timetable slot",
+        message: "no active timetable slot or device assignment",
       });
-      res.status(409).json({ error: "ไม่มีคาบสอนที่ active อยู่ตอนนี้" });
+      res
+        .status(409)
+        .json({ error: "กล่องยังไม่ได้ผูกกับวิชา/ห้องเรียนที่ใช้งานได้" });
       return;
     }
 

@@ -3,6 +3,7 @@ import {
   collectQrCandidateValues,
   collectTeacherQrCandidateValues,
   findMatchingQrStudent,
+  selectQrAttendanceAssignment,
 } from "../shared/qr";
 
 describe("qr helper", () => {
@@ -16,10 +17,7 @@ describe("qr helper", () => {
     expect(
       collectQrCandidateValues("https://example.com/?studentCode=B009")
     ).toEqual(
-      expect.arrayContaining([
-        "https://example.com/?studentCode=B009",
-        "B009",
-      ])
+      expect.arrayContaining(["https://example.com/?studentCode=B009", "B009"])
     );
   });
 
@@ -41,5 +39,42 @@ describe("qr helper", () => {
     expect(findMatchingQrStudent(students, "10")).toEqual(students[0]);
     expect(findMatchingQrStudent(students, "S-011")).toEqual(students[1]);
     expect(findMatchingQrStudent(students, "unknown")).toBeNull();
+  });
+
+  it("falls back to the assignment bound to the QR box", () => {
+    const deviceAssignment = { classroomId: 42 };
+
+    expect(
+      selectQrAttendanceAssignment({
+        session: null,
+        timetable: null,
+        device: { id: 9, assignment: deviceAssignment },
+      })
+    ).toEqual({
+      source: "device_assignment",
+      id: 9,
+      assignment: deviceAssignment,
+    });
+  });
+
+  it("prefers a teacher session and timetable over the device fallback", () => {
+    const sessionAssignment = { classroomId: 1 };
+    const timetableAssignment = { classroomId: 2 };
+    const deviceAssignment = { classroomId: 3 };
+
+    expect(
+      selectQrAttendanceAssignment({
+        session: { id: 10, assignment: sessionAssignment },
+        timetable: { id: 20, assignment: timetableAssignment },
+        device: { id: 30, assignment: deviceAssignment },
+      })
+    ).toMatchObject({ source: "teacher_session", id: 10 });
+
+    expect(
+      selectQrAttendanceAssignment({
+        timetable: { id: 20, assignment: timetableAssignment },
+        device: { id: 30, assignment: deviceAssignment },
+      })
+    ).toMatchObject({ source: "timetable", id: 20 });
   });
 });

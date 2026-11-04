@@ -1354,6 +1354,10 @@ export async function getTeachingScheduleSlots(options?: {
     )
     .leftJoin(subjects, eq(teachingAssignments.subjectId, subjects.id))
     .leftJoin(classrooms, eq(teachingAssignments.classroomId, classrooms.id))
+    .leftJoin(
+      academicYears,
+      eq(teachingAssignments.academicYearId, academicYears.id)
+    )
     .leftJoin(users, eq(teachingAssignments.teacherId, users.id))
     .leftJoin(
       teacherProfiles,
@@ -1405,6 +1409,10 @@ export async function getTeachingScheduleSlotById(id: number) {
     )
     .leftJoin(subjects, eq(teachingAssignments.subjectId, subjects.id))
     .leftJoin(classrooms, eq(teachingAssignments.classroomId, classrooms.id))
+    .leftJoin(
+      academicYears,
+      eq(teachingAssignments.academicYearId, academicYears.id)
+    )
     .leftJoin(users, eq(teachingAssignments.teacherId, users.id))
     .leftJoin(
       teacherProfiles,
@@ -1486,6 +1494,10 @@ export async function getCurrentTeachingScheduleSlotForClassroom(
     )
     .leftJoin(subjects, eq(teachingAssignments.subjectId, subjects.id))
     .leftJoin(classrooms, eq(teachingAssignments.classroomId, classrooms.id))
+    .leftJoin(
+      academicYears,
+      eq(teachingAssignments.academicYearId, academicYears.id)
+    )
     .leftJoin(users, eq(teachingAssignments.teacherId, users.id))
     .leftJoin(
       teacherProfiles,
@@ -1494,7 +1506,8 @@ export async function getCurrentTeachingScheduleSlotForClassroom(
     .where(
       and(
         eq(teachingAssignments.classroomId, classroomId),
-        eq(teachingScheduleSlots.isActive, true)
+        eq(teachingScheduleSlots.isActive, true),
+        eq(academicYears.isActive, true)
       )
     )
     .orderBy(teachingScheduleSlots.dayOfWeek, teachingScheduleSlots.startTime);
@@ -1528,12 +1541,21 @@ export async function getCurrentTeachingScheduleSlot(at = new Date()) {
     )
     .leftJoin(subjects, eq(teachingAssignments.subjectId, subjects.id))
     .leftJoin(classrooms, eq(teachingAssignments.classroomId, classrooms.id))
+    .leftJoin(
+      academicYears,
+      eq(teachingAssignments.academicYearId, academicYears.id)
+    )
     .leftJoin(users, eq(teachingAssignments.teacherId, users.id))
     .leftJoin(
       teacherProfiles,
       eq(teachingAssignments.teacherId, teacherProfiles.userId)
     )
-    .where(eq(teachingScheduleSlots.isActive, true))
+    .where(
+      and(
+        eq(teachingScheduleSlots.isActive, true),
+        eq(academicYears.isActive, true)
+      )
+    )
     .orderBy(
       teachingScheduleSlots.dayOfWeek,
       teachingScheduleSlots.startTime,
@@ -1572,6 +1594,10 @@ export async function getCurrentTeachingScheduleSlotForAssignment(
     )
     .leftJoin(subjects, eq(teachingAssignments.subjectId, subjects.id))
     .leftJoin(classrooms, eq(teachingAssignments.classroomId, classrooms.id))
+    .leftJoin(
+      academicYears,
+      eq(teachingAssignments.academicYearId, academicYears.id)
+    )
     .leftJoin(users, eq(teachingAssignments.teacherId, users.id))
     .leftJoin(
       teacherProfiles,
@@ -1580,7 +1606,8 @@ export async function getCurrentTeachingScheduleSlotForAssignment(
     .where(
       and(
         eq(teachingScheduleSlots.assignmentId, assignmentId),
-        eq(teachingScheduleSlots.isActive, true)
+        eq(teachingScheduleSlots.isActive, true),
+        eq(academicYears.isActive, true)
       )
     )
     .orderBy(teachingScheduleSlots.dayOfWeek, teachingScheduleSlots.startTime);
@@ -1638,6 +1665,10 @@ export async function getCurrentTeachingScheduleAssignmentForTeacher(
     )
     .leftJoin(subjects, eq(teachingAssignments.subjectId, subjects.id))
     .leftJoin(classrooms, eq(teachingAssignments.classroomId, classrooms.id))
+    .leftJoin(
+      academicYears,
+      eq(teachingAssignments.academicYearId, academicYears.id)
+    )
     .leftJoin(users, eq(teachingAssignments.teacherId, users.id))
     .leftJoin(
       teacherProfiles,
@@ -1646,7 +1677,8 @@ export async function getCurrentTeachingScheduleAssignmentForTeacher(
     .where(
       and(
         eq(teachingAssignments.teacherId, teacherUserId),
-        eq(teachingScheduleSlots.isActive, true)
+        eq(teachingScheduleSlots.isActive, true),
+        eq(academicYears.isActive, true)
       )
     )
     .orderBy(teachingScheduleSlots.dayOfWeek, teachingScheduleSlots.startTime);
@@ -2039,6 +2071,11 @@ export async function updateQrScanDevice(
   const db = await getDb();
   if (!db) throw new Error("DB not available");
   await ensureQrScanTables();
+  const [current] = await db
+    .select({ assignmentId: qrScanDevices.assignmentId })
+    .from(qrScanDevices)
+    .where(eq(qrScanDevices.id, id))
+    .limit(1);
   await db
     .update(qrScanDevices)
     .set({
@@ -2046,6 +2083,13 @@ export async function updateQrScanDevice(
       updatedAt: new Date(),
     })
     .where(eq(qrScanDevices.id, id));
+  if (
+    data.assignmentId !== undefined &&
+    current &&
+    current.assignmentId !== data.assignmentId
+  ) {
+    await closeActiveQrScanSession(id);
+  }
 }
 
 export async function rotateQrScanDeviceToken(id: number) {

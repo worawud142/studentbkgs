@@ -78,3 +78,24 @@ export function findMatchingQrStudent<
     ) ?? null
   );
 }
+
+export function selectQrAttendanceAssignment<T>(options: {
+  session?: { id?: number | null; assignment?: T | null } | null;
+  timetable?: { id?: number | null; assignment?: T | null } | null;
+  device?: { id?: number | null; assignment?: T | null } | null;
+}) {
+  const candidates = [
+    { source: "teacher_session" as const, ...options.session },
+    { source: "timetable" as const, ...options.timetable },
+    { source: "device_assignment" as const, ...options.device },
+  ];
+
+  return (
+    candidates.find(
+      candidate =>
+        Number.isInteger(candidate.id) &&
+        Number(candidate.id) > 0 &&
+        Boolean(candidate.assignment)
+    ) ?? null
+  );
+}
