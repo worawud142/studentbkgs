@@ -250,6 +250,7 @@ export function registerQrBoxRoutes(app: Express) {
       const session = await openTeacherQrSession({
         deviceId,
         teacherUserId: teacherUser.id,
+        assignmentId: activeAssignmentId ?? undefined,
       });
 
       if (!session?.assignment?.assignment?.classroomId) {
@@ -258,11 +259,11 @@ export function registerQrBoxRoutes(app: Express) {
           assignmentId: device.assignmentId,
           rawValue,
           status: "teacher_no_assignment",
-          message: "teacher has no active timetable assignment",
+          message: "teacher has no active timetable or device assignment",
         });
         res
           .status(409)
-          .json({ error: "ครูยังไม่มีคาบสอนที่ active อยู่ตอนนี้" });
+          .json({ error: "กล่องยังไม่ได้ผูกกับวิชา/ห้องเรียนที่ครูใช้ได้" });
         return;
       }
 
@@ -271,14 +272,14 @@ export function registerQrBoxRoutes(app: Express) {
         assignmentId:
           session?.assignmentId ?? activeAssignmentId ?? device.assignmentId,
         rawValue,
-        status: "teacher_session_opened_timetable",
-        message: "teacher session opened for active timetable",
+        status: "teacher_session_opened",
+        message: `teacher session opened from ${assignmentSelection?.source ?? "assignment"}`,
         scannedAt: new Date(),
       });
 
       res.json({
         success: true,
-        status: "teacher_session_opened_timetable",
+        status: "teacher_session_opened",
         deviceId,
         assignmentId: session?.assignmentId ?? activeAssignmentId,
         teacher: {
