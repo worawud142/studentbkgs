@@ -1470,6 +1470,35 @@ export async function deleteTeachingScheduleSlot(id: number) {
     .where(eq(teachingScheduleSlots.id, id));
 }
 
+async function getActiveEquivalentTeachingAssignment(
+  source: typeof teachingAssignments.$inferSelect
+) {
+  const db = await getDb();
+  if (!db) return null;
+  const [active] = await db
+    .select({ id: teachingAssignments.id })
+    .from(teachingAssignments)
+    .innerJoin(
+      academicYears,
+      eq(teachingAssignments.academicYearId, academicYears.id)
+    )
+    .where(
+      and(
+        eq(academicYears.isActive, true),
+        eq(teachingAssignments.teacherId, source.teacherId),
+        eq(teachingAssignments.subjectId, source.subjectId),
+        eq(teachingAssignments.classroomId, source.classroomId)
+      )
+    )
+    .orderBy(
+      desc(academicYears.year),
+      desc(academicYears.semester),
+      desc(teachingAssignments.id)
+    )
+    .limit(1);
+  return active?.id ? getAssignmentById(active.id) : null;
+}
+
 export async function getCurrentTeachingScheduleSlotForClassroom(
   classroomId: number,
   at = new Date()
@@ -1494,10 +1523,6 @@ export async function getCurrentTeachingScheduleSlotForClassroom(
     )
     .leftJoin(subjects, eq(teachingAssignments.subjectId, subjects.id))
     .leftJoin(classrooms, eq(teachingAssignments.classroomId, classrooms.id))
-    .leftJoin(
-      academicYears,
-      eq(teachingAssignments.academicYearId, academicYears.id)
-    )
     .leftJoin(users, eq(teachingAssignments.teacherId, users.id))
     .leftJoin(
       teacherProfiles,
@@ -1506,8 +1531,7 @@ export async function getCurrentTeachingScheduleSlotForClassroom(
     .where(
       and(
         eq(teachingAssignments.classroomId, classroomId),
-        eq(teachingScheduleSlots.isActive, true),
-        eq(academicYears.isActive, true)
+        eq(teachingScheduleSlots.isActive, true)
       )
     )
     .orderBy(teachingScheduleSlots.dayOfWeek, teachingScheduleSlots.startTime);
@@ -1541,21 +1565,12 @@ export async function getCurrentTeachingScheduleSlot(at = new Date()) {
     )
     .leftJoin(subjects, eq(teachingAssignments.subjectId, subjects.id))
     .leftJoin(classrooms, eq(teachingAssignments.classroomId, classrooms.id))
-    .leftJoin(
-      academicYears,
-      eq(teachingAssignments.academicYearId, academicYears.id)
-    )
     .leftJoin(users, eq(teachingAssignments.teacherId, users.id))
     .leftJoin(
       teacherProfiles,
       eq(teachingAssignments.teacherId, teacherProfiles.userId)
     )
-    .where(
-      and(
-        eq(teachingScheduleSlots.isActive, true),
-        eq(academicYears.isActive, true)
-      )
-    )
+    .where(eq(teachingScheduleSlots.isActive, true))
     .orderBy(
       teachingScheduleSlots.dayOfWeek,
       teachingScheduleSlots.startTime,
@@ -1577,6 +1592,8 @@ export async function getCurrentTeachingScheduleSlotForAssignment(
   const db = await getDb();
   if (!db) return null;
   await ensureTeachingScheduleTables();
+  const target = await getAssignmentById(assignmentId);
+  if (!target?.assignment) return null;
   const nowParts = currentBangkokDateTimeParts(at);
   const rows = await db
     .select({
@@ -1594,10 +1611,6 @@ export async function getCurrentTeachingScheduleSlotForAssignment(
     )
     .leftJoin(subjects, eq(teachingAssignments.subjectId, subjects.id))
     .leftJoin(classrooms, eq(teachingAssignments.classroomId, classrooms.id))
-    .leftJoin(
-      academicYears,
-      eq(teachingAssignments.academicYearId, academicYears.id)
-    )
     .leftJoin(users, eq(teachingAssignments.teacherId, users.id))
     .leftJoin(
       teacherProfiles,
@@ -1605,9 +1618,10 @@ export async function getCurrentTeachingScheduleSlotForAssignment(
     )
     .where(
       and(
-        eq(teachingScheduleSlots.assignmentId, assignmentId),
-        eq(teachingScheduleSlots.isActive, true),
-        eq(academicYears.isActive, true)
+        eq(teachingAssignments.teacherId, target.assignment.teacherId),
+        eq(teachingAssignments.subjectId, target.assignment.subjectId),
+        eq(teachingAssignments.classroomId, target.assignment.classroomId),
+        eq(teachingScheduleSlots.isActive, true)
       )
     )
     .orderBy(teachingScheduleSlots.dayOfWeek, teachingScheduleSlots.startTime);
@@ -1628,8 +1642,10 @@ export async function getCurrentTeachingScheduleAssignmentForClassroom(
     classroomId,
     at
   );
-  if (!slot?.slot?.assignmentId) return null;
-  const assignment = await getAssignmentById(slot.slot.assignmentId);
+  if (!slot?.assignment) return null;
+  const assignment = await getActiveEquivalentTeachingAssignment(
+    slot.assignment
+  );
   if (!assignment) return null;
   return {
     slot: slot.slot,
@@ -1665,10 +1681,6 @@ export async function getCurrentTeachingScheduleAssignmentForTeacher(
     )
     .leftJoin(subjects, eq(teachingAssignments.subjectId, subjects.id))
     .leftJoin(classrooms, eq(teachingAssignments.classroomId, classrooms.id))
-    .leftJoin(
-      academicYears,
-      eq(teachingAssignments.academicYearId, academicYears.id)
-    )
     .leftJoin(users, eq(teachingAssignments.teacherId, users.id))
     .leftJoin(
       teacherProfiles,
@@ -1677,15 +1689,16 @@ export async function getCurrentTeachingScheduleAssignmentForTeacher(
     .where(
       and(
         eq(teachingAssignments.teacherId, teacherUserId),
-        eq(teachingScheduleSlots.isActive, true),
-        eq(academicYears.isActive, true)
+        eq(teachingScheduleSlots.isActive, true)
       )
     )
     .orderBy(teachingScheduleSlots.dayOfWeek, teachingScheduleSlots.startTime);
 
   const matched = rows.find(row => slotMatchesNow(row.slot, nowParts));
-  if (!matched?.slot?.assignmentId) return null;
-  const assignment = await getAssignmentById(matched.slot.assignmentId);
+  if (!matched?.assignment) return null;
+  const assignment = await getActiveEquivalentTeachingAssignment(
+    matched.assignment
+  );
   if (!assignment) return null;
   return {
     slot: matched.slot,
@@ -1961,10 +1974,11 @@ export async function openTeacherQrSession(data: {
   if (!db) throw new Error("DB not available");
   await ensureQrScanTables();
 
-  const preferredAssignment = data.assignmentId
-    ? await getAssignmentById(data.assignmentId)
-    : (await getCurrentTeachingScheduleAssignmentForTeacher(data.teacherUserId))
-        ?.assignment;
+  const scheduledAssignment =
+    await getCurrentTeachingScheduleAssignmentForTeacher(data.teacherUserId);
+  const preferredAssignment =
+    scheduledAssignment?.assignment ??
+    (data.assignmentId ? await getAssignmentById(data.assignmentId) : null);
   const assignment = preferredAssignment;
   if (!assignment?.assignment?.id) {
     return null;
