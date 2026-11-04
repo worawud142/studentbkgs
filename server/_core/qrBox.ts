@@ -7,6 +7,8 @@ import {
 } from "../../shared/qr";
 import {
   closeActiveQrScanSession,
+  getActiveStudentsForQrLookup,
+  getActiveTeachingAssignmentForTeacherAndClassroom,
   getCurrentTeachingScheduleAssignmentForDevice,
   getActiveQrScanSessionByDeviceId,
   getQrScanDeviceById,
@@ -16,6 +18,7 @@ import {
   recordQrScanLog,
   resolveBangkokTodayAttendanceDate,
   touchQrScanDevice,
+  updateQrScanSessionAssignment,
   upsertAttendance,
   verifyQrScanDeviceToken,
 } from "../db";
@@ -244,7 +247,7 @@ export function registerQrBoxRoutes(app: Express) {
       },
     });
     const activeAssignment = assignmentSelection?.assignment ?? null;
-    const activeAssignmentId = assignmentSelection?.id ?? null;
+    let activeAssignmentId = assignmentSelection?.id ?? null;
 
     if (teacherUser) {
       const session = await openTeacherQrSession({
@@ -273,7 +276,7 @@ export function registerQrBoxRoutes(app: Express) {
           session?.assignmentId ?? activeAssignmentId ?? device.assignmentId,
         rawValue,
         status: "teacher_session_opened",
-        message: `teacher session opened from ${assignmentSelection?.source ?? "assignment"}`,
+        message: `teacher session opened for assignment ${session.assignmentId}`,
         scannedAt: new Date(),
       });
 
@@ -292,7 +295,7 @@ export function registerQrBoxRoutes(app: Express) {
     }
 
     const session = activeSession;
-    const effectiveAssignmentId = activeAssignmentId;
+    let effectiveAssignmentId = activeAssignmentId;
 
     if (!effectiveAssignmentId) {
       await recordQrScanLog({
@@ -308,7 +311,7 @@ export function registerQrBoxRoutes(app: Express) {
       return;
     }
 
-    const currentAssignment = activeAssignment;
+    let currentAssignment = activeAssignment;
     if (!currentAssignment?.assignment?.classroomId) {
       await recordQrScanLog({
         deviceId,
@@ -321,20 +324,50 @@ export function registerQrBoxRoutes(app: Express) {
       return;
     }
 
-    const classroomId = currentAssignment.assignment.classroomId;
-    const students = await getStudentsByClassroom(classroomId);
-    const student = findMatchingQrStudent(
-      students.map(row => ({
+    let classroomId = currentAssignment.assignment.classroomId;
+    const classroomStudents = await getStudentsByClassroom(classroomId);
+    let student = findMatchingQrStudent(
+      classroomStudents.map(row => ({
         id: row.id,
         studentCode: row.studentCode,
       })),
       rawValue
     );
 
+    if (!student && session?.teacherUserId) {
+      const allStudents = await getActiveStudentsForQrLookup();
+      const studentFromAnotherClass = findMatchingQrStudent(
+        allStudents.map(row => ({
+          id: row.id,
+          studentCode: row.studentCode,
+          classroomId: row.classroomId,
+        })),
+        rawValue
+      );
+      if (studentFromAnotherClass?.classroomId) {
+        const routedAssignment =
+          await getActiveTeachingAssignmentForTeacherAndClassroom(
+            session.teacherUserId,
+            studentFromAnotherClass.classroomId
+          );
+        if (routedAssignment?.assignment?.id) {
+          const routedAssignmentId = routedAssignment.assignment.id;
+          student = studentFromAnotherClass;
+          currentAssignment = routedAssignment;
+          effectiveAssignmentId = routedAssignmentId;
+          classroomId = studentFromAnotherClass.classroomId;
+          await updateQrScanSessionAssignment(
+            session.id,
+            routedAssignmentId
+          );
+        }
+      }
+    }
+
     if (!student) {
       await recordQrScanLog({
         deviceId,
-        assignmentId: effectiveAssignmentId,
+        assignmentId: effectiveAssignmentId ?? device.assignmentId,
         rawValue,
         status: "not_found",
         message: "student not found",
@@ -343,9 +376,15 @@ export function registerQrBoxRoutes(app: Express) {
       return;
     }
 
+    const attendanceAssignmentId = effectiveAssignmentId;
+    if (!attendanceAssignmentId) {
+      res.status(409).json({ error: "ไม่พบวิชา/ห้องเรียนสำหรับเช็คชื่อ" });
+      return;
+    }
+
     const date = await scanDateKeyFromNow();
     await upsertAttendance({
-      assignmentId: effectiveAssignmentId,
+      assignmentId: attendanceAssignmentId,
       studentId: student.id,
       date: new Date(`${date}T00:00:00.000Z`) as any,
       status: "present",
@@ -359,7 +398,7 @@ export function registerQrBoxRoutes(app: Express) {
 
     await recordQrScanLog({
       deviceId,
-      assignmentId: effectiveAssignmentId,
+      assignmentId: attendanceAssignmentId,
       studentId: student.id,
       rawValue,
       status: "success",
@@ -375,7 +414,7 @@ export function registerQrBoxRoutes(app: Express) {
         id: student.id,
         studentCode: student.studentCode,
       },
-      assignmentId: effectiveAssignmentId,
+      assignmentId: attendanceAssignmentId,
       deviceId,
       candidates: collectQrCandidateValues(rawValue),
     });

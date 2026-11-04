@@ -1083,6 +1083,19 @@ export async function getStudentsByClassroom(classroomId: number) {
     .orderBy(students.studentNumber, students.firstName);
 }
 
+export async function getActiveStudentsForQrLookup() {
+  const db = await getDb();
+  if (!db) return [];
+  return db
+    .select({
+      id: students.id,
+      studentCode: students.studentCode,
+      classroomId: students.classroomId,
+    })
+    .from(students)
+    .where(eq(students.status, "active"));
+}
+
 export async function getStudentById(id: number) {
   const db = await getDb();
   if (!db) return null;
@@ -1488,6 +1501,35 @@ async function getActiveEquivalentTeachingAssignment(
         eq(teachingAssignments.teacherId, source.teacherId),
         eq(teachingAssignments.subjectId, source.subjectId),
         eq(teachingAssignments.classroomId, source.classroomId)
+      )
+    )
+    .orderBy(
+      desc(academicYears.year),
+      desc(academicYears.semester),
+      desc(teachingAssignments.id)
+    )
+    .limit(1);
+  return active?.id ? getAssignmentById(active.id) : null;
+}
+
+export async function getActiveTeachingAssignmentForTeacherAndClassroom(
+  teacherUserId: number,
+  classroomId: number
+) {
+  const db = await getDb();
+  if (!db) return null;
+  const [active] = await db
+    .select({ id: teachingAssignments.id })
+    .from(teachingAssignments)
+    .innerJoin(
+      academicYears,
+      eq(teachingAssignments.academicYearId, academicYears.id)
+    )
+    .where(
+      and(
+        eq(academicYears.isActive, true),
+        eq(teachingAssignments.teacherId, teacherUserId),
+        eq(teachingAssignments.classroomId, classroomId)
       )
     )
     .orderBy(
@@ -1914,10 +1956,12 @@ export async function getActiveQrScanSessionByDeviceId(deviceId: number) {
     .limit(1);
   if (result.length === 0) return null;
   const row = result[0];
-  const activeSlot = await getCurrentTeachingScheduleSlotForAssignment(
-    row.session.assignmentId
-  );
-  if (!activeSlot) {
+  const lastActivity =
+    row.session.lastScanAt ?? row.session.openedAt ?? row.session.updatedAt;
+  const sessionExpired =
+    !lastActivity ||
+    Date.now() - new Date(lastActivity).getTime() > 4 * 60 * 60 * 1000;
+  if (sessionExpired) {
     await db
       .update(qrScanSessions)
       .set({
@@ -1934,6 +1978,20 @@ export async function getActiveQrScanSessionByDeviceId(deviceId: number) {
     teacherProfile: row.teacherProfile,
     assignment: await getAssignmentById(row.session.assignmentId),
   };
+}
+
+export async function updateQrScanSessionAssignment(
+  sessionId: number,
+  assignmentId: number
+) {
+  const db = await getDb();
+  if (!db) throw new Error("DB not available");
+  await ensureQrScanTables();
+  const now = new Date();
+  await db
+    .update(qrScanSessions)
+    .set({ assignmentId, lastScanAt: now, updatedAt: now })
+    .where(eq(qrScanSessions.id, sessionId));
 }
 
 export async function closeActiveQrScanSession(deviceId: number) {
