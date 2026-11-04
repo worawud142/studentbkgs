@@ -2,11 +2,29 @@ import { useAuth } from "@/_core/hooks/useAuth";
 import TeacherLayout from "@/components/TeacherLayout";
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { isAdminRole } from "@shared/roles";
 import {
@@ -55,20 +73,18 @@ function assignmentLabel(row: any) {
   const subject = row?.subject?.name ?? "-";
   const classroom = row?.classroom?.name ?? "-";
   const academicYear = row?.academicYear?.year ?? "";
-  const semester = row?.academicYear?.semester ? ` ภาค ${row.academicYear.semester}` : "";
+  const semester = row?.academicYear?.semester
+    ? ` ภาค ${row.academicYear.semester}`
+    : "";
   return `${subject} · ${classroom}${academicYear ? ` · ${academicYear}${semester}` : ""}`;
 }
 
 function dayOfWeekLongLabel(dayOfWeek: number) {
-  return [
-    "อาทิตย์",
-    "จันทร์",
-    "อังคาร",
-    "พุธ",
-    "พฤหัสบดี",
-    "ศุกร์",
-    "เสาร์",
-  ][dayOfWeek] || "-";
+  return (
+    ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"][
+      dayOfWeek
+    ] || "-"
+  );
 }
 
 export default function QrBoxPage() {
@@ -77,20 +93,26 @@ export default function QrBoxPage() {
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>("all");
   const [editingDevice, setEditingDevice] = useState<any | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
-  const [form, setForm] = useState<QrBoxFormState>({ name: "", assignmentId: "" });
+  const [form, setForm] = useState<QrBoxFormState>({
+    name: "",
+    assignmentId: "",
+  });
   const [statusNow, setStatusNow] = useState(() => Date.now());
-  const classroomIdHint = Number(new URLSearchParams(window.location.search).get("classroomId") || 0);
+  const classroomIdHint = Number(
+    new URLSearchParams(window.location.search).get("classroomId") || 0
+  );
 
   useEffect(() => {
     const timer = window.setInterval(() => setStatusNow(Date.now()), 5 * 1000);
     return () => window.clearInterval(timer);
   }, []);
 
-  const { data: devices = [], isLoading: devicesLoading } = trpc.qrBox.list.useQuery(undefined, {
-    refetchInterval: QR_BOX_REFRESH_INTERVAL_MS,
-    refetchIntervalInBackground: true,
-    refetchOnWindowFocus: true,
-  });
+  const { data: devices = [], isLoading: devicesLoading } =
+    trpc.qrBox.list.useQuery(undefined, {
+      refetchInterval: QR_BOX_REFRESH_INTERVAL_MS,
+      refetchIntervalInBackground: true,
+      refetchOnWindowFocus: true,
+    });
   const { data: selectedDeviceDetails } = trpc.qrBox.get.useQuery(
     { id: Number(selectedDeviceId) },
     {
@@ -100,18 +122,24 @@ export default function QrBoxPage() {
       refetchOnWindowFocus: true,
     }
   );
-  const { data: assignments = [] } = trpc.assignment.listAll.useQuery(undefined, {
-    refetchOnWindowFocus: false,
-  });
+  const { data: assignments = [] } = trpc.assignment.listAll.useQuery(
+    undefined,
+    {
+      refetchOnWindowFocus: false,
+    }
+  );
 
   const visibleAssignments = useMemo(() => {
     if (!classroomIdHint) return assignments;
-    return assignments.filter((row: any) => row.assignment?.classroomId === classroomIdHint);
+    return assignments.filter(
+      (row: any) => row.assignment?.classroomId === classroomIdHint
+    );
   }, [assignments, classroomIdHint]);
 
   const logQuery = trpc.qrBox.logs.useQuery(
     {
-      deviceId: selectedDeviceId === "all" ? undefined : Number(selectedDeviceId),
+      deviceId:
+        selectedDeviceId === "all" ? undefined : Number(selectedDeviceId),
       limit: 50,
     },
     {
@@ -186,9 +214,9 @@ export default function QrBoxPage() {
   const selectedDevice =
     selectedDeviceId === "all"
       ? null
-      : selectedDeviceDetails ??
+      : (selectedDeviceDetails ??
         devices.find((device: any) => String(device.id) === selectedDeviceId) ??
-        null;
+        null);
 
   const handleSubmit = async () => {
     if (!form.name.trim()) {
@@ -239,29 +267,44 @@ export default function QrBoxPage() {
         <div className="rounded-2xl border border-slate-200 bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-900 p-6 text-white">
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-300">QR Box Console</p>
-              <h1 className="mt-2 text-2xl font-bold">จัดการกล่องสแกนเช็คชื่อ</h1>
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-300">
+                QR Box Console
+              </p>
+              <h1 className="mt-2 text-2xl font-bold">
+                จัดการกล่องสแกนเช็คชื่อ
+              </h1>
               <p className="mt-2 max-w-2xl text-sm text-slate-300">
-                ผูกกล่องกับวิชา/ห้องเรียน, ดูสถานะออนไลน์, คัดลอก token, และเปิด log ล่าสุดจากหน้าเดียว
+                ผูกกล่องกับวิชา/ห้องเรียน, ดูสถานะออนไลน์, คัดลอก token, และเปิด
+                log ล่าสุดจากหน้าเดียว
               </p>
             </div>
             <Dialog open={createOpen} onOpenChange={setCreateOpen}>
               <DialogTrigger asChild>
-                <Button onClick={openCreateDialog} className="bg-white text-slate-950 hover:bg-slate-100">
+                <Button
+                  onClick={openCreateDialog}
+                  className="bg-white text-slate-950 hover:bg-slate-100"
+                >
                   <Plus className="mr-2 h-4 w-4" />
                   สร้างกล่องใหม่
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-xl">
                 <DialogHeader>
-                  <DialogTitle>{editingDevice ? "แก้ไขกล่องสแกน" : "สร้างกล่องสแกน"}</DialogTitle>
+                  <DialogTitle>
+                    {editingDevice ? "แก้ไขกล่องสแกน" : "สร้างกล่องสแกน"}
+                  </DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
                   <div>
                     <Label>ชื่อกล่อง</Label>
                     <Input
                       value={form.name}
-                      onChange={event => setForm(current => ({ ...current, name: event.target.value }))}
+                      onChange={event =>
+                        setForm(current => ({
+                          ...current,
+                          name: event.target.value,
+                        }))
+                      }
                       placeholder="เช่น หน้าอาคาร 1 / ป.4/2"
                     />
                   </div>
@@ -269,14 +312,22 @@ export default function QrBoxPage() {
                     <Label>วิชา / ห้องเรียน</Label>
                     <Select
                       value={form.assignmentId}
-                      onValueChange={value => setForm(current => ({ ...current, assignmentId: value }))}
+                      onValueChange={value =>
+                        setForm(current => ({
+                          ...current,
+                          assignmentId: value,
+                        }))
+                      }
                     >
                       <SelectTrigger>
                         <SelectValue placeholder="เลือก assignment" />
                       </SelectTrigger>
                       <SelectContent>
                         {visibleAssignments.map((row: any) => (
-                          <SelectItem key={row.assignment.id} value={String(row.assignment.id)}>
+                          <SelectItem
+                            key={row.assignment.id}
+                            value={String(row.assignment.id)}
+                          >
                             {assignmentLabel(row)}
                           </SelectItem>
                         ))}
@@ -284,10 +335,18 @@ export default function QrBoxPage() {
                     </Select>
                   </div>
                   <div className="flex items-center justify-end gap-2">
-                    <Button variant="outline" onClick={() => setCreateOpen(false)}>
+                    <Button
+                      variant="outline"
+                      onClick={() => setCreateOpen(false)}
+                    >
                       ยกเลิก
                     </Button>
-                    <Button onClick={handleSubmit} disabled={createMutation.isPending || updateMutation.isPending}>
+                    <Button
+                      onClick={handleSubmit}
+                      disabled={
+                        createMutation.isPending || updateMutation.isPending
+                      }
+                    >
                       <Save className="mr-2 h-4 w-4" />
                       {editingDevice ? "บันทึก" : "สร้าง"}
                     </Button>
@@ -306,7 +365,9 @@ export default function QrBoxPage() {
                   <QrCode className="h-5 w-5 text-blue-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-slate-900">{devices.length}</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {devices.length}
+                  </p>
                   <p className="text-xs text-slate-500">กล่องทั้งหมด</p>
                 </div>
               </div>
@@ -319,7 +380,13 @@ export default function QrBoxPage() {
                   <Wifi className="h-5 w-5 text-green-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-slate-900">{devices.filter((device: any) => isOnline(device.lastSeenAt, statusNow)).length}</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {
+                      devices.filter((device: any) =>
+                        isOnline(device.lastSeenAt, statusNow)
+                      ).length
+                    }
+                  </p>
                   <p className="text-xs text-slate-500">ออนไลน์</p>
                 </div>
               </div>
@@ -332,7 +399,9 @@ export default function QrBoxPage() {
                   <Activity className="h-5 w-5 text-amber-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-slate-900">{logQuery.data?.length ?? 0}</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {logQuery.data?.length ?? 0}
+                  </p>
                   <p className="text-xs text-slate-500">log ล่าสุด</p>
                 </div>
               </div>
@@ -345,8 +414,12 @@ export default function QrBoxPage() {
                   <LinkIcon className="h-5 w-5 text-indigo-600" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-slate-900">{visibleAssignments.length}</p>
-                  <p className="text-xs text-slate-500">assignment ที่พร้อมผูก</p>
+                  <p className="text-2xl font-bold text-slate-900">
+                    {visibleAssignments.length}
+                  </p>
+                  <p className="text-xs text-slate-500">
+                    assignment ที่พร้อมผูก
+                  </p>
                 </div>
               </div>
             </CardContent>
@@ -365,7 +438,9 @@ export default function QrBoxPage() {
             </CardHeader>
             <CardContent className="space-y-3">
               {devicesLoading ? (
-                <div className="py-10 text-center text-sm text-slate-400">กำลังโหลด...</div>
+                <div className="py-10 text-center text-sm text-slate-400">
+                  กำลังโหลด...
+                </div>
               ) : devices.length === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-400">
                   ยังไม่มีกล่องสแกน
@@ -382,53 +457,100 @@ export default function QrBoxPage() {
                     <div
                       key={device.id}
                       className={`rounded-2xl border p-4 transition-colors ${
-                        isSelected ? "border-blue-300 bg-blue-50/50" : "border-slate-200 bg-white"
+                        isSelected
+                          ? "border-blue-300 bg-blue-50/50"
+                          : "border-slate-200 bg-white"
                       }`}
                     >
                       <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                         <div className="space-y-2">
                           <div className="flex flex-wrap items-center gap-2">
-                            <h3 className="text-lg font-semibold text-slate-900">{device.name}</h3>
-                            <Badge className={online ? "bg-green-100 text-green-700" : "bg-slate-100 text-slate-500"}>
-                              {online ? <Wifi className="mr-1 h-3 w-3" /> : <WifiOff className="mr-1 h-3 w-3" />}
+                            <h3 className="text-lg font-semibold text-slate-900">
+                              {device.name}
+                            </h3>
+                            <Badge
+                              className={
+                                online
+                                  ? "bg-green-100 text-green-700"
+                                  : "bg-slate-100 text-slate-500"
+                              }
+                            >
+                              {online ? (
+                                <Wifi className="mr-1 h-3 w-3" />
+                              ) : (
+                                <WifiOff className="mr-1 h-3 w-3" />
+                              )}
                               {online ? "ออนไลน์" : "ออฟไลน์"}
                             </Badge>
-                            <Badge variant={device.isActive ? "default" : "secondary"}>
+                            <Badge
+                              variant={
+                                device.isActive ? "default" : "secondary"
+                              }
+                            >
                               {device.isActive ? "เปิดใช้งาน" : "ปิดใช้งาน"}
                             </Badge>
                           </div>
-                          <p className="text-sm text-slate-600">{assignmentLabel(device.assignment)}</p>
+                          <p className="text-sm text-slate-600">
+                            {assignmentLabel(device.assignment)}
+                          </p>
                           {device.activeTimetableAssignment?.assignment && (
                             <p className="text-xs text-indigo-600">
-                              คาบปัจจุบัน: {device.activeTimetableAssignment.slot?.label || "คาบ"} ·{" "}
-                              {assignmentLabel(device.activeTimetableAssignment.assignment)}
+                              คาบปัจจุบัน:{" "}
+                              {device.activeTimetableAssignment.slot?.label ||
+                                "คาบ"}{" "}
+                              ·{" "}
+                              {assignmentLabel(
+                                device.activeTimetableAssignment.assignment
+                              )}
                             </p>
                           )}
                           <p className="text-xs text-slate-400">
-                            last seen {formatDateTime(device.lastSeenAt)} · last scan {formatDateTime(device.lastScanAt)}
+                            last seen {formatDateTime(device.lastSeenAt)} · last
+                            scan {formatDateTime(device.lastScanAt)}
                           </p>
                           <p className="text-xs text-slate-500">
-                            <span className="font-medium text-slate-700">scan</span> {scanUrl}
+                            <span className="font-medium text-slate-700">
+                              scan
+                            </span>{" "}
+                            {scanUrl}
                           </p>
                           <p className="text-xs text-slate-500">
-                            <span className="font-medium text-slate-700">ping</span> {pingUrl}
+                            <span className="font-medium text-slate-700">
+                              ping
+                            </span>{" "}
+                            {pingUrl}
                           </p>
                           <p className="text-xs text-slate-500">
-                            <span className="font-medium text-slate-700">config</span> {configUrl}
+                            <span className="font-medium text-slate-700">
+                              config
+                            </span>{" "}
+                            {configUrl}
                           </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
-                          <Button variant="outline" size="sm" onClick={() => setSelectedDeviceId(String(device.id))}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() =>
+                              setSelectedDeviceId(String(device.id))
+                            }
+                          >
                             ดู log
                           </Button>
-                          <Button variant="outline" size="sm" onClick={() => openEditDialog(device)}>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openEditDialog(device)}
+                          >
                             แก้ไข
                           </Button>
                           <Button
                             variant="outline"
                             size="sm"
                             onClick={async () => {
-                              await rotateMutation.mutateAsync({ id: device.id });
+                              await rotateMutation.mutateAsync({
+                                id: device.id,
+                              });
                             }}
                             disabled={rotateMutation.isPending}
                           >
@@ -439,8 +561,11 @@ export default function QrBoxPage() {
                             variant="outline"
                             size="sm"
                             onClick={async () => {
-                              if (!window.confirm(`ลบกล่อง ${device.name} ?`)) return;
-                              await deleteMutation.mutateAsync({ id: device.id });
+                              if (!window.confirm(`ลบกล่อง ${device.name} ?`))
+                                return;
+                              await deleteMutation.mutateAsync({
+                                id: device.id,
+                              });
                             }}
                             disabled={deleteMutation.isPending}
                           >
@@ -460,12 +585,17 @@ export default function QrBoxPage() {
             <CardHeader>
               <CardTitle>Log ล่าสุด</CardTitle>
               <CardDescription>
-                {selectedDevice ? `เฉพาะกล่อง ${selectedDevice.name}` : "ทุกกล่อง"}
+                {selectedDevice
+                  ? `เฉพาะกล่อง ${selectedDevice.name}`
+                  : "ทุกกล่อง"}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="flex items-center gap-2">
-                <Select value={selectedDeviceId} onValueChange={setSelectedDeviceId}>
+                <Select
+                  value={selectedDeviceId}
+                  onValueChange={setSelectedDeviceId}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="เลือกกล่อง" />
                   </SelectTrigger>
@@ -478,12 +608,18 @@ export default function QrBoxPage() {
                     ))}
                   </SelectContent>
                 </Select>
-                <Button variant="outline" size="sm" onClick={() => logQuery.refetch()}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => logQuery.refetch()}
+                >
                   รีเฟรช
                 </Button>
               </div>
               {logQuery.isLoading ? (
-                <div className="py-10 text-center text-sm text-slate-400">กำลังโหลด...</div>
+                <div className="py-10 text-center text-sm text-slate-400">
+                  กำลังโหลด...
+                </div>
               ) : (logQuery.data?.length ?? 0) === 0 ? (
                 <div className="rounded-xl border border-dashed border-slate-200 p-8 text-center text-sm text-slate-400">
                   ยังไม่มี log
@@ -501,20 +637,32 @@ export default function QrBoxPage() {
                             ? "bg-blue-100 text-blue-700"
                             : "bg-slate-100 text-slate-600";
                     return (
-                      <div key={row.log.id} className="rounded-xl border border-slate-200 p-3">
+                      <div
+                        key={row.log.id}
+                        className="rounded-xl border border-slate-200 p-3"
+                      >
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <div className="flex flex-wrap items-center gap-2">
                               <Badge className={statusStyle}>{status}</Badge>
-                              <span className="text-sm font-medium text-slate-900">{row.device?.name ?? "-"}</span>
+                              <span className="text-sm font-medium text-slate-900">
+                                {row.device?.name ?? "-"}
+                              </span>
                             </div>
                             <p className="mt-1 text-sm text-slate-600">
                               {row.student
                                 ? `${row.student.prefix ?? ""}${row.student.firstName} ${row.student.lastName}`
-                                : row.log.message ?? row.log.rawValue}
+                                : (row.log.message ?? row.log.rawValue)}
                             </p>
+                            {status === "not_found" && row.log.rawValue && (
+                              <p className="mt-1 break-all rounded bg-red-50 px-2 py-1 font-mono text-xs text-red-700">
+                                QR ที่อ่านได้: {row.log.rawValue}
+                              </p>
+                            )}
                             <p className="mt-1 text-xs text-slate-400">
-                              {row.subject?.name ?? "-"} · {row.classroom?.name ?? "-"} · {formatDateTime(row.log.scannedAt)}
+                              {row.subject?.name ?? "-"} ·{" "}
+                              {row.classroom?.name ?? "-"} ·{" "}
+                              {formatDateTime(row.log.scannedAt)}
                             </p>
                           </div>
                         </div>
@@ -531,21 +679,32 @@ export default function QrBoxPage() {
           <Card>
             <CardHeader>
               <CardTitle>ข้อมูลกล่องที่เลือก</CardTitle>
-              <CardDescription>ลิงก์และการตั้งค่าที่ ESP32-S3 ใช้ได้ทันที</CardDescription>
+              <CardDescription>
+                ลิงก์และการตั้งค่าที่ ESP32-S3 ใช้ได้ทันที
+              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3 text-sm text-slate-600">
               {selectedDevice.activeTimetableAssignment?.assignment && (
                 <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4 text-indigo-900">
-                  <p className="text-xs font-medium uppercase tracking-wide text-indigo-700">คาบตามตารางสอนตอนนี้</p>
+                  <p className="text-xs font-medium uppercase tracking-wide text-indigo-700">
+                    คาบตามตารางสอนตอนนี้
+                  </p>
                   <p className="mt-1 font-semibold">
-                    {selectedDevice.activeTimetableAssignment.slot?.label || "คาบ"}
+                    {selectedDevice.activeTimetableAssignment.slot?.label ||
+                      "คาบ"}
                   </p>
                   <p className="text-sm text-indigo-700">
-                    {assignmentLabel(selectedDevice.activeTimetableAssignment.assignment)}
+                    {assignmentLabel(
+                      selectedDevice.activeTimetableAssignment.assignment
+                    )}
                   </p>
                   <p className="text-xs text-indigo-600">
-                    {dayOfWeekLongLabel(selectedDevice.activeTimetableAssignment.slot?.dayOfWeek ?? 0)} ·{" "}
-                    {selectedDevice.activeTimetableAssignment.slot?.startTime} - {selectedDevice.activeTimetableAssignment.slot?.endTime}
+                    {dayOfWeekLongLabel(
+                      selectedDevice.activeTimetableAssignment.slot
+                        ?.dayOfWeek ?? 0
+                    )}{" "}
+                    · {selectedDevice.activeTimetableAssignment.slot?.startTime}{" "}
+                    - {selectedDevice.activeTimetableAssignment.slot?.endTime}
                   </p>
                 </div>
               )}
@@ -553,21 +712,27 @@ export default function QrBoxPage() {
                 <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-emerald-900">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <p className="text-xs font-medium uppercase tracking-wide text-emerald-700">Session ครูที่เปิดอยู่</p>
+                      <p className="text-xs font-medium uppercase tracking-wide text-emerald-700">
+                        Session ครูที่เปิดอยู่
+                      </p>
                       <p className="mt-1 font-semibold">
                         {selectedDevice.activeSession.teacherProfile
                           ? `${selectedDevice.activeSession.teacherProfile.prefix ?? ""}${selectedDevice.activeSession.teacherProfile.firstName} ${selectedDevice.activeSession.teacherProfile.lastName}`
                           : `ครู userId ${selectedDevice.activeSession.teacherUserId}`}
                       </p>
                       <p className="text-sm text-emerald-700">
-                        {assignmentLabel(selectedDevice.activeSession.assignment)}
+                        {assignmentLabel(
+                          selectedDevice.activeSession.assignment
+                        )}
                       </p>
                     </div>
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={async () => {
-                        await closeSessionMutation.mutateAsync({ deviceId: selectedDevice.id });
+                        await closeSessionMutation.mutateAsync({
+                          deviceId: selectedDevice.id,
+                        });
                       }}
                       disabled={closeSessionMutation.isPending}
                     >
@@ -596,10 +761,12 @@ export default function QrBoxPage() {
                 </div>
               </div>
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <p className="font-medium text-slate-900">คำแนะนำสำหรับ ESP32-S3</p>
+                <p className="font-medium text-slate-900">
+                  คำแนะนำสำหรับ ESP32-S3
+                </p>
                 <p className="mt-1 text-sm text-slate-600">
-                  ตั้งค่าให้ส่ง `rawValue` ที่อ่านจาก GM65 ไปยัง scan endpoint พร้อม header
-                  `x-device-token` หรือ `Authorization: Bearer ...`
+                  ตั้งค่าให้ส่ง `rawValue` ที่อ่านจาก GM65 ไปยัง scan endpoint
+                  พร้อม header `x-device-token` หรือ `Authorization: Bearer ...`
                 </p>
               </div>
             </CardContent>

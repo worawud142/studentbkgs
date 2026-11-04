@@ -41,6 +41,27 @@ describe("qr helper", () => {
     expect(findMatchingQrStudent(students, "unknown")).toBeNull();
   });
 
+  it("reads legacy, nested, and scanner-decorated student QR values", () => {
+    const students = [
+      { id: 21, studentCode: "00123" },
+      { id: 22, studentCode: "ST-022" },
+    ];
+
+    expect(findMatchingQrStudent(students, "123")).toEqual(students[0]);
+    expect(
+      findMatchingQrStudent(
+        students,
+        `\u0002${JSON.stringify({ student: { student_code: "ST-022" } })}\u0003`
+      )
+    ).toEqual(students[1]);
+    expect(
+      findMatchingQrStudent(
+        students,
+        "SCAN:" + JSON.stringify({ payload: { student_id: 21 } })
+      )
+    ).toEqual(students[0]);
+  });
+
   it("falls back to the assignment bound to the QR box", () => {
     const deviceAssignment = { classroomId: 42 };
 
