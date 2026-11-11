@@ -79,7 +79,7 @@ function Por6Page({ report, pageIndex }: { report: any; pageIndex: number }) {
         height: "297mm",
         padding: "8mm 10mm 7mm",
         fontFamily:
-          "'TH Sarabun New', 'Sarabun', 'IBM Plex Sans Thai', sans-serif",
+          "'TH SarabunPSK', 'TH Sarabun PSK', 'TH Sarabun New', 'Sarabun', sans-serif",
         fontSize: "10pt",
         overflow: "hidden",
         pageBreakBefore: pageIndex === 0 ? "auto" : "always",
@@ -345,10 +345,10 @@ function Por6Page({ report, pageIndex }: { report: any; pageIndex: number }) {
                       ผู้เรียน
                     </td>
                   )}
-                  <td className="border border-black px-1">
+                  <td className="whitespace-nowrap border border-black px-1 text-[7.7pt]">
                     {index + 1}. {label}
                   </td>
-                  <td className="w-[21%] border border-black text-center">
+                  <td className="w-[18%] border border-black text-center">
                     {competencies[key] || ASSESSMENT_LEVEL_LABELS[3]}
                   </td>
                 </tr>
@@ -381,18 +381,23 @@ function Por6Page({ report, pageIndex }: { report: any; pageIndex: number }) {
             </tbody>
           </table>
 
-          <div className="mt-4 space-y-4 text-center text-[9pt] leading-snug">
+          <div className="mt-3 space-y-3 text-center text-[9pt] leading-snug">
             <div>
               <p>
                 ลงชื่อ ..................................................
                 ครูประจำชั้น
               </p>
-              <p>
-                (
-                {homeroomTeacherNames[0] ||
-                  ".................................................."}
-                )
-              </p>
+              {homeroomTeacherNames.length > 0 ? (
+                <div className="mt-0.5 grid grid-cols-2 gap-x-2">
+                  {homeroomTeacherNames.map((name: string, index: number) => (
+                    <p key={`${name}-${index}`}>
+                      ( {name} )
+                    </p>
+                  ))}
+                </div>
+              ) : (
+                <p>( .................................................. )</p>
+              )}
             </div>
             <div>
               <p>

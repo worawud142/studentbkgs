@@ -456,7 +456,9 @@ function SystemDataTab() {
               />
             </div>
             <div>
-              <Label className="text-xs">หัวหน้างานวิชาการ</Label>
+              <Label className="text-xs">
+                ชื่อหัวหน้างานวิชาการ (ใช้ใน ปพ.6 ทุกฉบับ)
+              </Label>
               <Input
                 value={schoolForm.academicHeadName}
                 onChange={e =>
@@ -469,7 +471,9 @@ function SystemDataTab() {
               />
             </div>
             <div>
-              <Label className="text-xs">ผู้อำนวยการ</Label>
+              <Label className="text-xs">
+                ชื่อผู้อำนวยการ (ใช้ใน ปพ.6 ทุกฉบับ)
+              </Label>
               <Input
                 value={schoolForm.directorName}
                 onChange={e =>

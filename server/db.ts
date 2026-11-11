@@ -3435,6 +3435,40 @@ function teachingWeeksForReport(classroom: any) {
   return classroom?.level === "secondary" ? 20 : 40;
 }
 
+async function por6HomeroomTeacherNames(classroom: any) {
+  const homeroomTeachers = await getClassroomHomeroomTeachers(classroom.id);
+  const teacherRows = [...homeroomTeachers];
+  const linkedTeacherIds = new Set(
+    teacherRows.map(row => row.link.teacherUserId)
+  );
+
+  // Keep older classrooms working when they only have homeroomTeacherId set.
+  if (
+    classroom.homeroomTeacherId &&
+    !linkedTeacherIds.has(classroom.homeroomTeacherId)
+  ) {
+    const [profile, user] = await Promise.all([
+      getTeacherProfile(classroom.homeroomTeacherId),
+      getUserById(classroom.homeroomTeacherId),
+    ]);
+    teacherRows.push({
+      link: { teacherUserId: classroom.homeroomTeacherId },
+      profile,
+      user: user ?? null,
+    } as any);
+  }
+
+  return teacherRows
+    .map(
+      row =>
+        `${row.profile?.prefix ?? ""}${row.profile?.firstName ?? ""} ${row.profile?.lastName ?? ""}`.trim() ||
+        row.user?.name ||
+        row.user?.email ||
+        ""
+    )
+    .filter(Boolean);
+}
+
 function numericGrade(value: unknown) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
@@ -3453,16 +3487,7 @@ export async function getPor6StudentReport(studentId: number) {
     student.id,
     classroom.academicYearId
   );
-  const homeroomTeachers = await getClassroomHomeroomTeachers(classroom.id);
-  const homeroomTeacherNames = homeroomTeachers
-    .map(
-      row =>
-        `${row.profile?.prefix ?? ""}${row.profile?.firstName ?? ""} ${row.profile?.lastName ?? ""}`.trim() ||
-        row.user?.name ||
-        row.user?.email ||
-        ""
-    )
-    .filter(Boolean);
+  const homeroomTeacherNames = await por6HomeroomTeacherNames(classroom);
   const classmates = await getStudentsByClassroom(classroom.id);
   const assignmentRows = await db
     .select({
@@ -3606,16 +3631,7 @@ export async function getPor6ClassroomReports(classroomId: number) {
   await ensurePor6Tables();
   const academicYear = await getAcademicYearById(classroom.academicYearId);
   const school = await getSchoolSettings();
-  const homeroomTeachers = await getClassroomHomeroomTeachers(classroom.id);
-  const homeroomTeacherNames = homeroomTeachers
-    .map(
-      row =>
-        `${row.profile?.prefix ?? ""}${row.profile?.firstName ?? ""} ${row.profile?.lastName ?? ""}`.trim() ||
-        row.user?.name ||
-        row.user?.email ||
-        ""
-    )
-    .filter(Boolean);
+  const homeroomTeacherNames = await por6HomeroomTeacherNames(classroom);
   const studentIds = students.map(student => student.id);
   const assessmentRows = await db
     .select()

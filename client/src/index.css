@@ -2,6 +2,17 @@
 @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@300;400;500;600;700&display=swap");
 @import "tw-animate-css";
 
+@font-face {
+  font-family: "TH SarabunPSK";
+  src:
+    local("TH SarabunPSK"),
+    local("TH Sarabun PSK"),
+    local("THSarabunPSK"),
+    local("TH Sarabun New");
+  font-style: normal;
+  font-weight: 100 900;
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
@@ -179,6 +190,12 @@
 }
 
 /* Print styles */
+.por6-page,
+.por6-page * {
+  font-family: "TH SarabunPSK", "TH Sarabun PSK", "TH Sarabun New", Sarabun,
+    sans-serif !important;
+}
+
 @media print {
   @page {
     size: A4 portrait;
