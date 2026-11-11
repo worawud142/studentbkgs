@@ -80,7 +80,7 @@ function normalizeAssessmentValue(value: unknown) {
 
 function mostCommonAssessmentValue(values: string[]) {
   const counts = new Map<string, number>();
-  values.forEach((value) => counts.set(value, (counts.get(value) ?? 0) + 1));
+  values.forEach(value => counts.set(value, (counts.get(value) ?? 0) + 1));
   return (
     Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ??
     ASSESSMENT_LEVEL_LABELS[3]
@@ -133,12 +133,35 @@ function buildAssessmentForm(report: any): AssessmentForm {
         )
       ),
     },
-    activities: { ...auto.activities, ...(report?.assessment?.activities ?? {}) },
+    activities: {
+      ...auto.activities,
+      ...(report?.assessment?.activities ?? {}),
+    },
     activityLabels: {
       ...auto.activityLabels,
       ...(report?.assessment?.activityLabels ?? {}),
     },
   };
+}
+
+const SUBJECT_ROW_COUNT = 16;
+
+function academicPeriodLabel(classroom: any, academicYear: any) {
+  const period =
+    classroom?.level === "primary"
+      ? "ปลายปี"
+      : `ภาคเรียนที่ ${academicYear?.semester || "-"}`;
+  return `ชั้น${classroom?.name || "-"} ${period} ปีการศึกษา ${academicYear?.year || "-"}`;
+}
+
+function thaiLongDate(value?: string | Date | null) {
+  const parsed = value ? new Date(value) : new Date();
+  const date = Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+  return date.toLocaleDateString("th-TH", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 }
 
 function Por6Page({ report, pageIndex }: { report: any; pageIndex: number }) {
@@ -163,190 +186,368 @@ function Por6Page({ report, pageIndex }: { report: any; pageIndex: number }) {
       : school?.homeroomTeacherName
         ? [school.homeroomTeacherName]
         : [];
+  const blankSubjectRows = Math.max(
+    0,
+    SUBJECT_ROW_COUNT - report.subjects.length
+  );
+  const documentDate = thaiLongDate(academicYear?.endDate);
 
   return (
     <section
-      className="bg-white shadow-lg print:shadow-none"
+      className="por6-page mx-auto bg-white text-black shadow-lg print:shadow-none"
       style={{
         width: "210mm",
-        minHeight: "297mm",
-        padding: "10mm 12mm",
-        fontFamily: "'IBM Plex Sans Thai', sans-serif",
-        fontSize: "9pt",
+        height: "297mm",
+        padding: "8mm 10mm 7mm",
+        fontFamily:
+          "'TH Sarabun New', 'Sarabun', 'IBM Plex Sans Thai', sans-serif",
+        fontSize: "10pt",
+        overflow: "hidden",
         pageBreakBefore: pageIndex === 0 ? "auto" : "always",
+        pageBreakAfter: "always",
       }}
     >
-      <div className="text-center leading-tight">
-        <p className="font-bold text-base">
-          แบบรายงานประจำตัวนักเรียน : ผลการพัฒนาคุณภาพผู้เรียนรายบุคคล
-        </p>
-        <p className="font-semibold">
-          {school?.schoolName || "โรงเรียน"} {school?.officeName || ""}
+      <header className="grid grid-cols-[23mm_1fr_23mm] items-center leading-tight">
+        <div className="flex h-[22mm] items-center justify-center">
+          {school?.schoolLogoUrl ? (
+            <img
+              src={school.schoolLogoUrl}
+              alt="ตราโรงเรียน"
+              className="max-h-[21mm] max-w-[21mm] object-contain"
+            />
+          ) : (
+            <div className="flex h-[18mm] w-[18mm] items-center justify-center rounded-full border border-black text-center text-[7pt] leading-tight">
+              ตรา
+              <br />
+              โรงเรียน
+            </div>
+          )}
+        </div>
+        <div className="text-center">
+          <p className="text-[13pt] font-bold">
+            แบบรายงานประจำตัวนักเรียน : ผลการพัฒนาคุณภาพผู้เรียนรายบุคคล
+          </p>
+          <p className="mt-1 text-[11pt]">
+            {school?.schoolName || "โรงเรียน"} {school?.officeName || ""}
+          </p>
+          <p className="mt-1 text-[11pt]">
+            {academicPeriodLabel(classroom, academicYear)}
+          </p>
+        </div>
+        <div />
+      </header>
+
+      <div className="mt-2 grid grid-cols-[1fr_auto_auto] items-end gap-x-8 px-5 text-[11pt]">
+        <p className="min-w-0">
+          <span className="font-semibold">ชื่อ</span>{" "}
+          <span className="ml-5 font-semibold">
+            {student?.prefix}
+            {student?.firstName} {student?.lastName}
+          </span>
         </p>
         <p>
-          ชั้น{classroom?.name || "-"} ภาคเรียนที่ 2 ปีการศึกษา{" "}
-          {academicYear?.year || "-"}
+          <span className="font-semibold">เลขประจำตัว</span>{" "}
+          <span className="ml-5">{student?.studentCode || "-"}</span>
+        </p>
+        <p>
+          <span className="font-semibold">เลขที่</span>{" "}
+          <span className="ml-5">{student?.studentNumber || "-"}</span>
         </p>
       </div>
 
-      <div className="mt-3 flex justify-between text-xs">
-        <p>
-          ชื่อ {student?.prefix}
-          {student?.firstName} {student?.lastName}
-        </p>
-        <p>เลขประจำตัว {student?.studentCode || "-"}</p>
-        <p>เลขที่ {student?.studentNumber || "-"}</p>
-      </div>
-
-      <table className="mt-2 w-full border-collapse text-[8.5pt]">
+      <table className="por6-subject-table mt-1.5 w-full table-fixed border-collapse text-[8.2pt] leading-tight">
+        <colgroup>
+          <col style={{ width: "6%" }} />
+          <col style={{ width: "8.5%" }} />
+          <col style={{ width: "25.5%" }} />
+          <col style={{ width: "9%" }} />
+          <col style={{ width: "10.5%" }} />
+          <col style={{ width: "10%" }} />
+          <col style={{ width: "11%" }} />
+          <col style={{ width: "10%" }} />
+          <col style={{ width: "9.5%" }} />
+        </colgroup>
         <thead>
-          <tr className="bg-slate-100">
-            <th className="border border-slate-500 px-1 py-1">ประเภทรายวิชา</th>
-            <th className="border border-slate-500 px-1 py-1">รหัสวิชา</th>
-            <th className="border border-slate-500 px-1 py-1 text-left">
-              รายวิชา
+          <tr className="h-[13mm]">
+            <th className="border border-black p-0.5 [writing-mode:vertical-rl]">
+              ประเภทรายวิชา
             </th>
-            <th className="border border-slate-500 px-1 py-1">เวลาเรียน/ชั่วโมง</th>
-            <th className="border border-slate-500 px-1 py-1">คะแนนเต็ม</th>
-            <th className="border border-slate-500 px-1 py-1">คะแนนเฉลี่ยชั้นเรียน</th>
-            <th className="border border-slate-500 px-1 py-1">คะแนนที่ได้</th>
-            <th className="border border-slate-500 px-1 py-1">ระดับผลการเรียน</th>
-            <th className="border border-slate-500 px-1 py-1">หมายเหตุ</th>
+            <th className="border border-black p-0.5">รหัสวิชา</th>
+            <th className="border border-black p-0.5">รายวิชา</th>
+            <th className="border border-black p-0.5">
+              เวลาเรียน/
+              <br />
+              ชั่วโมง
+            </th>
+            <th className="border border-black p-0.5">คะแนนเต็ม</th>
+            <th className="border border-black p-0.5">
+              คะแนน
+              <br />
+              เฉลี่ยชั้นเรียน
+            </th>
+            <th className="border border-black p-0.5">คะแนนที่ได้</th>
+            <th className="border border-black p-0.5">
+              ระดับ
+              <br />
+              ผลการเรียน
+            </th>
+            <th className="border border-black p-0.5">หมายเหตุ</th>
           </tr>
         </thead>
         <tbody>
           {report.subjects.map((subject: any) => (
-            <tr key={subject.assignmentId}>
-              <td className="border border-slate-400 px-1 py-0.5 text-center">
+            <tr key={subject.assignmentId} className="h-[5.7mm]">
+              <td className="border border-black px-0.5 text-center text-[7pt]">
                 {subject.subjectType}
               </td>
-              <td className="border border-slate-400 px-1 py-0.5 text-center">
+              <td className="border border-black px-0.5 text-center">
                 {subject.subjectCode || "-"}
               </td>
-              <td className="border border-slate-400 px-1 py-0.5">
+              <td className="border border-black px-1">
                 {subject.subjectName}
               </td>
-              <td className="border border-slate-400 px-1 py-0.5 text-center">
+              <td className="border border-black px-0.5 text-center">
                 {numberOrDash(subject.hours, 1)}
               </td>
-              <td className="border border-slate-400 px-1 py-0.5 text-center">
+              <td className="border border-black px-0.5 text-center">
                 {valueOrDash(subject.maxScore)}
               </td>
-              <td className="border border-slate-400 px-1 py-0.5 text-center">
+              <td className="border border-black px-0.5 text-center">
                 {numberOrDash(subject.classAverage, 2)}
               </td>
-              <td className="border border-slate-400 px-1 py-0.5 text-center">
+              <td className="border border-black px-0.5 text-center">
                 {numberOrDash(subject.score, 2)}
               </td>
-              <td className="border border-slate-400 px-1 py-0.5 text-center">
+              <td className="border border-black px-0.5 text-center font-semibold">
                 {valueOrDash(subject.grade)}
               </td>
-              <td className="border border-slate-400 px-1 py-0.5 text-center">
+              <td className="border border-black px-0.5 text-center">
                 {subject.note || ""}
               </td>
             </tr>
           ))}
-          <tr className="font-semibold">
-            <td className="border border-slate-500 px-1 py-1 text-center" colSpan={3}>
+          {Array.from({ length: blankSubjectRows }, (_, index) => (
+            <tr key={`blank-${index}`} className="h-[5.7mm]">
+              {Array.from({ length: 9 }, (__, cellIndex) => (
+                <td key={cellIndex} className="border border-black" />
+              ))}
+            </tr>
+          ))}
+          <tr className="h-[6.5mm] font-semibold">
+            <td className="border border-black px-1 text-center" colSpan={3}>
               รวม/เฉลี่ย
             </td>
-            <td className="border border-slate-500 px-1 py-1 text-center">
+            <td className="border border-black px-1 text-center">
               {numberOrDash(report.summary.totalHours, 1)}
             </td>
-            <td className="border border-slate-500 px-1 py-1 text-center">
+            <td className="border border-black px-1 text-center">
               {valueOrDash(report.summary.totalMaxScore)}
             </td>
-            <td className="border border-slate-500 px-1 py-1 text-center">-</td>
-            <td className="border border-slate-500 px-1 py-1 text-center">
+            <td className="border border-black px-1 text-center">
+              {numberOrDash(
+                report.subjects.length
+                  ? report.subjects.reduce(
+                      (sum: number, subject: any) =>
+                        sum + (Number(subject.classAverage) || 0),
+                      0
+                    ) / report.subjects.length
+                  : null,
+                2
+              )}
+            </td>
+            <td className="border border-black px-1 text-center">
               {numberOrDash(report.summary.totalScore, 2)}
             </td>
-            <td className="border border-slate-500 px-1 py-1 text-center">
-              {numberOrDash(report.summary.gpa, 2)}
-            </td>
-            <td className="border border-slate-500 px-1 py-1" />
+            <td className="border border-black px-1 text-center" />
+            <td className="border border-black px-1" />
           </tr>
         </tbody>
       </table>
 
-      <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
-        <div className="space-y-1">
-          <p>คะแนนคิดเป็นร้อยละ {numberOrDash(report.summary.percentage, 2)}</p>
-          <p>ผลการเรียนเฉลี่ย {numberOrDash(report.summary.gpa, 2)}</p>
-          <p>
-            ลำดับที่สอบได้{" "}
-            {report.summary.rank
-              ? `สอบได้ลำดับที่ ${report.summary.rank}`
-              : "-"}
-          </p>
-          {ACTIVITY_LABELS.map(([key, label]) => (
-            <p key={key}>
-              {activityLabels[key] || label} {activities[key] || "ผ่าน"}
-            </p>
-          ))}
-        </div>
-
-        <div className="space-y-1">
-          <p className="font-semibold">ผลการประเมินสมรรถนะสำคัญของผู้เรียน</p>
-          {COMPETENCY_LABELS.map(([key, label], index) => (
-            <p key={key}>
-              {index + 1}. {label} {competencies[key] || ASSESSMENT_LEVEL_LABELS[3]}
-            </p>
-          ))}
-          <p className="font-semibold">
-            สรุปผลการประเมินสมรรถนะสำคัญของผู้เรียน {competencySummary}
-          </p>
-          <p>
-            สรุปผลการประเมินการอ่าน คิดวิเคราะห์และเขียน{" "}
-            {assessment.readingThinkingWriting || ASSESSMENT_LEVEL_LABELS[3]}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-3 grid grid-cols-2 gap-3 text-xs">
+      <div className="grid grid-cols-[49%_51%] items-start text-[8.4pt] leading-tight">
         <div>
-          <p className="font-semibold">ผลการประเมินคุณลักษณะอันพึงประสงค์</p>
-          {ATTRIBUTE_LABELS.map(([key, label], index) => (
-            <p key={key}>
-              {index + 1}. {label} {attributes[key] || ASSESSMENT_LEVEL_LABELS[3]}
-            </p>
-          ))}
-          <p className="font-semibold">
-            สรุปผลการประเมินคุณลักษณะอันพึงประสงค์ {attributeSummary}
+          <table className="w-full table-fixed border-collapse">
+            <tbody>
+              <tr className="h-[6.2mm]">
+                <td className="border border-black px-1" colSpan={2}>
+                  คะแนนคิดเป็นร้อยละ
+                </td>
+                <td className="w-[18%] border border-black text-center font-semibold">
+                  {numberOrDash(report.summary.percentage, 2)}
+                </td>
+              </tr>
+              <tr className="h-[6.2mm]">
+                <td className="border border-black px-1" colSpan={2}>
+                  ผลการเรียนเฉลี่ย
+                </td>
+                <td className="border border-black text-center font-semibold">
+                  {numberOrDash(report.summary.gpa, 2)}
+                </td>
+              </tr>
+              <tr className="h-[6.2mm]">
+                <td className="border border-black px-1" colSpan={2}>
+                  ลำดับที่สอบได้ (ตามคะแนนร้อยละ) สอบได้ลำดับที่
+                </td>
+                <td className="border border-black text-center font-semibold">
+                  {report.summary.rank || "-"}
+                </td>
+              </tr>
+              {ACTIVITY_LABELS.map(([key, label], index) => (
+                <tr key={key} className="h-[6mm]">
+                  {index === 0 && (
+                    <td
+                      className="w-[28%] border border-black px-1 text-center font-semibold leading-snug"
+                      rowSpan={ACTIVITY_LABELS.length}
+                    >
+                      ผลการประเมิน
+                      <br />
+                      กิจกรรมพัฒนา
+                      <br />
+                      ผู้เรียน
+                    </td>
+                  )}
+                  <td className="border border-black px-1">
+                    {activityLabels[key] || label}
+                  </td>
+                  <td className="border border-black text-center">
+                    {activities[key] || "ผ่าน"}
+                  </td>
+                </tr>
+              ))}
+              {ATTRIBUTE_LABELS.map(([key, label], index) => (
+                <tr key={key} className="h-[6mm]">
+                  {index === 0 && (
+                    <td
+                      className="border border-black px-1 text-center font-semibold leading-snug"
+                      rowSpan={10}
+                    >
+                      ผลการประเมิน
+                      <br />
+                      คุณลักษณะอันพึง
+                      <br />
+                      ประสงค์
+                    </td>
+                  )}
+                  <td className="border border-black px-1">
+                    {index + 1}. {label}
+                  </td>
+                  <td className="border border-black text-center">
+                    {attributes[key] || ASSESSMENT_LEVEL_LABELS[3]}
+                  </td>
+                </tr>
+              ))}
+              {[9, 10].map(index => (
+                <tr key={index} className="h-[6mm]">
+                  <td className="border border-black px-1">{index}.</td>
+                  <td className="border border-black" />
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-2 text-center text-[9pt]">
+            ลงชื่อ........................................ ผู้ปกครองนักเรียน
           </p>
         </div>
 
-        <div className="space-y-5 pt-2 text-center">
-          {homeroomTeacherNames.length > 0 ? (
-            homeroomTeacherNames.map((name: string, index: number) => (
-              <div key={`${name}-${index}`}>
-                <p>ลงชื่อ ........................................ ครูประจำชั้น</p>
-                <p>({name})</p>
-              </div>
-            ))
-          ) : (
+        <div>
+          <table className="w-full table-fixed border-collapse">
+            <tbody>
+              <tr className="h-[6.2mm]">
+                <td
+                  className="border border-black px-1 font-semibold"
+                  colSpan={3}
+                >
+                  ผลการประเมินสมรรถนะสำคัญของผู้เรียน
+                </td>
+              </tr>
+              {COMPETENCY_LABELS.map(([key, label], index) => (
+                <tr key={key} className="h-[6mm]">
+                  {index === 0 && (
+                    <td
+                      className="w-[22%] border border-black px-1 text-center font-semibold leading-snug"
+                      rowSpan={COMPETENCY_LABELS.length}
+                    >
+                      สมรรถนะ
+                      <br />
+                      สำคัญของ
+                      <br />
+                      ผู้เรียน
+                    </td>
+                  )}
+                  <td className="border border-black px-1">
+                    {index + 1}. {label}
+                  </td>
+                  <td className="w-[21%] border border-black text-center">
+                    {competencies[key] || ASSESSMENT_LEVEL_LABELS[3]}
+                  </td>
+                </tr>
+              ))}
+              <tr className="h-[6.2mm] font-semibold">
+                <td className="border border-black px-1" colSpan={2}>
+                  สรุปผลการประเมินสมรรถนะสำคัญของผู้เรียน
+                </td>
+                <td className="border border-black text-center">
+                  {competencySummary}
+                </td>
+              </tr>
+              <tr className="h-[6.2mm] font-semibold">
+                <td className="border border-black px-1" colSpan={2}>
+                  สรุปผลการประเมินการอ่าน คิดวิเคราะห์และเขียน
+                </td>
+                <td className="border border-black text-center">
+                  {assessment.readingThinkingWriting ||
+                    ASSESSMENT_LEVEL_LABELS[3]}
+                </td>
+              </tr>
+              <tr className="h-[6.2mm] font-semibold">
+                <td className="border border-black px-1" colSpan={2}>
+                  สรุปผลการประเมินคุณลักษณะอันพึงประสงค์
+                </td>
+                <td className="border border-black text-center">
+                  {attributeSummary}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div className="mt-4 space-y-4 text-center text-[9pt] leading-snug">
             <div>
-              <p>ลงชื่อ ........................................ ครูประจำชั้น</p>
-              <p>(........................................)</p>
+              <p>
+                ลงชื่อ ..................................................
+                ครูประจำชั้น
+              </p>
+              <p>
+                (
+                {homeroomTeacherNames[0] ||
+                  ".................................................."}
+                )
+              </p>
             </div>
-          )}
-          <div>
-            <p>ลงชื่อ ........................................ หัวหน้างานวิชาการ</p>
-            <p>({school?.academicHeadName || "........................................"})</p>
-          </div>
-          <div>
-            <p>ลงชื่อ ........................................ ผู้อำนวยการสถานศึกษา</p>
-            <p>({school?.directorName || "........................................"})</p>
+            <div>
+              <p>
+                ลงชื่อ ..................................................
+                หัวหน้างานวิชาการ
+              </p>
+              <p>
+                (
+                {school?.academicHeadName ||
+                  ".................................................."}
+                )
+              </p>
+            </div>
+            <div>
+              <p>ลงชื่อ ..................................................</p>
+              <p>
+                (
+                {school?.directorName ||
+                  ".................................................."}
+                )
+              </p>
+              <p>ผู้อำนวยการสถานศึกษา{school?.schoolName || ""}</p>
+              <p>วันที่ {documentDate}</p>
+            </div>
           </div>
         </div>
-      </div>
-
-      <div className="mt-4 text-center text-xs">
-        ลงชื่อ…………....…………………………. ผู้ปกครองนักเรียน วันที่{" "}
-        {new Date().toLocaleDateString("th-TH", {
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-        })}
       </div>
     </section>
   );
@@ -388,14 +589,15 @@ export default function PrintPor6() {
     },
     onError: error => toast.error(error.message),
   });
-  const saveClassroomActivities =
-    trpc.por6.saveClassroomActivities.useMutation({
+  const saveClassroomActivities = trpc.por6.saveClassroomActivities.useMutation(
+    {
       onSuccess: async () => {
         await utils.por6.getStudentReport.invalidate();
         await utils.por6.getClassroomReports.invalidate();
       },
       onError: error => toast.error(error.message),
-    });
+    }
+  );
 
   const reports = useMemo(() => {
     if (studentReport.data) return [studentReport.data];
@@ -408,7 +610,8 @@ export default function PrintPor6() {
   const isLoading = studentReport.isLoading || classroomReports.isLoading;
 
   useEffect(() => {
-    if (!selectedStudentId && reports[0]) setSelectedStudentId(reports[0].student.id);
+    if (!selectedStudentId && reports[0])
+      setSelectedStudentId(reports[0].student.id);
   }, [reports, selectedStudentId]);
 
   useEffect(() => {
@@ -479,7 +682,9 @@ export default function PrintPor6() {
     return (
       <div className="min-h-screen bg-slate-100 p-8">
         <div className="mx-auto max-w-xl rounded-xl border border-red-200 bg-white p-6 text-center shadow-sm">
-          <p className="font-semibold text-red-700">โหลดข้อมูล ปพ.6 ไม่สำเร็จ</p>
+          <p className="font-semibold text-red-700">
+            โหลดข้อมูล ปพ.6 ไม่สำเร็จ
+          </p>
           <p className="mt-2 text-sm text-slate-600">{error.message}</p>
           <Button
             variant="outline"
@@ -509,7 +714,9 @@ export default function PrintPor6() {
           <div className="text-center">
             <p className="font-medium text-slate-800">ปพ.6 รายบุคคล</p>
             <p className="text-xs text-slate-500">
-              {reports.length > 1 ? `${reports.length} คน` : selectedReport?.student?.firstName}
+              {reports.length > 1
+                ? `${reports.length} คน`
+                : selectedReport?.student?.firstName}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -517,7 +724,7 @@ export default function PrintPor6() {
               <Button
                 variant={isEditingAssessment ? "outline" : "secondary"}
                 size="sm"
-                onClick={() => setIsEditingAssessment((value) => !value)}
+                onClick={() => setIsEditingAssessment(value => !value)}
               >
                 {isEditingAssessment ? (
                   <X className="w-4 h-4 mr-1" />
@@ -541,12 +748,15 @@ export default function PrintPor6() {
                 <Label className="text-xs">แก้ประเมินนักเรียน</Label>
                 <select
                   value={selectedReport.student.id}
-                  onChange={event => setSelectedStudentId(Number(event.target.value))}
+                  onChange={event =>
+                    setSelectedStudentId(Number(event.target.value))
+                  }
                   className="mt-1 h-9 rounded-md border border-slate-200 bg-white px-3 text-sm"
                 >
                   {reports.map(report => (
                     <option key={report.student.id} value={report.student.id}>
-                      {report.student.studentNumber || "-"} {report.student.prefix}
+                      {report.student.studentNumber || "-"}{" "}
+                      {report.student.prefix}
                       {report.student.firstName} {report.student.lastName}
                     </option>
                   ))}
@@ -574,7 +784,10 @@ export default function PrintPor6() {
                   onChange={event =>
                     setForm(prev =>
                       prev
-                        ? { ...prev, readingThinkingWriting: event.target.value }
+                        ? {
+                            ...prev,
+                            readingThinkingWriting: event.target.value,
+                          }
                         : prev
                     )
                   }
@@ -619,26 +832,26 @@ export default function PrintPor6() {
                 )}
               </div>
               <div className="grid gap-3 md:grid-cols-4">
-              {ACTIVITY_LABELS.map(([key, label]) => (
-                <div key={key}>
-                  <Label className="text-xs">ชื่อกิจกรรม: {label}</Label>
-                  <Input
-                    value={form.activityLabels[key] ?? label}
-                    onChange={event =>
-                      updateFormMap("activityLabels", key, event.target.value)
-                    }
-                    className="mt-1 h-8"
-                  />
-                  <Label className="mt-2 block text-xs">ผลกิจกรรม</Label>
-                  <Input
-                    value={form.activities[key] ?? "ผ่าน"}
-                    onChange={event =>
-                      updateFormMap("activities", key, event.target.value)
-                    }
-                    className="mt-1 h-8"
-                  />
-                </div>
-              ))}
+                {ACTIVITY_LABELS.map(([key, label]) => (
+                  <div key={key}>
+                    <Label className="text-xs">ชื่อกิจกรรม: {label}</Label>
+                    <Input
+                      value={form.activityLabels[key] ?? label}
+                      onChange={event =>
+                        updateFormMap("activityLabels", key, event.target.value)
+                      }
+                      className="mt-1 h-8"
+                    />
+                    <Label className="mt-2 block text-xs">ผลกิจกรรม</Label>
+                    <Input
+                      value={form.activities[key] ?? "ผ่าน"}
+                      onChange={event =>
+                        updateFormMap("activities", key, event.target.value)
+                      }
+                      className="mt-1 h-8"
+                    />
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -650,7 +863,11 @@ export default function PrintPor6() {
           <div className="text-center text-slate-400">ไม่มีข้อมูล ปพ.6</div>
         ) : (
           reports.map((report, index) => (
-            <Por6Page key={report.student.id} report={report} pageIndex={index} />
+            <Por6Page
+              key={report.student.id}
+              report={report}
+              pageIndex={index}
+            />
           ))
         )}
       </div>

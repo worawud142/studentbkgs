@@ -189,6 +189,7 @@ export const schoolSettings = appSchema.table("school_settings", {
   officeName: varchar("officeName", { length: 300 }).default(
     "สำนักงานเขตพื้นที่การศึกษาประถมศึกษาสกลนคร เขต 3"
   ),
+  schoolLogoUrl: text("schoolLogoUrl"),
   homeroomTeacherName: varchar("homeroomTeacherName", { length: 200 }),
   academicHeadName: varchar("academicHeadName", { length: 200 }),
   directorName: varchar("directorName", { length: 200 }),

@@ -214,6 +214,17 @@ export const appRouter = router({
         z.object({
           schoolName: z.string().min(1),
           officeName: z.string().optional(),
+          schoolLogoUrl: z
+            .string()
+            .trim()
+            .refine(
+              value =>
+                value === "" ||
+                /^https?:\/\//i.test(value) ||
+                value.startsWith("data:image/"),
+              "กรุณาใช้ URL รูปภาพที่ขึ้นต้นด้วย http://, https:// หรือ data:image/"
+            )
+            .optional(),
           homeroomTeacherName: z.string().optional(),
           academicHeadName: z.string().optional(),
           directorName: z.string().optional(),

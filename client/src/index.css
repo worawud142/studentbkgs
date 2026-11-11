@@ -180,9 +180,33 @@
 
 /* Print styles */
 @media print {
-  .no-print { display: none !important; }
-  body { background: white !important; font-size: 11pt; }
-  .print-page { page-break-after: always; }
+  @page {
+    size: A4 portrait;
+    margin: 0;
+  }
+  .no-print {
+    display: none !important;
+  }
+  html,
+  body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+  }
+  body {
+    font-size: 11pt;
+  }
+  .print-page {
+    page-break-after: always;
+  }
+  .por6-page {
+    margin: 0 !important;
+    break-inside: avoid;
+    print-color-adjust: exact;
+  }
+  .por6-page:last-child {
+    page-break-after: auto !important;
+  }
 }
 
 /* Score input */

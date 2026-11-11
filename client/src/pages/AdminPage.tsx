@@ -251,6 +251,7 @@ function SystemDataTab() {
   const [schoolForm, setSchoolForm] = useState({
     schoolName: "",
     officeName: "",
+    schoolLogoUrl: "",
     homeroomTeacherName: "",
     academicHeadName: "",
     directorName: "",
@@ -279,6 +280,7 @@ function SystemDataTab() {
     setSchoolForm({
       schoolName: schoolSettings.schoolName || "",
       officeName: schoolSettings.officeName || "",
+      schoolLogoUrl: schoolSettings.schoolLogoUrl || "",
       homeroomTeacherName: schoolSettings.homeroomTeacherName || "",
       academicHeadName: schoolSettings.academicHeadName || "",
       directorName: schoolSettings.directorName || "",
@@ -423,6 +425,21 @@ function SystemDataTab() {
                 className="mt-1"
               />
             </div>
+          </div>
+          <div>
+            <Label className="text-xs">URL ตราโรงเรียน / ตราหน่วยงาน</Label>
+            <Input
+              value={schoolForm.schoolLogoUrl}
+              onChange={e =>
+                setSchoolForm({ ...schoolForm, schoolLogoUrl: e.target.value })
+              }
+              className="mt-1"
+              placeholder="https://example.com/school-logo.png"
+              inputMode="url"
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              ใช้ในหัวกระดาษ ปพ.6 หากเว้นว่าง ระบบจะแสดงกรอบตราโรงเรียนแทน
+            </p>
           </div>
           <div className="grid gap-3 md:grid-cols-3">
             <div>

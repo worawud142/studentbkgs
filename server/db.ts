@@ -121,11 +121,18 @@ async function ensurePor6Tables() {
       "id" integer PRIMARY KEY,
       "schoolName" varchar(200) NOT NULL DEFAULT 'โรงเรียนบ้านขัวก่าย',
       "officeName" varchar(300),
+      "schoolLogoUrl" text,
       "homeroomTeacherName" varchar(200),
       "academicHeadName" varchar(200),
       "directorName" varchar(200),
       "updatedAt" timestamptz NOT NULL DEFAULT now()
     )
+  `)
+  );
+  await db.execute(
+    sql.raw(`
+    ALTER TABLE ${schemaName}."school_settings"
+    ADD COLUMN IF NOT EXISTS "schoolLogoUrl" text
   `)
   );
   await db.execute(
@@ -3222,6 +3229,7 @@ export async function getSchoolSettings() {
       id: 1,
       schoolName: "โรงเรียนบ้านขัวก่าย",
       officeName: "สำนักงานเขตพื้นที่การศึกษาประถมศึกษาสกลนคร เขต 3",
+      schoolLogoUrl: "",
       homeroomTeacherName: "",
       academicHeadName: "",
       directorName: "",
@@ -3239,6 +3247,7 @@ export async function getSchoolSettings() {
     id: 1,
     schoolName: "โรงเรียนบ้านขัวก่าย",
     officeName: "สำนักงานเขตพื้นที่การศึกษาประถมศึกษาสกลนคร เขต 3",
+    schoolLogoUrl: "",
     homeroomTeacherName: "",
     academicHeadName: "",
     directorName: "",
