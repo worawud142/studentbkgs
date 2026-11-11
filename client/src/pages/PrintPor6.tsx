@@ -18,6 +18,7 @@ function valueOrDash(value: unknown) {
 }
 
 function numberOrDash(value: unknown, digits = 2) {
+  if (value === null || value === undefined || value === "") return "-";
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return "-";
   return parsed.toFixed(digits);

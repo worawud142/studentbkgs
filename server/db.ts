@@ -3474,6 +3474,75 @@ function numericGrade(value: unknown) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function por6GradeFromScore(score: number) {
+  if (score >= 80) return "4";
+  if (score >= 75) return "3.5";
+  if (score >= 70) return "3";
+  if (score >= 65) return "2.5";
+  if (score >= 60) return "2";
+  if (score >= 55) return "1.5";
+  if (score >= 50) return "1";
+  return "0";
+}
+
+async function getPor6ResolvedResults(db: any, assignmentIds: number[]) {
+  const resolved = new Map<
+    string,
+    { score: number | null; grade: string | null; result: string | null }
+  >();
+  if (assignmentIds.length === 0) return resolved;
+
+  const [savedResults, categories] = await Promise.all([
+    db
+      .select()
+      .from(gradeResults)
+      .where(inArray(gradeResults.assignmentId, assignmentIds)),
+    db
+      .select()
+      .from(scoreCategories)
+      .where(inArray(scoreCategories.assignmentId, assignmentIds)),
+  ]);
+
+  savedResults.forEach((result: any) => {
+    resolved.set(`${result.assignmentId}-${result.studentId}`, {
+      score: toNumber(result.totalScore),
+      grade: result.grade ?? null,
+      result: result.result ?? null,
+    });
+  });
+
+  const categoryIds = categories.map((category: any) => category.id);
+  if (categoryIds.length === 0) return resolved;
+  const categoryAssignmentIds = new Map<number, number>(
+    categories.map((category: any) => [category.id, category.assignmentId])
+  );
+  const scoreRows = await db
+    .select()
+    .from(scores)
+    .where(inArray(scores.categoryId, categoryIds));
+  const totals = new Map<string, number>();
+
+  scoreRows.forEach((row: any) => {
+    const assignmentId = categoryAssignmentIds.get(row.categoryId);
+    const score = toNumber(row.score);
+    if (!assignmentId || score === null) return;
+    const key = `${assignmentId}-${row.studentId}`;
+    totals.set(key, (totals.get(key) ?? 0) + score);
+  });
+
+  totals.forEach((total, key) => {
+    const score = Math.round(total * 100) / 100;
+    const grade = por6GradeFromScore(score);
+    resolved.set(key, {
+      score,
+      grade,
+      result: Number(grade) >= 1 ? "pass" : "fail",
+    });
+  });
+
+  return resolved;
+}
+
 export async function getPor6StudentReport(studentId: number) {
   const db = await getDb();
   if (!db) return null;
@@ -3505,25 +3574,17 @@ export async function getPor6StudentReport(studentId: number) {
     .orderBy(subjects.subjectCode, subjects.name);
 
   const assignmentIds = assignmentRows.map(row => row.assignment.id);
-  const allResults =
-    assignmentIds.length === 0
-      ? []
-      : await db
-          .select()
-          .from(gradeResults)
-          .where(inArray(gradeResults.assignmentId, assignmentIds));
-  const resultsByAssignmentStudent = new Map(
-    allResults.map(result => [
-      `${result.assignmentId}-${result.studentId}`,
-      result,
-    ])
+  const resultsByAssignmentStudent = await getPor6ResolvedResults(
+    db,
+    assignmentIds
   );
   const classAverageByAssignment = new Map<number, number>();
   assignmentIds.forEach(id => {
-    const values = allResults
-      .filter(result => result.assignmentId === id)
-      .map(result => toNumber(result.totalScore))
-      .filter((value): value is number => value !== null);
+    const values = classmates
+      .map(classmate =>
+        resultsByAssignmentStudent.get(`${id}-${classmate.id}`)?.score
+      )
+      .filter((value): value is number => typeof value === "number");
     if (values.length > 0) {
       classAverageByAssignment.set(
         id,
@@ -3538,7 +3599,7 @@ export async function getPor6StudentReport(studentId: number) {
     const totals = assignmentIds
       .map(id =>
         toNumber(
-          resultsByAssignmentStudent.get(`${id}-${classmate.id}`)?.totalScore
+          resultsByAssignmentStudent.get(`${id}-${classmate.id}`)?.score
         )
       )
       .filter((value): value is number => value !== null);
@@ -3568,7 +3629,7 @@ export async function getPor6StudentReport(studentId: number) {
         teachingWeeksForReport(classroom),
       maxScore: 100,
       classAverage: classAverageByAssignment.get(row.assignment.id) ?? null,
-      score: toNumber(result?.totalScore),
+      score: result?.score ?? null,
       grade: result?.grade ?? null,
       result: result?.result ?? null,
       note: "",
@@ -3662,45 +3723,35 @@ export async function getPor6ClassroomReports(classroomId: number) {
     .orderBy(subjects.subjectCode, subjects.name);
 
   const assignmentIds = assignmentRows.map(row => row.assignment.id);
-  const allResults =
-    assignmentIds.length === 0
-      ? []
-      : await db
-          .select()
-          .from(gradeResults)
-          .where(inArray(gradeResults.assignmentId, assignmentIds));
-  const resultsByAssignmentStudent = new Map(
-    allResults.map(result => [
-      `${result.assignmentId}-${result.studentId}`,
-      result,
-    ])
+  const resultsByAssignmentStudent = await getPor6ResolvedResults(
+    db,
+    assignmentIds
   );
 
   const classAverageByAssignment = new Map<number, number>();
-  const totalsByAssignment = new Map<number, { sum: number; count: number }>();
-  allResults.forEach(result => {
-    const score = toNumber(result.totalScore);
-    if (score === null) return;
-    const current = totalsByAssignment.get(result.assignmentId) ?? {
-      sum: 0,
-      count: 0,
-    };
-    current.sum += score;
-    current.count += 1;
-    totalsByAssignment.set(result.assignmentId, current);
-  });
-  totalsByAssignment.forEach((value, assignmentId) => {
-    classAverageByAssignment.set(
-      assignmentId,
-      Math.round((value.sum / value.count) * 100) / 100
-    );
+  assignmentIds.forEach(assignmentId => {
+    const values = students
+      .map(
+        student =>
+          resultsByAssignmentStudent.get(`${assignmentId}-${student.id}`)
+            ?.score
+      )
+      .filter((value): value is number => typeof value === "number");
+    if (values.length > 0) {
+      classAverageByAssignment.set(
+        assignmentId,
+        Math.round(
+          (values.reduce((sum, value) => sum + value, 0) / values.length) * 100
+        ) / 100
+      );
+    }
   });
 
   const rankRows = students.map(student => {
     const totals = assignmentIds
       .map(id =>
         toNumber(
-          resultsByAssignmentStudent.get(`${id}-${student.id}`)?.totalScore
+          resultsByAssignmentStudent.get(`${id}-${student.id}`)?.score
         )
       )
       .filter((value): value is number => value !== null);
@@ -3732,7 +3783,7 @@ export async function getPor6ClassroomReports(classroomId: number) {
           teachingWeeksForReport(classroom),
         maxScore: 100,
         classAverage: classAverageByAssignment.get(row.assignment.id) ?? null,
-        score: toNumber(result?.totalScore),
+        score: result?.score ?? null,
         grade: result?.grade ?? null,
         result: result?.result ?? null,
         note: "",
