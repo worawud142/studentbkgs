@@ -80,7 +80,7 @@ function Por6Page({ report, pageIndex }: { report: any; pageIndex: number }) {
         padding: "8mm 10mm 7mm",
         fontFamily:
           "'TH SarabunPSK', 'TH Sarabun PSK', 'TH Sarabun New', 'Sarabun', sans-serif",
-        fontSize: "16pt",
+        fontSize: "14pt",
         overflow: "hidden",
         pageBreakBefore: pageIndex === 0 ? "auto" : "always",
         pageBreakAfter: "always",
@@ -280,7 +280,7 @@ function Por6Page({ report, pageIndex }: { report: any; pageIndex: number }) {
                   <td className="border border-black px-1">
                     {activityLabels[key] || label}
                   </td>
-                  <td className="border border-black text-center">
+                  <td className="whitespace-nowrap border border-black text-center">
                     {activities[key] || "ผ่าน"}
                   </td>
                 </tr>
@@ -302,7 +302,7 @@ function Por6Page({ report, pageIndex }: { report: any; pageIndex: number }) {
                   <td className="border border-black px-1">
                     {index + 1}. {label}
                   </td>
-                  <td className="border border-black text-center">
+                  <td className="whitespace-nowrap border border-black text-center">
                     {attributes[key] || ASSESSMENT_LEVEL_LABELS[3]}
                   </td>
                 </tr>
@@ -353,7 +353,7 @@ function Por6Page({ report, pageIndex }: { report: any; pageIndex: number }) {
                   <td className="whitespace-nowrap border border-black px-1 text-[7.5pt]">
                     {index + 1}. {label}
                   </td>
-                  <td className="border border-black text-center">
+                  <td className="whitespace-nowrap border border-black text-center">
                     {competencies[key] || ASSESSMENT_LEVEL_LABELS[3]}
                   </td>
                 </tr>
@@ -362,7 +362,7 @@ function Por6Page({ report, pageIndex }: { report: any; pageIndex: number }) {
                 <td className="border border-black px-1" colSpan={2}>
                   สรุปผลการประเมินสมรรถนะสำคัญของผู้เรียน
                 </td>
-                <td className="border border-black text-center">
+                <td className="whitespace-nowrap border border-black text-center">
                   {competencySummary}
                 </td>
               </tr>
@@ -370,7 +370,7 @@ function Por6Page({ report, pageIndex }: { report: any; pageIndex: number }) {
                 <td className="border border-black px-1" colSpan={2}>
                   สรุปผลการประเมินการอ่าน คิดวิเคราะห์และเขียน
                 </td>
-                <td className="border border-black text-center">
+                <td className="whitespace-nowrap border border-black text-center">
                   {assessment.readingThinkingWriting ||
                     ASSESSMENT_LEVEL_LABELS[3]}
                 </td>
@@ -379,7 +379,7 @@ function Por6Page({ report, pageIndex }: { report: any; pageIndex: number }) {
                 <td className="border border-black px-1" colSpan={2}>
                   สรุปผลการประเมินคุณลักษณะอันพึงประสงค์
                 </td>
-                <td className="border border-black text-center">
+                <td className="whitespace-nowrap border border-black text-center">
                   {attributeSummary}
                 </td>
               </tr>
