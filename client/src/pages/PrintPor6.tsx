@@ -322,6 +322,11 @@ function Por6Page({ report, pageIndex }: { report: any; pageIndex: number }) {
 
         <div>
           <table className="w-full table-fixed border-collapse">
+            <colgroup>
+              <col style={{ width: "18%" }} />
+              <col style={{ width: "62%" }} />
+              <col style={{ width: "20%" }} />
+            </colgroup>
             <tbody>
               <tr className="h-[6.2mm]">
                 <td
@@ -335,7 +340,7 @@ function Por6Page({ report, pageIndex }: { report: any; pageIndex: number }) {
                 <tr key={key} className="h-[6mm]">
                   {index === 0 && (
                     <td
-                      className="w-[22%] border border-black px-1 text-center font-semibold leading-snug"
+                      className="border border-black px-0.5 text-center font-semibold leading-snug"
                       rowSpan={COMPETENCY_LABELS.length}
                     >
                       สมรรถนะ
@@ -345,10 +350,10 @@ function Por6Page({ report, pageIndex }: { report: any; pageIndex: number }) {
                       ผู้เรียน
                     </td>
                   )}
-                  <td className="whitespace-nowrap border border-black px-1 text-[7.7pt]">
+                  <td className="whitespace-nowrap border border-black px-1 text-[7.5pt]">
                     {index + 1}. {label}
                   </td>
-                  <td className="w-[18%] border border-black text-center">
+                  <td className="border border-black text-center">
                     {competencies[key] || ASSESSMENT_LEVEL_LABELS[3]}
                   </td>
                 </tr>
