@@ -289,6 +289,9 @@ export const subjects = appSchema.table("subjects", {
   level: subjectLevelEnum("level").notNull(),
   gradeGroup: varchar("gradeGroup", { length: 20 }), // เช่น "ป.1-3", "ม.1-3"
   subjectGroup: varchar("subjectGroup", { length: 100 }), // กลุ่มสาระ
+  subjectType: varchar("subjectType", { length: 20 })
+    .default("basic")
+    .notNull(), // basic = พื้นฐาน, additional = เพิ่มเติม
   description: text("description"),
   createdAt: timestamp("createdAt", { mode: "date", withTimezone: true })
     .defaultNow()

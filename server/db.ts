@@ -33,6 +33,7 @@ import { hashPassword, verifyPassword } from "./_core/password";
 let _pool: Pool | null = null;
 type Database = ReturnType<typeof drizzle>;
 let _db: Database | null = null;
+let _runtimeSchemaReady: Promise<void> | null = null;
 
 const DEFAULT_POR6_COMPETENCIES = {
   communication: "ดีเยี่ยม",
@@ -94,6 +95,12 @@ export async function getDb() {
       _db = null;
     }
   }
+  if (_db) {
+    if (!_runtimeSchemaReady) {
+      _runtimeSchemaReady = ensureRuntimeSchema(_db);
+    }
+    await _runtimeSchemaReady;
+  }
   return _db;
 }
 
@@ -108,6 +115,17 @@ async function getNextNumericId(table: any, idColumn: any): Promise<number> {
 
 function quotedSchemaName() {
   return `"${ENV.dbSchema.replace(/"/g, '""')}"`;
+}
+
+async function ensureRuntimeSchema(db: Database) {
+  const schemaName = quotedSchemaName();
+  await db.execute(sql.raw(`CREATE SCHEMA IF NOT EXISTS ${schemaName}`));
+  await db.execute(
+    sql.raw(`
+    ALTER TABLE ${schemaName}."subjects"
+    ADD COLUMN IF NOT EXISTS "subjectType" varchar(20) NOT NULL DEFAULT 'basic'
+  `)
+  );
 }
 
 async function ensurePor6Tables() {
@@ -3427,6 +3445,8 @@ function toNumber(value: unknown) {
 }
 
 function subjectType(subject: any) {
+  if (subject?.subjectType === "additional") return "เพิ่มเติม";
+  if (subject?.subjectType === "basic") return "พื้นฐาน";
   const text = `${subject?.name ?? ""} ${subject?.subjectGroup ?? ""}`;
   return /เพิ่มเติม/.test(text) ? "เพิ่มเติม" : "พื้นฐาน";
 }

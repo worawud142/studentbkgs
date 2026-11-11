@@ -787,6 +787,7 @@ export const appRouter = router({
           level: z.enum(["primary", "secondary", "both"]),
           gradeGroup: z.string().optional(),
           subjectGroup: z.string().optional(),
+          subjectType: z.enum(["basic", "additional"]).default("basic"),
           description: z.string().optional(),
         })
       )
@@ -804,6 +805,7 @@ export const appRouter = router({
           level: z.enum(["primary", "secondary", "both"]).optional(),
           gradeGroup: z.string().optional(),
           subjectGroup: z.string().optional(),
+          subjectType: z.enum(["basic", "additional"]).optional(),
           description: z.string().optional(),
         })
       )

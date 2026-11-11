@@ -2050,6 +2050,7 @@ function SubjectsTab() {
     name: "",
     credits: "1.0",
     level: "secondary" as "primary" | "secondary" | "both",
+    subjectType: "basic" as "basic" | "additional",
     subjectGroup: "",
     gradeGroup: "",
   });
@@ -2058,6 +2059,7 @@ function SubjectsTab() {
     name: "",
     credits: "1.0",
     level: "secondary" as "primary" | "secondary" | "both",
+    subjectType: "basic" as "basic" | "additional",
     subjectGroup: "",
     gradeGroup: "",
   });
@@ -2143,21 +2145,43 @@ function SubjectsTab() {
                   placeholder="เช่น ภาษาไทย"
                 />
               </div>
-              <div>
-                <Label className="text-xs">ระดับ *</Label>
-                <Select
-                  value={form.level}
-                  onValueChange={v => setForm({ ...form, level: v as any })}
-                >
-                  <SelectTrigger className="mt-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="primary">ประถมศึกษา</SelectItem>
-                    <SelectItem value="secondary">มัธยมศึกษา</SelectItem>
-                    <SelectItem value="both">ทั้งสองระดับ</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label className="text-xs">ระดับ *</Label>
+                  <Select
+                    value={form.level}
+                    onValueChange={v => setForm({ ...form, level: v as any })}
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="primary">ประถมศึกษา</SelectItem>
+                      <SelectItem value="secondary">มัธยมศึกษา</SelectItem>
+                      <SelectItem value="both">ทั้งสองระดับ</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label className="text-xs">ประเภทรายวิชา *</Label>
+                  <Select
+                    value={form.subjectType}
+                    onValueChange={v =>
+                      setForm({
+                        ...form,
+                        subjectType: v as "basic" | "additional",
+                      })
+                    }
+                  >
+                    <SelectTrigger className="mt-1">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="basic">รายวิชาพื้นฐาน</SelectItem>
+                      <SelectItem value="additional">รายวิชาเพิ่มเติม</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -2207,6 +2231,9 @@ function SubjectsTab() {
               <th className="text-left px-4 py-3 text-slate-600 font-medium">
                 ระดับ
               </th>
+              <th className="text-left px-4 py-3 text-slate-600 font-medium">
+                ประเภท
+              </th>
               <th className="text-center px-4 py-3 text-slate-600 font-medium">
                 หน่วยกิต
               </th>
@@ -2239,6 +2266,17 @@ function SubjectsTab() {
                         : "มัธยม"}
                   </span>
                 </td>
+                <td className="px-4 py-3">
+                  <span
+                    className={
+                      s.subjectType === "additional"
+                        ? "rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700"
+                        : "rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700"
+                    }
+                  >
+                    {s.subjectType === "additional" ? "เพิ่มเติม" : "พื้นฐาน"}
+                  </span>
+                </td>
                 <td className="px-4 py-3 text-center text-slate-600">
                   {s.credits || "-"}
                 </td>
@@ -2256,6 +2294,10 @@ function SubjectsTab() {
                               name: s.name,
                               credits: s.credits?.toString() || "1.0",
                               level: s.level,
+                              subjectType:
+                                s.subjectType === "additional"
+                                  ? "additional"
+                                  : "basic",
                               subjectGroup: s.subjectGroup || "",
                               gradeGroup: s.gradeGroup || "",
                             });
@@ -2279,6 +2321,7 @@ function SubjectsTab() {
                               name: editForm.name,
                               credits: editForm.credits,
                               level: editForm.level,
+                              subjectType: editForm.subjectType,
                               subjectGroup: editForm.subjectGroup || undefined,
                               gradeGroup: editForm.gradeGroup || undefined,
                             });
@@ -2331,29 +2374,55 @@ function SubjectsTab() {
                               placeholder="เช่น ภาษาไทย"
                             />
                           </div>
-                          <div>
-                            <Label className="text-xs">ระดับ *</Label>
-                            <Select
-                              value={editForm.level}
-                              onValueChange={v =>
-                                setEditForm({ ...editForm, level: v as any })
-                              }
-                            >
-                              <SelectTrigger className="mt-1">
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="primary">
-                                  ประถมศึกษา
-                                </SelectItem>
-                                <SelectItem value="secondary">
-                                  มัธยมศึกษา
-                                </SelectItem>
-                                <SelectItem value="both">
-                                  ทั้งสองระดับ
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <Label className="text-xs">ระดับ *</Label>
+                              <Select
+                                value={editForm.level}
+                                onValueChange={v =>
+                                  setEditForm({ ...editForm, level: v as any })
+                                }
+                              >
+                                <SelectTrigger className="mt-1">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="primary">
+                                    ประถมศึกษา
+                                  </SelectItem>
+                                  <SelectItem value="secondary">
+                                    มัธยมศึกษา
+                                  </SelectItem>
+                                  <SelectItem value="both">
+                                    ทั้งสองระดับ
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <Label className="text-xs">ประเภทรายวิชา *</Label>
+                              <Select
+                                value={editForm.subjectType}
+                                onValueChange={v =>
+                                  setEditForm({
+                                    ...editForm,
+                                    subjectType: v as "basic" | "additional",
+                                  })
+                                }
+                              >
+                                <SelectTrigger className="mt-1">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="basic">
+                                    รายวิชาพื้นฐาน
+                                  </SelectItem>
+                                  <SelectItem value="additional">
+                                    รายวิชาเพิ่มเติม
+                                  </SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
                           </div>
                           <div className="grid grid-cols-2 gap-3">
                             <div>
