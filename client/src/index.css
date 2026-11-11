@@ -216,6 +216,7 @@
 .por6-page * {
   font-family: "TH SarabunPSK", "TH Sarabun PSK", "TH Sarabun New", Sarabun,
     sans-serif !important;
+  font-size: 16pt !important;
 }
 
 @media print {

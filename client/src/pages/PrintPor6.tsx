@@ -80,7 +80,7 @@ function Por6Page({ report, pageIndex }: { report: any; pageIndex: number }) {
         padding: "8mm 10mm 7mm",
         fontFamily:
           "'TH SarabunPSK', 'TH Sarabun PSK', 'TH Sarabun New', 'Sarabun', sans-serif",
-        fontSize: "10pt",
+        fontSize: "16pt",
         overflow: "hidden",
         pageBreakBefore: pageIndex === 0 ? "auto" : "always",
         pageBreakAfter: "always",
