@@ -3431,6 +3431,10 @@ function subjectType(subject: any) {
   return /เพิ่มเติม/.test(text) ? "เพิ่มเติม" : "พื้นฐาน";
 }
 
+function teachingWeeksForReport(classroom: any) {
+  return classroom?.level === "secondary" ? 20 : 40;
+}
+
 function numericGrade(value: unknown) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
@@ -3534,7 +3538,9 @@ export async function getPor6StudentReport(studentId: number) {
       subjectType: subjectType(row.subject),
       subjectCode: row.subject?.subjectCode ?? "",
       subjectName: row.subject?.name ?? "รายวิชา",
-      hours: Number(row.assignment.hoursPerWeek ?? 1) * 40,
+      hours:
+        Number(row.assignment.hoursPerWeek ?? 1) *
+        teachingWeeksForReport(classroom),
       maxScore: 100,
       classAverage: classAverageByAssignment.get(row.assignment.id) ?? null,
       score: toNumber(result?.totalScore),
@@ -3705,7 +3711,9 @@ export async function getPor6ClassroomReports(classroomId: number) {
         subjectType: subjectType(row.subject),
         subjectCode: row.subject?.subjectCode ?? "",
         subjectName: row.subject?.name ?? "รายวิชา",
-        hours: Number(row.assignment.hoursPerWeek ?? 1) * 40,
+        hours:
+          Number(row.assignment.hoursPerWeek ?? 1) *
+          teachingWeeksForReport(classroom),
         maxScore: 100,
         classAverage: classAverageByAssignment.get(row.assignment.id) ?? null,
         score: toNumber(result?.totalScore),

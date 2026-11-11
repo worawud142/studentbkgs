@@ -1,52 +1,16 @@
 import { trpc } from "@/lib/trpc";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Printer, ArrowLeft, Loader2, Save, Edit2, X } from "lucide-react";
+import {
+  ACTIVITY_LABELS,
+  ASSESSMENT_LEVEL_LABELS,
+  ATTRIBUTE_LABELS,
+  buildAssessmentForm,
+  COMPETENCY_LABELS,
+  mostCommonAssessmentValue,
+} from "@/lib/por6Assessment";
+import { Printer, ArrowLeft, Loader2, ClipboardEdit } from "lucide-react";
 import { useParams, useLocation } from "wouter";
-import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
-
-const COMPETENCY_LABELS = [
-  ["communication", "ความสามารถในการสื่อสาร"],
-  ["thinking", "ความสามารถในการคิด"],
-  ["problemSolving", "ความสามารถในการแก้ปัญหา"],
-  ["lifeSkills", "ความสามารถในการใช้ทักษะชีวิต"],
-  ["technology", "ความสามารถในการใช้เทคโนโลยี"],
-] as const;
-
-const ATTRIBUTE_LABELS = [
-  ["nationReligionKing", "รักชาติ ศาสน์ กษัตริย์"],
-  ["honesty", "ซื่อสัตย์สุจริต"],
-  ["discipline", "มีวินัย"],
-  ["eagerness", "ใฝ่เรียนรู้"],
-  ["sufficiency", "อยู่อย่างพอเพียง"],
-  ["dedication", "มุ่งมั่นในการทำงาน"],
-  ["thaiIdentity", "รักความเป็นไทย"],
-  ["publicMind", "มีจิตสาธารณะ"],
-] as const;
-
-const ACTIVITY_LABELS = [
-  ["guidance", "แนะแนว"],
-  ["scout", "ลูกเสือ"],
-  ["environment", "สิ่งแวดล้อม"],
-  ["volunteer", "จิตอาสา"],
-] as const;
-
-type AssessmentForm = {
-  competencies: Record<string, string>;
-  readingThinkingWriting: string;
-  attributes: Record<string, string>;
-  activities: Record<string, string>;
-  activityLabels: Record<string, string>;
-};
-
-const ASSESSMENT_LEVEL_LABELS: Record<number, string> = {
-  3: "ดีเยี่ยม",
-  2: "ดี",
-  1: "ผ่านเกณฑ์",
-  0: "ควรปรับปรุง",
-};
+import { useMemo } from "react";
 
 function valueOrDash(value: unknown) {
   if (value === null || value === undefined || value === "") return "-";
@@ -57,91 +21,6 @@ function numberOrDash(value: unknown, digits = 2) {
   const parsed = Number(value);
   if (!Number.isFinite(parsed)) return "-";
   return parsed.toFixed(digits);
-}
-
-function assessmentLabelFromScore(value: unknown, excellentThreshold: number) {
-  const score = Number(value);
-  if (!Number.isFinite(score)) return ASSESSMENT_LEVEL_LABELS[3];
-  if (score > excellentThreshold) return ASSESSMENT_LEVEL_LABELS[3];
-  if (score > 59) return ASSESSMENT_LEVEL_LABELS[2];
-  if (score > 49) return ASSESSMENT_LEVEL_LABELS[1];
-  return ASSESSMENT_LEVEL_LABELS[0];
-}
-
-function normalizeAssessmentValue(value: unknown) {
-  if (value === null || value === undefined || value === "") return "";
-  const text = String(value).trim();
-  if (text === "3" || text === "3.0") return ASSESSMENT_LEVEL_LABELS[3];
-  if (text === "2" || text === "2.0") return ASSESSMENT_LEVEL_LABELS[2];
-  if (text === "1" || text === "1.0") return ASSESSMENT_LEVEL_LABELS[1];
-  if (text === "0" || text === "0.0") return ASSESSMENT_LEVEL_LABELS[0];
-  return text;
-}
-
-function mostCommonAssessmentValue(values: string[]) {
-  const counts = new Map<string, number>();
-  values.forEach(value => counts.set(value, (counts.get(value) ?? 0) + 1));
-  return (
-    Array.from(counts.entries()).sort((a, b) => b[1] - a[1])[0]?.[0] ??
-    ASSESSMENT_LEVEL_LABELS[3]
-  );
-}
-
-function autoAssessmentForm(report: any): AssessmentForm {
-  const percentage = report?.summary?.percentage;
-  const attributeLabel = assessmentLabelFromScore(percentage, 70);
-  const readingLabel = assessmentLabelFromScore(percentage, 74);
-
-  return {
-    competencies: Object.fromEntries(
-      COMPETENCY_LABELS.map(([key]) => [key, readingLabel])
-    ),
-    readingThinkingWriting: readingLabel,
-    attributes: Object.fromEntries(
-      ATTRIBUTE_LABELS.map(([key]) => [key, attributeLabel])
-    ),
-    activities: Object.fromEntries(
-      ACTIVITY_LABELS.map(([key]) => [key, "ผ่าน"])
-    ),
-    activityLabels: Object.fromEntries(
-      ACTIVITY_LABELS.map(([key, label]) => [key, label])
-    ),
-  };
-}
-
-function buildAssessmentForm(report: any): AssessmentForm {
-  const auto = autoAssessmentForm(report);
-  if (!report?.assessment?.id) return auto;
-
-  return {
-    competencies: {
-      ...auto.competencies,
-      ...Object.fromEntries(
-        Object.entries(report?.assessment?.competencies ?? {}).map(
-          ([key, value]) => [key, normalizeAssessmentValue(value)]
-        )
-      ),
-    },
-    readingThinkingWriting:
-      normalizeAssessmentValue(report?.assessment?.readingThinkingWriting) ||
-      auto.readingThinkingWriting,
-    attributes: {
-      ...auto.attributes,
-      ...Object.fromEntries(
-        Object.entries(report?.assessment?.attributes ?? {}).map(
-          ([key, value]) => [key, normalizeAssessmentValue(value)]
-        )
-      ),
-    },
-    activities: {
-      ...auto.activities,
-      ...(report?.assessment?.activities ?? {}),
-    },
-    activityLabels: {
-      ...auto.activityLabels,
-      ...(report?.assessment?.activityLabels ?? {}),
-    },
-  };
 }
 
 const SUBJECT_ROW_COUNT = 16;
@@ -209,19 +88,11 @@ function Por6Page({ report, pageIndex }: { report: any; pageIndex: number }) {
     >
       <header className="grid grid-cols-[23mm_1fr_23mm] items-center leading-tight">
         <div className="flex h-[22mm] items-center justify-center">
-          {school?.schoolLogoUrl ? (
-            <img
-              src={school.schoolLogoUrl}
-              alt="ตราโรงเรียน"
-              className="max-h-[21mm] max-w-[21mm] object-contain"
-            />
-          ) : (
-            <div className="flex h-[18mm] w-[18mm] items-center justify-center rounded-full border border-black text-center text-[7pt] leading-tight">
-              ตรา
-              <br />
-              โรงเรียน
-            </div>
-          )}
+          <img
+            src={school?.schoolLogoUrl || "/school-logo.png"}
+            alt="ตราโรงเรียน"
+            className="max-h-[21mm] max-w-[21mm] object-contain"
+          />
         </div>
         <div className="text-center">
           <p className="text-[13pt] font-bold">
@@ -560,19 +431,12 @@ export default function PrintPor6() {
     assignmentId?: string;
   }>();
   const [, navigate] = useLocation();
-  const utils = trpc.useUtils();
   const studentId = params.studentId ? parseInt(params.studentId) : undefined;
   const classroomId = params.classroomId
     ? parseInt(params.classroomId)
     : params.assignmentId
       ? parseInt(params.assignmentId)
       : undefined;
-  const [selectedStudentId, setSelectedStudentId] = useState<number | null>(
-    studentId ?? null
-  );
-  const [form, setForm] = useState<AssessmentForm | null>(null);
-  const [isEditingAssessment, setIsEditingAssessment] = useState(false);
-  const [isSavingAssessment, setIsSavingAssessment] = useState(false);
 
   const studentReport = trpc.por6.getStudentReport.useQuery(
     { studentId: studentId || 0 },
@@ -582,92 +446,16 @@ export default function PrintPor6() {
     { classroomId: classroomId || 0 },
     { enabled: Boolean(!studentId && classroomId) }
   );
-  const saveAssessment = trpc.por6.saveAssessment.useMutation({
-    onSuccess: async () => {
-      await utils.por6.getStudentReport.invalidate();
-      await utils.por6.getClassroomReports.invalidate();
-    },
-    onError: error => toast.error(error.message),
-  });
-  const saveClassroomActivities = trpc.por6.saveClassroomActivities.useMutation(
-    {
-      onSuccess: async () => {
-        await utils.por6.getStudentReport.invalidate();
-        await utils.por6.getClassroomReports.invalidate();
-      },
-      onError: error => toast.error(error.message),
-    }
-  );
 
   const reports = useMemo(() => {
     if (studentReport.data) return [studentReport.data];
     return (classroomReports.data ?? []) as any[];
   }, [studentReport.data, classroomReports.data]);
-  const selectedReport =
-    reports.find(report => report.student.id === selectedStudentId) ??
-    reports[0] ??
-    null;
+  const firstReport = reports[0] ?? null;
   const isLoading = studentReport.isLoading || classroomReports.isLoading;
-
-  useEffect(() => {
-    if (!selectedStudentId && reports[0])
-      setSelectedStudentId(reports[0].student.id);
-  }, [reports, selectedStudentId]);
-
-  useEffect(() => {
-    setForm(selectedReport ? buildAssessmentForm(selectedReport) : null);
-  }, [
-    selectedReport?.student?.id,
-    selectedReport?.assessment?.updatedAt,
-    selectedReport?.summary?.percentage,
-  ]);
-
-  const updateFormMap = (
-    group: "competencies" | "attributes" | "activities" | "activityLabels",
-    key: string,
-    value: string
-  ) => {
-    setForm(prev =>
-      prev
-        ? {
-            ...prev,
-            [group]: { ...prev[group], [key]: value },
-          }
-        : prev
-    );
-  };
-
-  const handleSaveAssessment = async () => {
-    if (!selectedReport || !form) return;
-    setIsSavingAssessment(true);
-    try {
-      await saveAssessment.mutateAsync({
-        studentId: selectedReport.student.id,
-        academicYearId: selectedReport.classroom.academicYearId,
-        competencies: form.competencies,
-        readingThinkingWriting: form.readingThinkingWriting,
-        attributes: form.attributes,
-        activities: form.activities,
-        activityLabels: form.activityLabels,
-      });
-      if (reports.length > 1) {
-        await saveClassroomActivities.mutateAsync({
-          classroomId: selectedReport.classroom.id,
-          academicYearId: selectedReport.classroom.academicYearId,
-          activities: form.activities,
-          activityLabels: form.activityLabels,
-        });
-      }
-      toast.success(
-        reports.length > 1
-          ? "บันทึกการประเมิน และปรับกิจกรรมให้ทั้งห้องเรียบร้อย"
-          : "บันทึกการประเมินเรียบร้อย"
-      );
-      setIsEditingAssessment(false);
-    } finally {
-      setIsSavingAssessment(false);
-    }
-  };
+  const assessmentHref = studentId
+    ? `/por6/assessment/student/${studentId}`
+    : `/por6/assessment/classroom/${classroomId}`;
 
   if (isLoading) {
     return (
@@ -716,22 +504,18 @@ export default function PrintPor6() {
             <p className="text-xs text-slate-500">
               {reports.length > 1
                 ? `${reports.length} คน`
-                : selectedReport?.student?.firstName}
+                : firstReport?.student?.firstName}
             </p>
           </div>
           <div className="flex items-center gap-2">
-            {selectedReport && form && (
+            {firstReport && (
               <Button
-                variant={isEditingAssessment ? "outline" : "secondary"}
+                variant="secondary"
                 size="sm"
-                onClick={() => setIsEditingAssessment(value => !value)}
+                onClick={() => navigate(assessmentHref)}
               >
-                {isEditingAssessment ? (
-                  <X className="w-4 h-4 mr-1" />
-                ) : (
-                  <Edit2 className="w-4 h-4 mr-1" />
-                )}
-                {isEditingAssessment ? "ปิดแก้ไข" : "แก้ไขประเมิน"}
+                <ClipboardEdit className="w-4 h-4 mr-1" />
+                แก้ไขประเมิน
               </Button>
             )}
             <Button variant="outline" size="sm" onClick={() => window.print()}>
@@ -740,122 +524,6 @@ export default function PrintPor6() {
             </Button>
           </div>
         </div>
-
-        {isEditingAssessment && selectedReport && form && (
-          <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <Label className="text-xs">แก้ประเมินนักเรียน</Label>
-                <select
-                  value={selectedReport.student.id}
-                  onChange={event =>
-                    setSelectedStudentId(Number(event.target.value))
-                  }
-                  className="mt-1 h-9 rounded-md border border-slate-200 bg-white px-3 text-sm"
-                >
-                  {reports.map(report => (
-                    <option key={report.student.id} value={report.student.id}>
-                      {report.student.studentNumber || "-"}{" "}
-                      {report.student.prefix}
-                      {report.student.firstName} {report.student.lastName}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <Button
-                size="sm"
-                onClick={handleSaveAssessment}
-                disabled={isSavingAssessment}
-                className="bg-green-600 hover:bg-green-700"
-              >
-                <Save className="w-4 h-4 mr-1" />
-                {isSavingAssessment ? "กำลังบันทึก..." : "บันทึกประเมิน"}
-              </Button>
-            </div>
-
-            <div className="mb-2 text-xs font-semibold text-slate-600">
-              ผลประเมินรายคน
-            </div>
-            <div className="grid gap-3 md:grid-cols-4">
-              <div>
-                <Label className="text-xs">อ่าน คิดวิเคราะห์ และเขียน</Label>
-                <Input
-                  value={form.readingThinkingWriting}
-                  onChange={event =>
-                    setForm(prev =>
-                      prev
-                        ? {
-                            ...prev,
-                            readingThinkingWriting: event.target.value,
-                          }
-                        : prev
-                    )
-                  }
-                  className="mt-1 h-8"
-                />
-              </div>
-              {COMPETENCY_LABELS.map(([key, label]) => (
-                <div key={key}>
-                  <Label className="text-xs">{label}</Label>
-                  <Input
-                    value={form.competencies[key] ?? "ดีเยี่ยม"}
-                    onChange={event =>
-                      updateFormMap("competencies", key, event.target.value)
-                    }
-                    className="mt-1 h-8"
-                  />
-                </div>
-              ))}
-              {ATTRIBUTE_LABELS.map(([key, label]) => (
-                <div key={key}>
-                  <Label className="text-xs">{label}</Label>
-                  <Input
-                    value={form.attributes[key] ?? "ดีเยี่ยม"}
-                    onChange={event =>
-                      updateFormMap("attributes", key, event.target.value)
-                    }
-                    className="mt-1 h-8"
-                  />
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-4 border-t border-slate-200 pt-4">
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-                <p className="text-xs font-semibold text-slate-600">
-                  กิจกรรมพัฒนาผู้เรียน
-                </p>
-                {reports.length > 1 && (
-                  <p className="text-xs text-blue-600">
-                    แก้ครั้งเดียวและบันทึกให้ทุกคนในห้องนี้
-                  </p>
-                )}
-              </div>
-              <div className="grid gap-3 md:grid-cols-4">
-                {ACTIVITY_LABELS.map(([key, label]) => (
-                  <div key={key}>
-                    <Label className="text-xs">ชื่อกิจกรรม: {label}</Label>
-                    <Input
-                      value={form.activityLabels[key] ?? label}
-                      onChange={event =>
-                        updateFormMap("activityLabels", key, event.target.value)
-                      }
-                      className="mt-1 h-8"
-                    />
-                    <Label className="mt-2 block text-xs">ผลกิจกรรม</Label>
-                    <Input
-                      value={form.activities[key] ?? "ผ่าน"}
-                      onChange={event =>
-                        updateFormMap("activities", key, event.target.value)
-                      }
-                      className="mt-1 h-8"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="space-y-8 p-8 print:space-y-0 print:p-0">

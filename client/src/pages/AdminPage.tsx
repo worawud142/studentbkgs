@@ -438,7 +438,7 @@ function SystemDataTab() {
               inputMode="url"
             />
             <p className="mt-1 text-xs text-slate-500">
-              ใช้ในหัวกระดาษ ปพ.6 หากเว้นว่าง ระบบจะแสดงกรอบตราโรงเรียนแทน
+              ใช้ในหัวกระดาษ ปพ.6 หากเว้นว่าง ระบบจะใช้โลโก้โรงเรียนบ้านขัวก่ายที่แนบมากับระบบ
             </p>
           </div>
           <div className="grid gap-3 md:grid-cols-3">
